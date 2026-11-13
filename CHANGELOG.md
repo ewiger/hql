@@ -246,6 +246,10 @@ The language continues to be in active development.
 
 ### Fixed
 
+- A PostgreSQL serialization failure, deadlock or constraint refusal inside
+  a transaction scope no longer panics: the refusal is noted while the
+  attempt holds its connection, and the scope retries or fails as it does
+  over SQLite.
 - After `import doc`, `HmdDoc`, `HmdCard` and `MdCard` are types: `cards |
   of_type(HmdCard)` keeps the cards written in hyper-markdown and
   `of_type(MdCard)` those in Markdown, beside a card's kind. They were

@@ -102,7 +102,10 @@ pub(crate) fn leaving(span: Range<usize>) -> Diagnostic {
 }
 
 fn note_failure(class: Class) {
-    if in_scope() {
+    // A PostgreSQL refusal is noted while the attempt's client is in use,
+    // its slot borrowed mutably: that, too, means an attempt is running.
+    let running = ACTIVE.with(|active| active.try_borrow().map_or(true, |held| held.is_some()));
+    if running {
         FAILURE.with(|held| held.set(Some(class)));
     }
 }
@@ -315,5 +318,30 @@ fn postgres_message_in(error: &postgres::Error) -> String {
     match error.as_db_error() {
         Some(db) => db.message().to_owned(),
         None => error.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_refusal_is_noted_while_the_attempts_connection_is_in_use() {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        ACTIVE.with(|held| {
+            *held.borrow_mut() = Some(Active::Sqlite {
+                path: PathBuf::from(":memory:"),
+                connection,
+            });
+        });
+        // As `with_postgres` holds the slot while a statement runs.
+        ACTIVE.with(|held| {
+            let _in_use = held.borrow_mut();
+            note_failure(Class::Conflict);
+        });
+        assert_eq!(take_failure(), Some(Class::Conflict));
+        rollback();
+        note_failure(Class::Conflict);
+        assert_eq!(take_failure(), None, "no attempt, nothing noted");
     }
 }
