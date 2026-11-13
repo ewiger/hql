@@ -204,3 +204,8 @@ cargo clippy --all-targets -- -D warnings
 - 2026-11-12: part 1, `time`, implemented (issue 0064); `Unit` is
   `TimeUnit`, `Zone` is not `Orderable`, the zone defaults are overloads,
   and `abs` over `Duration` waits for `math` to take it
+- 2026-11-13: part 4, `random`, implemented (issue 0066); each form of a
+  name states its own purity, a call site is the call's byte offset in the
+  program text, the evaluation seed is reported as an `info` diagnostic,
+  `uuid(name, namespace)` also takes `"dns"`, `"url"`, `"oid"` and
+  `"x500"`, and localhost runs one partition
