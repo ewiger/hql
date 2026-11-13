@@ -17,6 +17,7 @@ use crate::types::Value;
 use std::collections::BTreeMap;
 use std::ops::Range;
 use std::sync::Arc;
+use std::time::Duration;
 
 /// Every operation the `net` extension provides.
 pub(crate) static STEPS: &[Operation] = &[
@@ -106,10 +107,27 @@ fn eval_http(
         },
         None => BTreeMap::new(),
     };
+    let timeout = match super::named(arguments, "timeout_ms").or_else(|| unnamed.get(2).copied()) {
+        Some(argument) => match cx.evaluate(&argument.value)? {
+            Value::Int(count) => u64::try_from(count)
+                .ok()
+                .filter(|count| *count > 0)
+                .map(Duration::from_millis),
+            _ => None,
+        }
+        .ok_or_else(|| {
+            Diagnostic::runtime(
+                span.clone(),
+                "`timeout_ms` is a count of milliseconds, above 0",
+            )
+        })?,
+        None => crate::net::RESPONSE,
+    };
     Ok(endpoint(Endpoint::Http {
         url,
         method: method.to_uppercase(),
         headers,
+        timeout,
     }))
 }
 

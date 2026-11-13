@@ -231,6 +231,11 @@ A `Network` read or write ends.
   that sends nothing for 30 seconds MUST fail; each is an evaluation failure
   naming the URL or the address. A `tap` waits for the next message without
   limit, as a `Stream` does.
+- `timeout_ms`, a parameter of `http` and a key of the `http` kind,
+  overrides the response bound of one endpoint in milliseconds, and MUST be
+  above 0, as `idle_ms` bounds a NATS or Kafka read. A WebSocket handshake
+  is a response: one that sends nothing for 30 seconds fails, naming the
+  URL.
 - An `Http` body is fetched once per evaluation for each distinct pair of
   URL and headers.
 - A `Tcp` write MUST separate documents as the format does, a `---` line
@@ -432,3 +437,9 @@ cargo clippy --all-targets -- -D warnings
 - 2026-11-13: the rename built, in 0.6.0: `socket(host, port)` is
   `tcp(host, port)` and `Socket` is `Tcp`; each old name is refused with
   help naming the new one (issue 0072)
+- 2026-11-13: amended and the bounds built, in 0.6.0: a connection to an
+  `http`, `websocket` or `tcp` endpoint fails after 10 seconds, and an
+  `http` response or a WebSocket handshake silent for 30 seconds fails,
+  each naming the URL or the address; `http(url, timeout_ms = n)`
+  overrides the response bound. The `timeout_ms` key waits for the `http`
+  kind (issue 0069, issue 0072)

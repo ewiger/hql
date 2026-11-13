@@ -9,6 +9,7 @@ use std::path::Path;
 use std::process::{Command, Output, Stdio};
 use std::sync::mpsc;
 use std::thread;
+use std::time::{Duration, Instant};
 use tempfile::tempdir;
 
 fn hql_in(dir: &Path, args: &[&str]) -> Output {
@@ -165,6 +166,72 @@ fn a_failed_status_names_the_url() {
         "import net\n{{done: true}} | target(http(\"{url}\", method = \"POST\"), Json)"
     ));
     refused(&output, &format!("{url}: the server answered 500"));
+}
+
+/// A server that accepts a connection and never answers, until the test is
+/// done with it.
+fn silent_server() -> (u16, mpsc::Sender<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (done, wait) = mpsc::channel::<()>();
+    thread::spawn(move || {
+        let held: Vec<TcpStream> = listener.incoming().take(1).flatten().collect();
+        let _ = wait.recv();
+        drop(held);
+    });
+    (port, done)
+}
+
+/// `hql` with a limit of its own: a run still going after `limit` is killed
+/// and fails the test, so a hang is a failure and not a stuck suite.
+fn hql_within(program: &str, limit: Duration) -> Output {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_hql"))
+        .current_dir(std::env::temp_dir())
+        .arg(program)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let started = Instant::now();
+    while child.try_wait().unwrap().is_none() {
+        if started.elapsed() > limit {
+            child.kill().unwrap();
+            panic!("hql was still running after {limit:?}");
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn a_silent_server_ends_in_a_failure_naming_the_url() {
+    let (port, done) = silent_server();
+    let url = format!("http://127.0.0.1:{port}/birds");
+    let output = hql_within(
+        &format!("import net\nsource(http(\"{url}\", timeout_ms = 200), Json)"),
+        Duration::from_secs(20),
+    );
+    refused(
+        &output,
+        &format!("{url}: the server sent nothing for 200 ms"),
+    );
+    drop(done);
+}
+
+#[test]
+fn a_response_bound_is_above_zero_and_shown_when_written() {
+    refused(
+        &hql("import net\nhttp(\"http://127.0.0.1:1/\", timeout_ms = 0)"),
+        "`timeout_ms` is a count of milliseconds, above 0",
+    );
+    let shown = ok(&hql(
+        "import net\n[http(\"http://127.0.0.1:1/\"), http(\"http://127.0.0.1:1/\", timeout_ms = 500)]",
+    ));
+    assert_eq!(
+        shown.trim(),
+        r#"[http("http://127.0.0.1:1/"), http("http://127.0.0.1:1/", timeout_ms = 500)]"#
+    );
 }
 
 #[test]

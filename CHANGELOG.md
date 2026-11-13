@@ -310,6 +310,12 @@ The language continues to be in active development.
   result type, an alias's after its parameters, and a trait function's after
   its result type (issue 0056). A block body printed its opening `{` and
   first line in the signature, and a body opening with `(` printed the `(`.
+- A network endpoint no longer waits forever on a server that does not
+  answer. A connection to an `http`, `websocket` or `tcp` endpoint not made
+  within 10 seconds fails, and so does an `http` response or a WebSocket
+  handshake that sends nothing for 30 seconds; each failure names the URL
+  or the address. `http(url, timeout_ms = n)` sets one endpoint's response
+  bound ([HQL-0047](doc/proposals/HQL-0047/README.md), issue 0069).
 
 ### Changed
 

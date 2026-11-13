@@ -51,6 +51,28 @@ Step
 their format separates them, one JSON value after another or one line at a
 time.
 
+## Network bounds
+
+A network read or write ends. A connection that is not made within 10
+seconds is an evaluation failure naming the URL, or the host and port of a
+`tcp` endpoint. An `http` response that sends nothing for 30 seconds is an
+evaluation failure naming the URL, and so is a `websocket` handshake the
+server answers nothing to for 30 seconds. `timeout_ms` sets the response
+bound of one `http` endpoint, in milliseconds above 0:
+
+<!-- run: check -->
+```hql
+import net
+source(http("https://api.example.com/birds", timeout_ms = 5000), Json)
+```
+
+```text
+Seq<Data>
+```
+
+Once a `websocket` or `tcp` connection is open, `tap` waits for the next
+document without limit, as any `Stream` does.
+
 Without the import the endpoint constructors are not in scope:
 
 ```hql

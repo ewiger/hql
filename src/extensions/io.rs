@@ -1188,9 +1188,15 @@ fn eval_tap(
         | Endpoint::Nats { .. }
         | Endpoint::NatsJetStream { .. } => Reading::live(&endpoint, format)
             .map_err(|message| Diagnostic::io_failure(span.clone(), message))?,
-        Endpoint::Http { url, headers, .. } => Reading::Http {
+        Endpoint::Http {
+            url,
+            headers,
+            timeout,
+            ..
+        } => Reading::Http {
             url: url.clone(),
             headers: headers.clone(),
+            timeout: *timeout,
             format,
         },
         Endpoint::File(path) => Reading::file(path.clone(), format),
