@@ -198,17 +198,30 @@ impl Evaluator<'_> {
                 } => {
                     let methods = methods
                         .iter()
-                        .map(|(name, parameters, body, ty)| {
-                            let function = Value::Function(Arc::new(Closure {
-                                name: Some(format!("{trait_name}.{name}")),
-                                parameters: parameters.clone(),
-                                body: Arc::clone(body),
-                                captured: self.scope.clone(),
-                                ty: ty.clone(),
-                            }));
-                            (name.clone(), function)
+                        .map(|(name, method)| {
+                            let function = match method {
+                                crate::execution::ImplMethod::Body(parameters, body, ty) => {
+                                    Value::Function(Arc::new(Closure {
+                                        name: Some(format!("{trait_name}.{name}")),
+                                        parameters: parameters.clone(),
+                                        body: Arc::clone(body),
+                                        captured: self.scope.clone(),
+                                        ty: ty.clone(),
+                                    }))
+                                }
+                                // The module's own function, already bound.
+                                crate::execution::ImplMethod::Function(function) => {
+                                    self.scope.get(function).cloned().ok_or_else(|| {
+                                        Diagnostic::runtime(
+                                            0..0,
+                                            format!("`{function}` of `{trait_name}` is not bound"),
+                                        )
+                                    })?
+                                }
+                            };
+                            Ok((name.clone(), function))
                         })
-                        .collect();
+                        .collect::<Result<_, Diagnostic>>()?;
                     self.impls.push(RuntimeImpl {
                         trait_name: trait_name.clone(),
                         target: target.clone(),

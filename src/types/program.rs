@@ -180,6 +180,40 @@ pub fn adopt_parent(
     Ok(())
 }
 
+/// Declare the union a trait names, `Figure` of `trait Shape as Figure`,
+/// with no member yet (HQL-0039).
+///
+/// # Errors
+///
+/// Returns why the name cannot join the lattice: it names a type already.
+pub fn declare_trait_type(name: &str) -> Result<TypeRef, TypeError> {
+    let held = current()?;
+    let mut system = (*held.system).clone();
+    let constructor = constructor(name);
+    system.declare_open_union(constructor)?;
+    install(Arc::new(Lattice {
+        system: Arc::new(system),
+        ..(*held).clone()
+    }));
+    Ok(constructor.apply([]))
+}
+
+/// Add an implementing type to the union a trait names.
+///
+/// # Errors
+///
+/// Returns why the type cannot be a member.
+pub fn add_member(union: TypeConstructor, member: TypeRef) -> Result<(), TypeError> {
+    let held = current()?;
+    let mut system = (*held.system).clone();
+    system.add_member(union, member)?;
+    install(Arc::new(Lattice {
+        system: Arc::new(system),
+        ..(*held).clone()
+    }));
+    Ok(())
+}
+
 /// Record that `implementing` implements the validator type `name`, or,
 /// with none, that `name` is a validator type (HQL-0034).
 ///

@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: A trait names the union of its implementers as a type, and a list holds values of every member
-// implementation: pending
-// proposal: doc/proposals/HQL-0039/README.md
+// implementation: implemented
 // environment: pure
 // expected-type: List<String>
 // expected-json: ["area 6.0", "area 3.0"]

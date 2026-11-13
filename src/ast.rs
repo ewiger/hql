@@ -35,6 +35,10 @@ pub(crate) enum Stmt {
     Module {
         path: Vec<String>,
         pattern: Option<TypeAnn>,
+        /// The traits listed after the pattern, `Index<String>, Slice`: the
+        /// module's own `self` functions implement them for the pattern's
+        /// type (HQL-0039).
+        traits: Vec<TypeAnn>,
         span: Range<usize>,
     },
     /// `type Name<P> : Parent { field : Type }`, or `type Name = union { A, B }`.
@@ -96,6 +100,10 @@ pub(crate) struct TraitDecl {
     pub generics: Vec<String>,
     /// The bound a type parameter is written with, `T : Data`.
     pub bounds: Vec<(String, TypeAnn)>,
+    /// The type it names, `Figure` in `trait Shape as Figure`, and where
+    /// that name is written: the union of the types implementing it
+    /// (HQL-0039).
+    pub named_type: Option<(String, Range<usize>)>,
     /// The traits it extends, `Validator` in `trait Email : Validator`:
     /// their functions are its own.
     pub supertraits: Vec<TypeAnn>,

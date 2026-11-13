@@ -237,9 +237,46 @@ figures | map(f => match f {
 ["area 6.0", "area 3.0"]
 ```
 
-A later release names that union in the trait's declaration, `trait Shape as
-Figure`, so that `List<Figure>` holds every implementing type and
-`f.describe()` needs no `match`. The current release does not parse it yet.
+## A trait's type
+
+A trait's declaration may name the union of the types implementing it:
+`trait Shape as Figure` declares the trait `Shape` and the type `Figure`.
+`Figure`'s members are the types with an implementation of `Shape`, so
+`List<Figure>` holds a `Rect` and a `Circle`, and `f.describe()` calls the
+implementation of the value's own type:
+
+<!-- run: novault -->
+```hql
+trait Shape as Figure {
+    fn area(self) : Float
+    fn describe(self) : String = fmt("area {}", self.area())
+}
+
+type Rect { width : Float, height : Float }
+type Circle { radius : Float }
+
+impl Shape for Rect {
+    fn area(self) : Float = self.width * self.height
+}
+
+impl Shape for Circle {
+    fn area(self) : Float = 3.0f * self.radius * self.radius
+}
+
+figures : List<Figure> = [Rect(width = 2.0f, height = 3.0f), Circle(radius = 1.0f)]
+
+figures | map(f => f.describe())
+```
+
+```text
+["area 6.0", "area 3.0"]
+```
+
+`Figure` is a union and is checked as one: a `match` over it covers every
+member. It implements `Shape`, so it satisfies a bound `T : Shape`. Two
+values of `Figure` may be of two members, so a trait naming its type writes
+`Self` only as the receiver, never as a parameter or a result; and a trait
+with type parameters, or a validator trait, names no type.
 
 ## A trait extending a trait
 

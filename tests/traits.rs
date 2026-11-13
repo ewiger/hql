@@ -380,3 +380,48 @@ fn a_trait_in_a_type_position_is_refused_with_the_bound_to_write() {
     }
     assert!(refused("x : Nowhere = 1\nx").contains("unknown type `Nowhere`"));
 }
+
+#[test]
+fn a_trait_names_its_type_only_without_parameters_and_without_validator() {
+    let message = refused("trait Pick<T> as Picked {\n    fn pick(self) : T\n}\n1");
+    assert!(
+        message.contains("`Pick` takes type parameters, so it names no type"),
+        "{message}"
+    );
+    let message = refused("trait Email as Mail : Validator { }\n1");
+    assert!(
+        message.contains("`Email` is a validator trait, so it names no type"),
+        "{message}"
+    );
+    let message = refused(
+        "trait Shape as Figure {\n    fn area(self) : Float\n}\n\
+         type Ring<T> { items : List<T> }\n\
+         impl<T> Shape for Ring<T> {\n    fn area(self) : Float = 0.0f\n}\n1",
+    );
+    assert!(
+        message.contains("an implementation with type parameters"),
+        "{message}"
+    );
+    // The name of a type already declared is no name for a trait's type.
+    let message = refused(
+        "type Figure { x : Int }\ntrait Shape as Figure {\n    fn area(self) : Float\n}\n1",
+    );
+    assert!(message.contains("Figure"), "{message}");
+}
+
+#[test]
+fn a_function_of_a_trait_a_named_type_extends_is_a_function_of_the_type() {
+    let program = "trait Named {\n    fn name(self) : String\n}\n\
+                   trait Greeter as Greeted : Named {\n    \
+                   fn greet(self) : String = fmt(\"hi {}\", self.name())\n}\n\
+                   type Dog { tag : String }\n\
+                   impl Greeter for Dog {\n    fn name(self) : String = self.tag\n}\n\
+                   xs : List<Greeted> = [Dog(tag = \"rex\")]\n\
+                   xs | map(x => [x.name(), x.greet()])";
+    assert_eq!(shown(program), "[[\"rex\", \"hi rex\"]]");
+    let message = refused(
+        "trait Named {\n    fn same(self, other: Self) : Bool\n}\n\
+         trait Greeter as Greeted : Named { }\n1",
+    );
+    assert!(message.contains("`same`"), "{message}");
+}

@@ -15,6 +15,18 @@ target/debug/hql run examples/traits/queries/trait-type-list.hql
 | [type bound](queries/trait-type-bound.hql) | `Figure` satisfies `T : Shape` | `9.0` |
 | [type match](queries/trait-type-match.hql) | a `match` over `Figure` covers each implementing type | `["rect 2.0 by 3.0", "circle of radius 1.0"]` |
 | [same name](queries/trait-type-same-name.hql) | `trait Named as Named`: the trait in a bound, the type elsewhere | `["rex", "rock of 3"]` |
+| [invalid Self](queries/invalid-trait-type-self.hql) | a trait naming its type writes `Self` only as the receiver; `other: Self` is refused | type error |
+| [invalid match](queries/invalid-trait-type-match.hql) | a `match` over `Figure` that leaves out `Circle` | non-exhaustive match |
+| [invalid impl](queries/invalid-trait-type-impl.hql) | `impl Shape for Figure`: the union implements `Shape` through its members | duplicate implementation |
+| [module trait list](queries/module-trait-list.hql) | `module shapes.circle for Circle : Shape`: the module's `area` is `Shape`'s, through a bound, `c.area()` and `circle.area(c)` | `[12.0, 3.0, 3.0, 2.0]` |
+| [module trait default](queries/module-trait-default.hql) | the default `describe` of `Shape`, inherited through the module's trait list | `["circle with area 3.0", "circle with area 12.0"]` |
+| [invalid missing function](queries/invalid-module-missing-function.hql) | `shapes.square` lists `Shape` and declares no `name` | missing implementation |
+| [invalid shared name](queries/invalid-module-shared-name.hql) | `shapes.label` lists two traits that both require `title` | type error |
+| [invalid impl beside module](queries/invalid-impl-beside-module.hql) | `impl Shape for Circle` beside `module shapes.circle for Circle : Shape` | duplicate implementation |
+
+The cases over modules read the module root [`lib/`](lib/): `shapes` declares
+`Shape`, and `shapes.circle`, `shapes.square` and `shapes.label` are receiver
+modules over types of their own.
 
 `Figure` is the union of the types that implement `Shape`. It is a union,
 not a trait object: its members are the implementing types the program
