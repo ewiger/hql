@@ -206,6 +206,9 @@ nav:
           - std/io/msg/nats: reference/std/io/msg/nats/index.md
           - std/io/msg/nats_jetstream: reference/std/io/msg/nats_jetstream/index.md
           - std/vault: reference/std/vault/index.md
+          - std/crypto/digest: reference/std/crypto/digest/index.md
+          - std/encoding: reference/std/encoding/index.md
+          - std/bytes: reference/std/bytes/index.md
           - std/validators: reference/std/validators/index.md
       - search:
           - search/lexical: reference/search/lexical/index.md

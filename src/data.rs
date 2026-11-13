@@ -30,6 +30,7 @@ impl PartialEq for Data {
             }
             (Self::Str(a), Self::Str(b)) => a == b,
             (Self::Time(a), Self::Time(b)) => a == b,
+            (Self::Bytes(a), Self::Bytes(b)) => a == b,
             (Self::List(a), Self::List(b)) => a == b,
             (Self::Map(a), Self::Map(b)) => a == b,
             _ => false,
@@ -55,6 +56,9 @@ pub enum Data {
     /// A time value: what a time scalar is as a leaf. A decoder never
     /// produces one from text; a format writes it as its ISO 8601 text.
     Time(crate::time::Time),
+    /// Octets: what a `Bytes` value is as a leaf. A decoder never produces
+    /// one from text; a text format writes it as its base64 text.
+    Bytes(std::sync::Arc<[u8]>),
     /// Text.
     Str(String),
     /// An ordered list.
@@ -121,6 +125,7 @@ impl Data {
             Self::Float(_) => "float",
             Self::Decimal(_) => "decimal",
             Self::Time(_) => "time",
+            Self::Bytes(_) => "bytes",
             Self::Str(_) => "string",
             Self::List(_) => "list",
             Self::Map(_) => "map",
@@ -149,6 +154,7 @@ impl Data {
                 .map_or(serde_json::Value::Null, serde_json::Value::Number),
             Self::Decimal(value) => decimal_json(value),
             Self::Time(time) => serde_json::Value::String(time.to_string()),
+            Self::Bytes(octets) => serde_json::Value::String(base64_text(octets)),
             Self::Str(text) => serde_json::Value::String(text.clone()),
             Self::List(items) => {
                 serde_json::Value::Array(items.iter().map(Self::to_json).collect())
@@ -161,6 +167,111 @@ impl Data {
             ),
         }
     }
+}
+
+impl Data {
+    /// The canonical JSON text of the tree (RFC 8785): object keys sorted by
+    /// their UTF-16 code units, no whitespace, strings escaped as JSON
+    /// requires and no further. A number is written as its digits without
+    /// trailing zeros or an exponent, so every number leaf HQL equality
+    /// calls equal, `1`, `1.0` and `1.00`, writes one text; a time value is
+    /// its ISO 8601 text and an empty entry is `null`.
+    #[must_use]
+    pub fn canonical_json(&self) -> String {
+        let mut out = String::new();
+        self.write_canonical(&mut out);
+        out
+    }
+
+    fn write_canonical(&self, out: &mut String) {
+        match self {
+            Self::Empty => out.push_str("null"),
+            Self::Bool(value) => out.push_str(if *value { "true" } else { "false" }),
+            Self::Int(value) => out.push_str(&Decimal::from_int(*value).canonical()),
+            Self::Float(value) => match Decimal::from_float(*value) {
+                Some(value) => out.push_str(&value.canonical()),
+                None => out.push_str("null"),
+            },
+            Self::Decimal(value) => out.push_str(&value.canonical()),
+            Self::Time(time) => canonical_string(&time.to_string(), out),
+            Self::Bytes(octets) => canonical_string(&base64_text(octets), out),
+            Self::Str(text) => canonical_string(text, out),
+            Self::List(items) => {
+                out.push('[');
+                for (index, item) in items.iter().enumerate() {
+                    if index > 0 {
+                        out.push(',');
+                    }
+                    item.write_canonical(out);
+                }
+                out.push(']');
+            }
+            Self::Map(entries) => {
+                let mut sorted: Vec<_> = entries.iter().collect();
+                sorted.sort_by(|(a, _), (b, _)| a.encode_utf16().cmp(b.encode_utf16()));
+                out.push('{');
+                for (index, (key, value)) in sorted.into_iter().enumerate() {
+                    if index > 0 {
+                        out.push(',');
+                    }
+                    canonical_string(key, out);
+                    out.push(':');
+                    value.write_canonical(out);
+                }
+                out.push('}');
+            }
+        }
+    }
+}
+
+/// A JSON string as RFC 8785 writes it: `"` and `\` escaped, the control
+/// characters as `\b`, `\t`, `\n`, `\f`, `\r` or `\u00xx` in lowercase hex,
+/// every other character as itself.
+fn canonical_string(text: &str, out: &mut String) {
+    out.push('"');
+    for character in text.chars() {
+        match character {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\u{8}' => out.push_str("\\b"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\u{c}' => out.push_str("\\f"),
+            '\r' => out.push_str("\\r"),
+            control if u32::from(control) < 0x20 => {
+                out.push_str(&format!("\\u{:04x}", u32::from(control)));
+            }
+            other => out.push(other),
+        }
+    }
+    out.push('"');
+}
+
+/// Octets as a text format writes them: base64, RFC 4648 standard
+/// alphabet, padded.
+#[must_use]
+pub fn base64_text(octets: &[u8]) -> String {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.encode(octets)
+}
+
+/// The octets padded standard base64 text holds, or `None`.
+#[must_use]
+pub fn base64_octets(text: &str) -> Option<Vec<u8>> {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.decode(text).ok()
+}
+
+/// Octets as a value prints them: `0x` and lowercase hex, two digits each.
+#[must_use]
+pub fn hex_text(octets: &[u8]) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::with_capacity(2 + octets.len() * 2);
+    out.push_str("0x");
+    for octet in octets {
+        let _ = write!(out, "{octet:02x}");
+    }
+    out
 }
 
 /// A JSON number with a decimal's digits and scale exactly: `1.50` stays
@@ -269,6 +380,7 @@ impl fmt::Display for Data {
             Self::Float(value) => write!(f, "{value:?}"),
             Self::Decimal(value) => write!(f, "{value}"),
             Self::Time(time) => write!(f, "{time}"),
+            Self::Bytes(octets) => write!(f, "{}", hex_text(octets)),
             Self::Str(text) => write!(f, "{text:?}"),
             Self::List(items) => {
                 f.write_str("[")?;

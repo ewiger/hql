@@ -1,8 +1,8 @@
 # Crypto: bytes, keys, signatures, encryption and key vaults
 
-Design only: every case here is `status: proposed`, written ahead of the
-implementation of [HQL-0053](../../doc/proposals/HQL-0053/README.md), and
-the harness asserts that none checks yet.
+The cases follow [HQL-0053](../../doc/proposals/HQL-0053/README.md). A case
+at `status: proposed` is written ahead of its part's implementation, and the
+harness asserts that it does not check yet.
 
 `Bytes` is a finite sequence of octets. Module `crypto` reads and writes
 keys, signs and verifies `String`, `Bytes` and `Data`, computes HMAC tags,
@@ -22,6 +22,9 @@ signed by that key and the same manifest with its version changed.
 | Case | What it shows | Result |
 | --- | --- | --- |
 | [bytes and text](queries/bytes-and-text.hql) | `Bytes("hello")` in hex and base64, and back | its size, two texts, `true` |
+| [index and slice](queries/bytes-index-and-slice.hql) | `b[0]`, `b[-1]`, `b[0:2]` and `+` over `Bytes("hé")` | octets as `Int`s, `Bytes` |
+| [order](queries/bytes-order.hql) | four values sorted | `0x00 < 0x0000 < 0x01 < 0xff` |
+| [invalid hex](queries/invalid-bytes-hex.hql) | `Bytes("6g", Hex)` | an evaluation error at position 1 |
 | [RFC 8032 signature](queries/sign-rfc8032-test-1.hql) | a PKCS #8 PEM key signs the empty message | RFC 8032 test 1's signature |
 | [verify a release](queries/verify-a-release.hql) | `verify_data` over canonical JSON; a changed member fails | `[true, false]` |
 | [a key prints redacted](queries/a-private-key-prints-redacted.hql) | `str` of a private key, and its thumbprint | RFC 8037's thumbprint, twice |

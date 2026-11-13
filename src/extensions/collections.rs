@@ -152,6 +152,8 @@ fn wrapped(input: &Arc<Traversal>, element: TypeRef, source: Source) -> Value {
 /// Every step the core provides, in the order help prints them.
 pub(crate) static STEPS: &[Operation] = &[
     // The constructors of `core`'s time scalars (HQL-0041 part 1).
+    // The constructor of `core`'s `Bytes` (HQL-0053 part 1).
+    super::bytes::BYTES,
     super::time::DATE,
     super::time::DATE_TIME,
     super::time::INSTANT,
@@ -2230,6 +2232,7 @@ fn encode(value: &Value, out: &mut sha2::Sha256) {
         // Equal decimals share a digest whatever their scale.
         Value::Decimal(x) => text(out, b"d", &x.canonical()),
         Value::Time(time) => text(out, time.type_name().as_bytes(), &time.to_string()),
+        Value::Bytes(octets) => text(out, b"Bytes", &crate::data::hex_text(octets)),
         Value::Bool(b) => out.update([b'b', u8::from(*b)]),
         Value::Str(held) => text(out, b"s", held),
         Value::Formatted(formatted) => text(out, b"s", &formatted.text),
@@ -2270,6 +2273,7 @@ fn encode(value: &Value, out: &mut sha2::Sha256) {
             crate::data::Data::Float(x) => encode(&Value::Float(*x), out),
             crate::data::Data::Decimal(x) => encode(&Value::Decimal(x.clone()), out),
             crate::data::Data::Time(time) => encode(&Value::Time(*time), out),
+            crate::data::Data::Bytes(octets) => encode(&Value::Bytes(Arc::clone(octets)), out),
             crate::data::Data::Bool(b) => encode(&Value::Bool(*b), out),
             crate::data::Data::Str(held) => text(out, b"s", held),
             other => text(out, b"t", &format!("{other:?}")),

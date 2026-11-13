@@ -212,6 +212,9 @@ cargo clippy --all-targets -- -D warnings
   `"x500"`, and localhost runs one partition
 - 2026-11-13: part 3's digest module is `crypto.digest`, and its algorithms
   are cryptographic hash functions only
+- 2026-11-13: part 3, `crypto.digest` and `encoding`, implemented; the
+  algorithms and encodings are built-in type names, and canonical JSON
+  writes a number as its exact digits without an exponent
 - 2026-11-13: part 2, `stats`, implemented; over `Int` and `Decimal` values
   a reduction's state is `(n, Σx, Σx²)`, exact and combined by addition,
   which is Chan's update in exact arithmetic, and over `Float` values it is

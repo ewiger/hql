@@ -20,8 +20,11 @@ use std::ops::Range;
 use std::path::Path;
 
 pub(crate) mod binding;
+pub(crate) mod bytes;
 pub(crate) mod collections;
 pub(crate) mod contract;
+pub(crate) mod digest;
+pub(crate) mod encoding;
 pub(crate) mod env;
 pub mod format;
 pub(crate) mod fs;
@@ -601,6 +604,30 @@ static REGEX: Extension = Extension {
     metadata: None,
 };
 
+static DIGEST: Extension = Extension {
+    name: "crypto.digest",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["crypto.digest"],
+    steps: digest::STEPS,
+    metadata: None,
+};
+
+static ENCODING: Extension = Extension {
+    name: "encoding",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["encoding"],
+    steps: encoding::STEPS,
+    metadata: None,
+};
+
+static BYTES: Extension = Extension {
+    name: "bytes",
+    version: env!("CARGO_PKG_VERSION"),
+    provides: &["bytes"],
+    steps: bytes::STEPS,
+    metadata: None,
+};
+
 /// Every extension compiled into this binary, core first.
 ///
 /// Registration is not import: a step here is known to diagnostics and to
@@ -630,6 +657,9 @@ pub(crate) static REGISTERED: &[&Extension] = &[
     &LEXICAL,
     &SEMANTIC,
     &REGEX,
+    &DIGEST,
+    &ENCODING,
+    &BYTES,
 ];
 
 impl Extension {

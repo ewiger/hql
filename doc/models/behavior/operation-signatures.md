@@ -133,6 +133,12 @@ random_int(low: Int, high: Int)                                 : Int       // e
 random_float()                                                  : Float     // effectful
 uuid()                                                          : String    // effectful
 uuid(name: String, namespace: String)                           : String
+
+// crypto.digest and encoding (HQL-0041 part 3)
+digest<A : Algorithm>(s: String, as: Type<A>)   : String   // lowercase hex
+fingerprint(x: Data)                            : String   // SHA-256 of canonical JSON
+encode<E : Encoding>(s: String, as: Type<E>)    : String
+decode<E : Encoding>(s: String, as: Type<E>)    : Option<String>
 ```
 
 ### Proposed

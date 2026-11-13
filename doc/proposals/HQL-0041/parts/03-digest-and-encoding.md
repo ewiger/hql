@@ -47,10 +47,14 @@ fn fingerprint(self: Data) : String
 - `fingerprint` MUST equal `digest(canonical(x), Sha256)`, where
   `canonical(x)` is the JSON Canonicalization Scheme text of the tree
   (RFC 8785): object keys sorted by their UTF-16 code units, no whitespace,
-  numbers in their shortest round-trip form.
-- Two trees equal under HQL equality MUST have equal fingerprints. A
-  `Decimal` MUST be written as its exact digits, and a time value as its
-  ISO 8601 text, so the canonical form loses nothing a tree holds.
+  strings escaped as RFC 8785 escapes them.
+- Two trees equal under HQL equality MUST have equal fingerprints. A number
+  MUST be written as its exact digits with trailing zeros removed and no
+  exponent, so `1`, `1.0` and `1.00` write `1`, and a time value as its
+  ISO 8601 text, so the canonical form loses nothing a tree holds. For a
+  number of magnitude at least 1e-6 and below 1e21 this is RFC 8785's
+  text; outside that range RFC 8785 writes an exponent and loses digits a
+  `Decimal` holds, and `canonical` keeps them.
 
 ## `encoding`
 

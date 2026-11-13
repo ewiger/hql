@@ -28,16 +28,20 @@ fn Bytes(text: String) : Bytes
 impl Eq for Bytes
 impl Ord for Bytes
 impl Add for Bytes            // concatenation
-impl Index<Int> for Bytes     // the octet at a position, 0..255
-impl Slice for Bytes          // `b[0:12]` is a Bytes
 ```
 
 ```hql
 // lib/std/bytes/mod.hql
-/// The functions of a `Bytes` value, in the prelude.
-module bytes for Bytes
+/// The functions of a `Bytes` value, in the prelude. `Index<Int>` and
+/// `Slice` are implemented through `at` and `slice`, as `string`'s are.
+module bytes for Bytes : Index<Int>, Slice
 
 import core
+
+/// The octet at `position` as an `Int` in `0..255`, or `none` outside.
+fn at(self, position: Int) : Option<Int>
+fn slice(self, start: Int, end: Int) : Bytes
+fn slice(self, range: Range) : Bytes
 
 /// How many octets `self` holds.
 fn size(self) : Int
@@ -76,9 +80,9 @@ fn canonical(self: Data) : String
 - `Bytes(s)` MUST be the UTF-8 encoding of `s`, and
   `Bytes(s).to_text()` MUST be `some(s)` for every `String`.
 - `a + b` MUST be the octets of `a` followed by the octets of `b`.
-- `b[i]` MUST be the octet at `i` as an `Int` in `0..255`, and a negative
-  `i` counts from the end, as for every `Index`. `b[a:b]` MUST follow the
-  slice rules of `core`'s `Range`.
+- `b[i]` MUST be the octet at `i` as an `Int` in `0..255`, `none` outside
+  the value, and a negative `i` counts from the end, as `s[i]` reads a
+  `String`. `b[a:b]` MUST follow the slice rules of `core`'s `Range`.
 - `b.encode(E).to_bytes(E)` MUST be `some(b)` for every `Bytes` and every
   encoding of HQL-0041 part 3. `to_bytes` reads the same text `decode`
   reads, without `decode`'s requirement that the octets be UTF-8.

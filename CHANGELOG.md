@@ -126,6 +126,26 @@ The language continues to be in active development.
   endpoint. `io` declares `Transport`, `Direct`,
   `Network`, `ByteTransport`, `MessageTransport` and `RowTransport`; over a
   `MessageTransport` a format may be omitted and is then `Json`.
+- Digests and text encodings ([HQL-0041](doc/proposals/HQL-0041/README.md)
+  part 3). The module `crypto.digest`, imported with `import crypto.digest`
+  and reached as `digest`, declares the algorithms `Md5`, `Sha1`, `Sha256`,
+  `Sha512` and `Blake3`; `s.digest(Sha256)` is the lowercase hex digest of a
+  text's UTF-8 octets, and `fingerprint(x)` the SHA-256 of a tree's
+  canonical JSON (RFC 8785), equal for trees HQL equality calls equal. The
+  module `encoding`, imported with `import encoding`, declares `Hex`,
+  `Base64`, `Base64Url` and `Percent`; `s.encode(E)` writes a text's octets,
+  and `s.decode(E)` reads them back, `none` for text not valid in `E` or
+  octets that are not UTF-8. The algorithm and encoding names are built-in
+  type names.
+- `Bytes`, a finite sequence of octets ([HQL-0053](doc/proposals/HQL-0053/README.md)
+  part 1). `Bytes("hé")` is a text's UTF-8 encoding; `Bytes(t, Hex)`,
+  `t.to_bytes(Base64)` and `b.encode(Hex)` convert through `encoding`. The
+  prelude's `bytes` module gives `size`, `to_text`, `at` and `slice`, so
+  `b[0]` is an octet as an `Int` and `b[0:12]` is `Bytes`; `+`
+  concatenates, and values order octet by octet. A value prints as `0x`
+  and lowercase hex, a text format writes it as base64, and a declared
+  `Bytes` field reads base64 text. `crypto.digest` gains `digest` over
+  `Bytes` and `canonical`, the RFC 8785 text `fingerprint` digests.
 
 ### Fixed
 

@@ -1,6 +1,6 @@
 # HQL-0053: Bytes, keys, signatures, encryption and a key vault
 
-**Status**: drafted
+**Status**: accepted
 **Created**: 2026-11-13
 **Source**: [issue 0067](../../issues/0067-std-crypto.md);
 [HQL-0041 part 3](../HQL-0041/parts/03-digest-and-encoding.md) (digests,
@@ -90,8 +90,8 @@ implements both modules, and neither is in the prelude.
 
 | Module | File | Holds |
 | --- | --- | --- |
-| `core` | `lib/std/core/mod.hql` | `Bytes`, `Bytes(text)` and its `Eq`, `Ord`, `Add`, `Index<Int>` and `Slice` |
-| `bytes` | `lib/std/bytes/mod.hql` | `size`, `to_text` |
+| `core` | `lib/std/core/mod.hql` | `Bytes`, `Bytes(text)` and its `Eq`, `Ord` and `Add` |
+| `bytes` | `lib/std/bytes/mod.hql` | `at`, `slice`, `size`, `to_text` |
 | `encoding` | `lib/std/encoding/mod.hql` | the `Bytes` forms of `encode`, `to_bytes` and `Bytes(text, as)` |
 | `crypto.digest` | `lib/std/crypto/digest/mod.hql` | the `Bytes` form of `digest`, and `canonical` |
 | `crypto` | `lib/std/crypto/mod.hql` | algorithms, key types, key formats, signatures, MACs, passwords, encryption, encrypted endpoints |
@@ -370,3 +370,6 @@ cargo clippy --all-targets -- -D warnings
 - 2026-11-13: drafted
 - 2026-11-13: digests are module `crypto.digest`; part 1 states `Bytes`
   as the value and "binary" as a property of a format
+- 2026-11-13: accepted
+- 2026-11-13: part 1, `Bytes`, implemented; `Index<Int>` and `Slice` are
+  the `bytes` module's `at` and `slice`, and `b[i]` is `none` outside
