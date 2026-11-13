@@ -8,7 +8,7 @@ Related: [[HQL-0047]] (transports),
 on both), [`lib/std/io/mod.hql`](../../lib/std/io/mod.hql),
 [`lib/std/io/net/mod.hql`](../../lib/std/io/net/mod.hql),
 [`src/endpoints.rs`](../../src/endpoints.rs), [`src/net.rs`](../../src/net.rs),
-[endpoints](../public/learn/15-endpoints.md)
+[endpoints](../public/learn/15-endpoints.hmd)
 
 HQL-0047 and HQL-0048 are implemented in part, and accepted
 records stand on them. HQL-0012 names both as amendments, and HQL-0049

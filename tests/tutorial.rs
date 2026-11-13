@@ -146,10 +146,7 @@ fn every_program_in_the_book_writes_what_the_book_shows() {
             let path = entry.unwrap().path();
             if path.is_dir() {
                 pages(&path, into);
-            } else if path
-                .extension()
-                .is_some_and(|extension| extension == "hmd" || extension == "md")
-            {
+            } else if path.extension().is_some_and(|extension| extension == "hmd") {
                 into.push(path);
             }
         }
@@ -198,9 +195,7 @@ fn the_notebook_the_book_shows_builds() {
         String::from_utf8_lossy(&output.stderr)
     );
     let built = String::from_utf8(output.stdout).unwrap();
-    let chapter = std::fs::read_to_string("doc/public/learn/24-documents.hmd")
-        .or_else(|_| std::fs::read_to_string("doc/public/learn/24-documents.md"))
-        .unwrap();
+    let chapter = std::fs::read_to_string("doc/public/learn/24-documents.hmd").unwrap();
     assert!(
         chapter.contains(built.trim_end()),
         "chapter 12 shows a different build:\n{built}"

@@ -6,8 +6,8 @@ Related: [[HQL-0021]] (`target` and `sink`),
 diagnostic channel), [[HQL-0037]] (`fork`,
 whose value is the record of its branches),
 [`lib/std/io/mod.hql`](../../lib/std/io/mod.hql),
-[writing with `target` and `sink`](../public/learn/09-io/target.md),
-[deduplication, in the load](../public/learn/20-olap/deduplication.md#in-the-load)
+[writing with `target` and `sink`](../public/learn/09-io/target.hmd),
+[deduplication, in the load](../public/learn/20-olap/deduplication.hmd#in-the-load)
 
 `target` and `sink` give `Unit`, the built-in type with one value, and a
 checked pipeline that ends in a write therefore prints `Unit`. The name is

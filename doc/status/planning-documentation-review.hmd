@@ -10,11 +10,11 @@ direction, with `localhost` identified as the current implementation.
 
 ## Scope and reading path
 
-- [Logical steps and physical plans](../public/learn/14-planning-and-backends.md)
+- [Logical steps and physical plans](../public/learn/14-planning-and-backends.hmd)
   is a dedicated book page under chapter 14. It defines step, stage, task
   and job, compares execution strategies, and explains SQL translation with
   CTEs. Existing chapter numbers and page paths are preserved.
-- [Chapter 14](../public/learn/14-etl-pipelines.md) introduces the distinction
+- [Chapter 14](../public/learn/14-etl-pipelines.hmd) introduces the distinction
   in its pipeline and effect sections. Chapters 6, 9, 13 and 17 and the book
   contents link readers to the dedicated explanation.
 - [[HQL-0055]] states the preservation contract

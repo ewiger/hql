@@ -135,7 +135,7 @@ compile-time.
   with a checked program.
 - `src/execution.rs` lowers checked facts; `src/evaluation.rs` consumes only
   the execution tree.
-- The documentation: [the Learn book](../../public/learn/index.md), the
+- The documentation: [the Learn book](../../public/learn/index.hmd), the
   [[type-system|type system]] and
   [[design-status|design status]] cards, and the
   repository `README.md`.

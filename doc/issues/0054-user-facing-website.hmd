@@ -2,7 +2,7 @@
 
 Status: doing
 Related: [[stack|the documentation-site rules]],
-[`mkdocs.yml`](../../mkdocs.yml), [the HQL book](../public/learn/index.md)
+[`mkdocs.yml`](../../mkdocs.yml), [the HQL book](../public/learn/index.hmd)
 
 The published site mixes the user documentation with the project's design
 corpus: the Wiki, design status, type-interpretation and subtyping rationale,

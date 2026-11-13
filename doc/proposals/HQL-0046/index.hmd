@@ -6,7 +6,7 @@
 [[HQL-0021]] (endpoints, `source` and `tap`),
 [[HQL-0035]] (the schema boundary and write modes),
 the design direction of the pipelines and ETL chapters
-(`doc/public/learn/14-etl-pipelines.md`, `doc/public/learn/19-oltp/index.md`),
+(`doc/public/learn/14-etl-pipelines.hmd`, `doc/public/learn/19-oltp/index.hmd`),
 `src/kafka.rs`, `src/postgres.rs`, `src/endpoints.rs`, `src/extensions/io.rs`
 
 ## Abstract

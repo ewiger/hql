@@ -89,4 +89,4 @@ literal is not a declared record type: `{name: "Alice"}` is `Data`, and reading
 The rule is specified by [[HQL-0029]], and the
 [braces examples](../../../examples/braces/README.md) run it. The book tells
 the same story for a first reader in
-[sets, Data and maps](../../public/learn/02-data-types/sets-data-and-maps.md).
+[sets, Data and maps](../../public/learn/02-data-types/sets-data-and-maps.hmd).

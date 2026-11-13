@@ -2,7 +2,7 @@
 
 **Status**: implemented in part
 **Created**: 2026-11-12
-**Source**: [Deduplication](../../public/learn/20-olap/deduplication.md),
+**Source**: [Deduplication](../../public/learn/20-olap/deduplication.hmd),
 [[HQL-0014]] (`reduce` and `merge` as a combiner),
 [[HQL-0036]] (partitioning and stateful streaming),
 [[HQL-0044]] (type checking is the semantic boundary),
@@ -58,7 +58,7 @@ reduction without building `Group.items`.
 
 - Deduplication across micro-batches of a stream. That is keyed state with
   retention, the stateful streaming of [[HQL-0036]],
-  or the merge write mode the [Merge](../../public/learn/20-olap/merge.md)
+  or the merge write mode the [Merge](../../public/learn/20-olap/merge.hmd)
   page describes.
 - A timestamp type. Ordering by an ISO 8601 `String` is correct only where
   every value is UTC in one format; the time type is

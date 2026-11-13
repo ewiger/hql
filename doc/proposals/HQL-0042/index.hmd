@@ -310,7 +310,7 @@ A standard-library doc string cites a published page with a wikilink. Only
   [[wiki/hypermarkdown|hyper-markdown references]]: `[[/path]]`,
   `[[/path#fragment]]`, each optionally `|display text`. The path is from the
   `doc/public/` root, without the extension; `[[/learn/02-data-types/decimal]]`
-  names `doc/public/learn/02-data-types/decimal.md`, and a path naming a
+  names `doc/public/learn/02-data-types/decimal.hmd`, and a path naming a
   folder names its `index.md`. A doc string has no place in `doc/public/`, so
   the spine walk has nowhere to start, and an absolute reference binds by path
   alone, so the binary resolves it with no index of pages. Unqualified and

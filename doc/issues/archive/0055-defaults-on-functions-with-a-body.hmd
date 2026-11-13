@@ -3,7 +3,7 @@
 Status: done
 Related: [[HQL-0038]],
 [`src/parser.rs`](../../../src/parser.rs),
-[Declaring a function](../../public/learn/04-functions/declaring.md)
+[Declaring a function](../../public/learn/04-functions/declaring.hmd)
 
 HQL-0038, "What a function is", states that a parameter MAY have a default
 value, `limit: Int = 0`, and its grammar admits `("=" expression)?` on every
@@ -18,7 +18,7 @@ syntax failure: a default belongs to an external declaration; a function with a 
 ```
 
 A default is accepted only on an external (native) declaration. The book's
-[Declaring a function](../../public/learn/04-functions/declaring.md) page leaves
+[Declaring a function](../../public/learn/04-functions/declaring.hmd) page leaves
 defaults out until this is resolved.
 
 ## Work
@@ -34,7 +34,7 @@ defaults out until this is resolved.
    default of the wrong type refused, a required parameter after a defaulted
    one refused.
 4. The book: a "Default values" section in
-   [Declaring a function](../../public/learn/04-functions/declaring.md).
+   [Declaring a function](../../public/learn/04-functions/declaring.hmd).
 
 ## Decision
 

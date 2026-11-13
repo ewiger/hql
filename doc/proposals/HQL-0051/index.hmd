@@ -50,7 +50,7 @@ every construct is proposed, and the record says of each what exists today.
   already writes a table "in one transaction". What a program cannot say is
   which statements form one.
 - The only change to a table today is a write of its whole contents.
-  [Merge as a pipeline](../../public/learn/20-olap/merge.md) reads a table,
+  [Merge as a pipeline](../../public/learn/20-olap/merge.hmd) reads a table,
   rewrites it and replaces it under `mode = "replace"`: right for thousands
   of rows and wrong for a ledger, where a transfer touches two rows and must
   touch nothing else.
@@ -67,7 +67,7 @@ every construct is proposed, and the record says of each what exists today.
 ## Goals
 
 - A PostgreSQL transaction reads as one block, with the pipelines of
-  [chapter 6](../../public/learn/06-sql-like-queries.md) selecting the rows
+  [chapter 6](../../public/learn/06-sql-like-queries.hmd) selecting the rows
   it changes.
 - The checker refuses, with the endpoint's kind known, a mutation the
   endpoint cannot perform and a scope its participants cannot share.
@@ -1189,7 +1189,7 @@ cargo clippy --locked --all-targets -- -D warnings
   `num_affected_rows` where the table reports one. Not run against Spark
   3.5 with Delta 3.3 yet
 - 2026-11-13: phase 6: the book's OLTP chapter gains
-  [a transfer is one transaction](../../public/learn/19-oltp/transfers.md),
+  [a transfer is one transaction](../../public/learn/19-oltp/transfers.hmd),
   checked against the shop vault, and the merge page and the tables chapter
   point at it; the `ledger` case of hql-demo runs the transfer against
   PostgreSQL 17

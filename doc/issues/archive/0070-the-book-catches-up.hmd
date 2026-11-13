@@ -11,7 +11,7 @@ Related: [[0054-user-facing-website|0054]],
 
 Branches `feat/gen-purpose-leap` and `feat/stats-env` implement a run of
 standard modules and language features that the reference pages document
-and the book does not. A reader of [the HQL book](../../public/learn/index.md)
+and the book does not. A reader of [the HQL book](../../public/learn/index.hmd)
 learns none of `Bytes`, files and folders, random values, statistics,
 digests, encodings or the environment. The book is the one place that
 teaches them in order. This issue brings it level with the code, keeping
@@ -21,17 +21,17 @@ its three parts, and adds a crypto demo to `hql-demo`.
 
 | Feature | Record | Branch | Book today |
 | --- | --- | --- | --- |
-| Traits: validator traits, `trait A as F`, module trait lists | HQL-0039 | gen-purpose-leap | [Traits](../../public/learn/10-the-type-system/traits.md), current |
-| Execution contexts, named contexts, `HQL_PATH` | HQL-0025, in part | gen-purpose-leap | [Working with hql](../../public/learn/13-working-with-hql.md), to be checked |
+| Traits: validator traits, `trait A as F`, module trait lists | HQL-0039 | gen-purpose-leap | [Traits](../../public/learn/10-the-type-system/traits.hmd), current |
+| Execution contexts, named contexts, `HQL_PATH` | HQL-0025, in part | gen-purpose-leap | [Working with hql](../../public/learn/13-working-with-hql.hmd), to be checked |
 | `io.fs`: `Path`, `Folder`, `Glob`, `Entry` | HQL-0040 | gen-purpose-leap | none |
 | `random`: sampling, shuffling, numbers, UUIDs | HQL-0041 part 4 | gen-purpose-leap | none |
 | `crypto.digest`: digests and fingerprints | HQL-0041 part 3 | gen-purpose-leap | none |
 | `encoding`: hex, base64 and the other text encodings | HQL-0041 part 3 | gen-purpose-leap | none |
-| `Bytes` and module `bytes` | HQL-0053 part 1 | gen-purpose-leap | one line in [Formats](../../public/learn/09-io/formats.md) |
+| `Bytes` and module `bytes` | HQL-0053 part 1 | gen-purpose-leap | one line in [Formats](../../public/learn/09-io/formats.hmd) |
 | `stats`: means, spread, quantiles, mode, correlation | HQL-0041 part 2 | stats-env | none |
 | `io.env`: environment variables and `--arg` | HQL-0041 part 5 | stats-env | none |
-| `time`: `Date`, `DateTime`, `Instant`, `Duration` | HQL-0041 part 1 | main | [Date and time](../../public/learn/02-data-types/time.md), current |
-| Analytic windows | HQL-0050 | main | [Windows](../../public/learn/20-olap/windows.md), current |
+| `time`: `Date`, `DateTime`, `Instant`, `Duration` | HQL-0041 part 1 | main | [Date and time](../../public/learn/02-data-types/time.hmd), current |
+| Analytic windows | HQL-0050 | main | [Windows](../../public/learn/20-olap/windows.hmd), current |
 
 | Keys, their formats and the secret types | HQL-0053 part 2 | gen-purpose-leap | none |
 
@@ -54,14 +54,14 @@ Part I, the language:
 - **9. I/O** gains **Files and folders** (`io.fs`: a `Path`, walking a
   `Folder`, matching a `Glob`, reading an `Entry`) and **Environment and
   arguments** (`io.env`, `--arg`, and what a host grants).
-- **10. The type system**: [Traits](../../public/learn/10-the-type-system/traits.md)
-  has its "In short" section; [Operators](../../public/learn/10-the-type-system/operators.md)
+- **10. The type system**: [Traits](../../public/learn/10-the-type-system/traits.hmd)
+  has its "In short" section; [Operators](../../public/learn/10-the-type-system/operators.hmd)
   lists `Bytes` among the types `Index` and `Slice` serve.
 - **13. Working with hql** is checked against HQL-0025 as implemented.
 
 Part II, data flows:
 
-- **20. OLAP**, [Deduplication](../../public/learn/20-olap/deduplication.md),
+- **20. OLAP**, [Deduplication](../../public/learn/20-olap/deduplication.hmd),
   deduplicates by fingerprint where a row has no key.
 - **14. ETL pipelines** reads its settings from `io.env` where it reads
   them from the command line today.
@@ -120,20 +120,20 @@ needs no service.
 
 ## Outcome
 
-- Part I: [Bytes](../../public/learn/02-data-types/bytes.md),
-  [Files and folders](../../public/learn/09-io/files-and-folders.md) and
-  [Environment and arguments](../../public/learn/09-io/environment.md);
-  [Operators](../../public/learn/10-the-type-system/operators.md) lists
-  `Bytes` under positions; [Working with hql](../../public/learn/13-working-with-hql.md)
+- Part I: [Bytes](../../public/learn/02-data-types/bytes.hmd),
+  [Files and folders](../../public/learn/09-io/files-and-folders.hmd) and
+  [Environment and arguments](../../public/learn/09-io/environment.hmd);
+  [Operators](../../public/learn/10-the-type-system/operators.hmd) lists
+  `Bytes` under positions; [Working with hql](../../public/learn/13-working-with-hql.hmd)
   states the context behaviour that ships.
 - Part II: a setting read with `--arg` in
-  [ETL pipelines](../../public/learn/14-etl-pipelines.md), and duplicates with
+  [ETL pipelines](../../public/learn/14-etl-pipelines.hmd), and duplicates with
   no key kept by fingerprint in
-  [Deduplication](../../public/learn/20-olap/deduplication.md).
-- Part IV, the standard library: [Statistics](../../public/learn/28-statistics.md),
-  [Random values](../../public/learn/29-random.md),
-  [Digests and encodings](../../public/learn/30-digests-and-encodings.md) and
-  [Keys and cryptography](../../public/learn/31-cryptography.md). Keys,
+  [Deduplication](../../public/learn/20-olap/deduplication.hmd).
+- Part IV, the standard library: [Statistics](../../public/learn/28-statistics.hmd),
+  [Random values](../../public/learn/29-random.hmd),
+  [Digests and encodings](../../public/learn/30-digests-and-encodings.hmd) and
+  [Keys and cryptography](../../public/learn/31-cryptography.hmd). Keys,
   signatures, MACs and password hashes run; encryption and the key vault
   are behind the "Design only" warning.
 - `hql-demo`: `crypto/` runs steps 1 to 5 on branch `crypto-release`,

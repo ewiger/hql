@@ -40,6 +40,6 @@ what is always visible, in the prelude or imported.
 5. Comments: the `//!` headers of the Rust source modules stop calling
    themselves extensions (for example `format.rs`); the module
    headers under `lib/std/` already name `std`.
-6. [Learn, retrieval](../public/learn/23-retrieval.md) quotes the
+6. [Learn, retrieval](../public/learn/23-retrieval.hmd) quotes the
    diagnostic "`lexical` is provided by the `lexical` extension"; it is
    updated with the message.

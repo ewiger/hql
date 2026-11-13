@@ -79,5 +79,5 @@ commit of the sequence is in the tree:
   `tests/corpus.rs`.
 
 A second backend is not part of this issue; the
-[planning and backends](../../public/learn/14-planning-and-backends.md)
+[planning and backends](../../public/learn/14-planning-and-backends.hmd)
 chapter describes it as design direction.

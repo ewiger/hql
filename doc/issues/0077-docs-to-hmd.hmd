@@ -31,17 +31,22 @@ HQL reads.
 - [x] The site builds through the plugin; `doc/public/` is a vault; the site
   root, install and examples pages are cards.
 - [x] HQL's filesystem source skips a nested vault.
-- [ ] Dev docs: `stack.md`, `DEVELOP.md`, `models/`, `status/`, `wiki/`,
+- [x] Dev docs: `stack.md`, `DEVELOP.md`, `models/`, `status/`, `wiki/`,
   `memory/`.
-- [ ] Proposals.
-- [ ] Issues, archive included, and `kanban.yaml`.
-- [ ] The book, `doc/public/learn/`.
+- [x] Proposals.
+- [x] Issues, archive included, and `kanban.yaml`.
+- [x] The book, `doc/public/learn/`.
 - [ ] The reference: `hql reference` writes cards.
 - [ ] Clean-up: no `.md` fallbacks in the tests, and `hmd lint` for both vaults
   in CI.
 
 ## Waits on
 
-`hmd lint --root doc` sweeps `doc/public/` into `doc/` until hypermarkdown
-issue 0009 is released. The site build is unaffected, since its root is
-`doc/public/`.
+Two fixes in the `hypermarkdown` package, both for its next patch release:
+
+- **Issue 0009.** `hmd lint --root doc` sweeps `doc/public/` into `doc/`. The
+  site build is unaffected, since its root is `doc/public/`.
+- **Issue 0010.** The MkDocs plugin registers a folder note `a/b/index.hmd` as
+  the page `a/b.md`, and leaves its relative Markdown links resolving from
+  `a/`. The hook `contrib/mkdocs/folder_notes.py` rebases them until then, and
+  is deleted with the dependency bump.

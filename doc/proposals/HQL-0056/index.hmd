@@ -3,7 +3,7 @@
 **Status**: drafted
 **Created**: 2026-11-13
 **Source**: the maintainer's notes on the Learn page
-[Writing with `target` and `sink`](../../public/learn/09-io/target.md);
+[Writing with `target` and `sink`](../../public/learn/09-io/target.hmd);
 [[HQL-0055]] (steps, autes, stages, tasks and jobs);
 [[HQL-0004]] (backends held to `localhost`);
 [[HQL-0005]] (logical steps and physical planning)

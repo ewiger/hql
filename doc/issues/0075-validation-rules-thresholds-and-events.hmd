@@ -40,6 +40,6 @@ written to a sink. Three parts of 0043's scope are not built.
 - A stream read through a contract can fail when the share of invalid
   elements passes a stated threshold, and the program that says so is in
   the Learn page
-  [Validation as a value](../public/learn/11-advanced-data-typing/validation-as-a-value.md).
+  [Validation as a value](../public/learn/11-advanced-data-typing/validation-as-a-value.hmd).
 - Validation events are specified against the event model, or this item is
   moved to the issue that builds the event model.

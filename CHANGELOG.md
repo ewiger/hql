@@ -19,7 +19,7 @@ The language continues to be in active development.
 
 ### Added
 
-- The book's Part II, [Data flows](doc/public/learn/14-etl-pipelines.md):
+- The book's Part II, [Data flows](doc/public/learn/14-etl-pipelines.hmd):
   one shop's story from files to a lakehouse, in endpoints, tables and
   topics, subjects and the lakehouse, APIs and stores (as design), OLTP (the
   shop's day, mistakes, replays, streams against tables, a transfer as one
@@ -34,7 +34,7 @@ The language continues to be in active development.
   version 5 `uuid(name, namespace)`. A draw with a `seed` argument is pure;
   without one it is effectful and draws from the evaluation seed, which
   `--seed` fixes. The generator is ChaCha12 and is not for secrets. The book
-  teaches it in [Random values](doc/public/learn/29-random.md).
+  teaches it in [Random values](doc/public/learn/29-random.hmd).
 - `abs` over a `Duration` ([HQL-0041](doc/proposals/HQL-0041/index.hmd)
   part 1): the prelude's `math` declares `fn abs(self: Duration) : Duration`
   beside the numbers, so `abs(Duration("-PT1H"))` is `PT1H` with no

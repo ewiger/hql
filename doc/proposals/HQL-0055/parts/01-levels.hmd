@@ -2,7 +2,7 @@
 
 Companion to [[HQL-0055]]. This note defines the planning
 boundary and its owners. The public book's
-[Logical steps and physical plans](../../../public/learn/14-planning-and-backends.md)
+[Logical steps and physical plans](../../../public/learn/14-planning-and-backends.hmd)
 introduces the same concepts with a small expression and a hand-written SQL
 translation. Alternative execution strategies here are design direction.
 

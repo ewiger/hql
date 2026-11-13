@@ -1,0 +1,193 @@
+# Bytes
+
+A `Bytes` value is a finite sequence of octets: a key, a signature, a
+digest's raw form, the body of a binary file. A `String` cannot hold one,
+since a `String` is UTF-8 text. `Bytes` has no literal. `Bytes(text)` is the
+UTF-8 encoding of a text, and a value is written as `0x` followed by its
+octets in lowercase hexadecimal, two digits each:
+
+```hql
+[Bytes("hé"), Bytes("")]
+```
+
+```text
+[0x68c3a9, 0x]
+```
+
+The `0x` text is how a value is printed by the REPL, `str` and `fmt`; it is
+not a literal a program can write. `é` is two octets in UTF-8, so `size`
+counts three where a `String`'s `size` counts two characters:
+
+```hql
+b = Bytes("hé")
+[b.size(), "hé".size()]
+```
+
+```text
+[3, 2]
+```
+
+## From hex and base64
+
+`Bytes(text, Encoding)` reads octets written in an encoding of the module
+`encoding`: `Hex`, `Base64`, `Base64Url` or `Percent`. The module is not in
+the prelude, so a program writes `import encoding`:
+
+```hql
+import encoding
+[Bytes("68c3a9", Hex), Bytes("aMOp", Base64)]
+```
+
+```text
+[0x68c3a9, 0x68c3a9]
+```
+
+Text that is not valid in the encoding is an evaluation error naming the
+encoding and the first invalid position, counted from 0:
+
+```hql
+import encoding
+Bytes("68g3", Hex)
+```
+
+```text
+execute failure[invalid-argument]: the text is not valid Hex: the first invalid character is at position 2
+ --> <expression>:2:1
+  |
+2 | Bytes("68g3", Hex)
+  | ^^^^^^^^^^^^^^^^^^
+```
+
+`to_bytes` reads the same text as an `Option`: the octets where the text is
+valid, and `none` where it is not. It is the form for text a program did
+not write itself:
+
+```hql
+import encoding
+["68c3a9".to_bytes(Hex), "zz".to_bytes(Hex)]
+```
+
+```text
+[0x68c3a9, none]
+```
+
+## Positions and slices
+
+`Bytes` implements `Index<Int>` and `Slice`, through the `bytes` module's
+`at` and `slice`. `b[i]` is the octet at `i` as an `Int` in `0..255`, or
+`none` past the end, and a negative position counts from the end. `b[a:b]`
+is a `Bytes`, clamped to the value's size. `+` on two `Bytes` is
+concatenation:
+
+```hql
+b = Bytes("hé")
+[b[0], b[-1], b[3]]
+```
+
+```text
+[104, 169, none]
+```
+
+```hql
+b = Bytes("hé")
+[b[0:2], b[1:], b + Bytes("!")]
+```
+
+```text
+[0x68c3, 0xc3a9, 0x68c3a921]
+```
+
+The `bytes` module is in the prelude, like `string`, and is a receiver
+module: `b.size()`, `bytes.size(b)` and `b | size` call one function.
+
+## Back to text
+
+`to_text` reads the octets as UTF-8, and gives `none` where they are not
+valid UTF-8. `encode` writes them in an encoding, which every octet has:
+
+```hql
+import encoding
+[Bytes("hé").to_text(), Bytes("ff", Hex).to_text()]
+```
+
+```text
+["hé", none]
+```
+
+```hql
+import encoding
+b = Bytes("hé")
+[b.encode(Hex), b.encode(Base64)]
+```
+
+```text
+["68c3a9", "aMOp"]
+```
+
+For every value `b` and every encoding `E`, `b.encode(E).to_bytes(E)` is
+`some(b)`.
+
+## Order and equality
+
+`Bytes` is `Orderable`. Two values compare octet by octet as unsigned
+numbers, and a value that is a prefix of another comes first:
+
+```hql
+import encoding
+[Bytes("ff", Hex), Bytes("0000", Hex), Bytes("01", Hex), Bytes("00", Hex)] | sort
+```
+
+```text
+[0x00, 0x0000, 0x01, 0xff]
+```
+
+Two values are equal when they hold the same octets, however each was
+built:
+
+```hql
+import encoding
+Bytes("hé") == Bytes("68c3a9", Hex)
+```
+
+```text
+true
+```
+
+## Bytes in data
+
+Every text format, JSON, JSON Lines, YAML and CSV, writes a `Bytes` value as
+its base64 text, padded, in the standard alphabet:
+
+<!-- run: --to json -->
+```hql
+import encoding
+{name: "key", body: Bytes("ff00", Hex)}
+```
+
+```text
+{
+  "body": "/wA=",
+  "name": "key"
+}
+```
+
+Reading is the other way round only where a type says so. A base64 string
+read as `Data` stays a `String`; a field declared `Bytes` reads its text as
+base64, and text that is not base64 fails the read:
+
+```hql
+type Blob {
+    name : String
+    body : Bytes
+}
+Data("{\"name\": \"key\", \"body\": \"aGk=\"}", Json) | Blob
+```
+
+```text
+Blob(name = "key", body = 0x6869)
+```
+
+The digest of a `Bytes` value, and the other text encodings, are in
+[[30-digests-and-encodings|Digests and encodings]]. The
+[reference](../../reference/std/bytes/index.md) states each function of the
+`bytes` module.
