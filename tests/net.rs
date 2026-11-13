@@ -1,5 +1,5 @@
 //! Network endpoints through the real process, against servers on the
-//! loopback interface: `http`, `socket` and `websocket` read and written by
+//! loopback interface: `http`, `tcp` and `websocket` read and written by
 //! `source`, `tap`, `target` and `sink`. See doc/proposals/HQL-0021/README.md.
 
 use std::fs;
@@ -94,7 +94,21 @@ fn http_server(
 #[test]
 fn the_network_is_imported() {
     refused(&hql(r#"http("http://127.0.0.1/")"#), "import net");
-    refused(&hql(r#"socket("127.0.0.1", 1)"#), "import net");
+    refused(&hql(r#"tcp("127.0.0.1", 1)"#), "import net");
+}
+
+#[test]
+fn socket_is_refused_naming_tcp() {
+    refused(
+        &hql("import net\nnet.socket(\"127.0.0.1\", 1)"),
+        "`socket` is now `tcp`",
+    );
+    refused(
+        &hql("import net\nfn f(s: Socket) : Int = 1\n1"),
+        "`Socket` is now `Tcp`",
+    );
+    let shown = ok(&hql("import net\nnet.tcp(\"127.0.0.1\", 1)"));
+    assert_eq!(shown.trim(), r#"tcp("127.0.0.1", 1)"#);
 }
 
 #[test]
@@ -167,11 +181,11 @@ fn a_socket_carries_documents_as_their_format_separates_them() {
         written
     });
     let read = hql(&format!(
-        "import net\nsource(socket(\"127.0.0.1\", {port}), Json) | map(d => d.n)"
+        "import net\nsource(tcp(\"127.0.0.1\", {port}), Json) | map(d => d.n)"
     ));
     assert_eq!(ok(&read), "1\n2\n");
     let written = hql(&format!(
-        "import net\n[\"a\", \"b\"] | sink(socket(\"127.0.0.1\", {port}), Text)"
+        "import net\n[\"a\", \"b\"] | sink(tcp(\"127.0.0.1\", {port}), Text)"
     ));
     ok(&written);
     assert_eq!(server.join().unwrap(), "a\nb\n");

@@ -14,8 +14,8 @@ imports the module: `import net`.
 
 - [`Http`](types/Http.md) — An HTTP resource at `url`.
 - [`WebSocket`](types/WebSocket.md) — A WebSocket connection to `url`: each message is a document, read as it arrives and written as it is sent.
-- [`Socket`](types/Socket.md) — A TCP connection to `host` on `port`.
+- [`Tcp`](types/Tcp.md) — A TCP connection to `host` on `port`.
 - [`http`](http.md) — The HTTP resource at `url`, as an `Http` endpoint: `method` is the request a write sends, `"GET"` unless given, and `headers` a map of header names to values sent with every request.
 - [`websocket`](websocket.md) — The WebSocket at `url`, as a `WebSocket` endpoint.
-- [`socket`](socket.md) — The TCP endpoint `host` on `port`, as a `Socket`.
+- [`tcp`](tcp.md) — The TCP endpoint `host` on `port`, as a `Tcp`.
 <!-- hql reference: end -->

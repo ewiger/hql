@@ -27,18 +27,32 @@ const EXPLAINED: &[(&str, &str)] = &[
          `Table(xs, columns = [...])`",
     ),
     (
+        "socket",
+        "`socket` is now `tcp`: `net.tcp(host, port)` is the TCP endpoint",
+    ),
+    (
         "length",
         "`length` is now `size`: `s.size()` counts a String's code points, as \
          `xs.size()` counts a collection's elements",
     ),
 ];
 
+/// What to write instead of a withdrawn name, `length` or `socket`, if it
+/// is one.
+#[must_use]
+pub fn explained(name: &str) -> Option<String> {
+    EXPLAINED
+        .iter()
+        .find(|(retired, _)| *retired == name)
+        .map(|(_, explanation)| (*explanation).to_owned())
+}
+
 /// The help a diagnostic carries for a name that is not a step: what to
 /// write instead, or the closest name.
 #[must_use]
 pub fn hint(name: &str) -> Option<String> {
-    if let Some((_, explanation)) = EXPLAINED.iter().find(|(retired, _)| *retired == name) {
-        return Some((*explanation).to_owned());
+    if let Some(explanation) = explained(name) {
+        return Some(explanation);
     }
     if crate::constructors::named(name).is_some() {
         return Some(format!(

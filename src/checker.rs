@@ -5610,9 +5610,12 @@ impl<'a> Checker<'a> {
                 };
                 let key = format!("{module}.{field}");
                 let ty = self.scope.get(&key).cloned().ok_or_else(|| {
-                    Diagnostic::name(
-                        span.clone(),
-                        format!("the module `{module}` has no function `{field}`"),
+                    helped(
+                        Diagnostic::name(
+                            span.clone(),
+                            format!("the module `{module}` has no function `{field}`"),
+                        ),
+                        builtins::explained(field),
                     )
                 })?;
                 self.checked.module_refs.insert(span, key);

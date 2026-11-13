@@ -427,5 +427,8 @@ cargo clippy --all-targets -- -D warnings
   and `NatsJetStream` are transport types with a constructor of their name.
   Not built: a locality and carriage for `Stdin`, `Stdout`, `Stderr`, `File`,
   `FileEnd`, `Http`, `WebSocket` and `Socket`; one `hql render` check over
-  `Network`; `socket` renamed `tcp`; `kafka`, `http`, `websocket` and `tcp` as
+  `Network`; `kafka`, `http`, `websocket` and `tcp` as
   transports; network timeouts ([issue 0069](../../issues/0069-transports-core.md))
+- 2026-11-13: the rename built, in 0.6.0: `socket(host, port)` is
+  `tcp(host, port)` and `Socket` is `Tcp`; each old name is refused with
+  help naming the new one (issue 0072)

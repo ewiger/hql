@@ -4,7 +4,7 @@
 
     This chapter describes functionality that is not in the current release.
     It is written as if it existed: apart from `http`, `websocket` and
-    `socket`, which the [network page](09-io/network.md) of chapter 9 shows
+    `tcp`, which the [network page](09-io/network.md) of chapter 9 shows
     running, these programs do not run against the current binary, and
     names, keys, types and outputs may change before they ship.
 

@@ -108,12 +108,38 @@ planning   DAG    once: every use is an edge to the one shared unit
   HQL-0055 already describes as "a graph of stages, not a list".
 - A model MUST be acyclic in either shape. A cycle would make a unit depend
   on its own result.
-- The two shapes MUST describe the same computation: the same units, the
-  same data dependencies, the same effect order. Converting a tree to a DAG
-  merges repeated uses of a unit only when that unit is pure; an effectful
-  unit written twice runs twice and stays two nodes (HQL-0055, "Effect is a
-  property, not a level").
+- Every planning engine MUST build the same DAG form from `Program`. Engines
+  differ in how they plan and run the DAG, not in what it holds.
+- The conversion from tree to DAG MUST be the **identity**: one node per
+  unit as written, one edge per data dependency or effect order. It merges
+  nothing and splits nothing. A computation written twice is two nodes.
+
+### 0.1 Rewriting the shape
+
+The DAG is where a planner gets its freedom to change the shape of the
+computation.
+
+- A planner MAY rewrite the DAG into any other DAG that computes the same
+  thing: merge two pure units that compute the same value, duplicate a pure
+  unit so two branches each get their own copy, fuse a chain of units into
+  one, split one unit into several, or reorder independent pure units.
+- The planner MAY be the engine itself, a separate tool, or an agent acting
+  for the engine. The rule is the same for each.
+- Every rewrite MUST preserve the observable contract of HQL-0004 and
+  HQL-0044: results, types, sequence positions, failures and reports, and
+  the order of effects and transaction scope.
+- A rewrite MUST NOT merge, drop or duplicate an effectful unit unless the
+  effect is idempotent (HQL-0055, "Effect is a property, not a level"). An
+  effectful unit written twice runs twice.
+- The DAG the rewrites end with is the **physical plan**. The planner cuts
+  it into stages, the backend schedules the stages as tasks, and one run of
+  it is a job (HQL-0055).
 - The shape is the engine's choice and MUST NOT be visible to the program.
+
+```text
+Program (tree)  --identity-->  logical DAG  --rewrites-->  physical plan (DAG)
+                                                          --> stages --> tasks --> job
+```
 
 The model is the boundary between the language and the engines. Naming it
 lets each engine be specified by what it does with one model, instead of by
@@ -231,13 +257,10 @@ cargo run --locked -- reference --check doc/public/reference
 
 ## Open Questions
 
-- Does the DAG form get one shared representation that every planning
-  engine builds from `Program`, or does each engine build its own? HQL-0055
-  leaves the intermediate representation open; this record names what it
-  holds and that it is a DAG.
-- When a tree becomes a DAG, which pure units are merged: only those the
-  program binds to one name and reads twice, or also two identical
-  expressions written separately (common subexpression elimination)?
+- Where does the shared DAG form live in the source tree (`src/backends/`
+  or a module of its own), and what are its node and edge types?
+- Does a planner have to record the rewrites it applied, so `hql plan` can
+  show how the physical plan differs from the logical DAG?
 - Is a program of several pipelines one model, or one model per pipeline
   joined by effect order?
 - Is `LogicalComputationUnit` the name, or a shorter one (`Computation`,
@@ -261,3 +284,6 @@ cargo run --locked -- reference --check doc/public/reference
   engine; `Step` under `Aute` under
   `LogicalComputationUnit`; and an engine that either runs a step at once or
   plans it.
+- 2026-11-13: resolved two open questions. All planning engines share one
+  DAG form. Tree to DAG is the identity; a planner (engine, tool or agent)
+  is then free to rewrite the shape, and the result is the physical plan.

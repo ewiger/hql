@@ -1263,10 +1263,14 @@ impl Resolution {
             return Err(self.private(name, step, span));
         }
         held.extension.step(name).ok_or_else(|| {
-            Diagnostic::name(
+            let refused = Diagnostic::name(
                 span.clone(),
                 format!("the `{extension}` module provides no function `{name}`"),
-            )
+            );
+            match crate::builtins::explained(name) {
+                Some(help) => refused.with_help(help),
+                None => refused,
+            }
         })
     }
 

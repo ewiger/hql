@@ -43,7 +43,7 @@ atoms! {
     WRITABLE => "Writable", STDIN => "Stdin", STDOUT => "Stdout", STDERR => "Stderr",
     FILE => "File", FILE_END => "FileEnd", PATH => "Path",
     FOLDER => "Folder", GLOB => "Glob", ENTRY => "Entry",
-    HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Socket",
+    HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Tcp",
     TRANSPORT => "Transport", DIRECT => "Direct", NETWORK => "Network",
     BYTE_TRANSPORT => "ByteTransport", MESSAGE_TRANSPORT => "MessageTransport",
     ROW_TRANSPORT => "RowTransport", NATS_JET_STREAM => "NatsJetStream", SQLITE => "Sqlite", NATS => "Nats",
@@ -932,13 +932,15 @@ impl TypeRef {
 }
 
 /// The refusal of a type name withdrawn in a rename, naming its
-/// replacement: `Unit` became `Step` in 0.6.0 (HQL-0055).
+/// replacement: in 0.6.0 `Unit` became `Step` (HQL-0055) and `Socket`
+/// became `Tcp` (issue 0069).
 #[must_use]
 pub fn withdrawn(name: &str) -> Option<String> {
     match name {
         "Unit" => {
             Some("`Unit` is now `Step`: a statement that ran and gave no other value".to_owned())
         }
+        "Socket" => Some("`Socket` is now `Tcp`, built by `net.tcp(host, port)`".to_owned()),
         _ => None,
     }
 }

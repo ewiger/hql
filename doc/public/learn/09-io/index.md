@@ -65,7 +65,7 @@ Logging and the network are modules of their own, `import logging` and
 | [Subjects and lakehouse tables](subjects-and-lakehouses.md) | a core NATS subject, a JetStream subject and its durable consumer, `io.msg.nats` and `io.msg.nats_jetstream`, a Databricks or Spark table, and a pipeline from one to the other |
 | [Channels](channels.md) | `Channel<T>(name)`, an endpoint of values held in memory |
 | [Logging](logging.md) | `Logger`, the five levels, `--log-level`, and logs kept as values |
-| [The network](network.md) | `http`, `websocket` and `socket` with `import net` |
+| [The network](network.md) | `http`, `websocket` and `tcp` with `import net` |
 | [Files and folders](files-and-folders.md) | `io.fs`: a `Path`, walking a `Folder`, matching a `Glob`, and an `Entry` |
 | [Environment and arguments](environment.md) | `io.env`: environment variables and `--arg` arguments |
 | [Effects and what a host allows](hosts.md) | effectful operations, and what `hql eval`, `hql render` and `hql check` grant |

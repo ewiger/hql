@@ -256,7 +256,7 @@ impl fmt::Display for Endpoint {
                 f.write_str(")")
             }
             Self::WebSocket(url) => write!(f, "websocket({url:?})"),
-            Self::Socket(host, port) => write!(f, "socket({host:?}, {port})"),
+            Self::Socket(host, port) => write!(f, "tcp({host:?}, {port})"),
             Self::Sqlite { path, table, order } => {
                 write!(
                     f,

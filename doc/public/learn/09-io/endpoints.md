@@ -87,6 +87,6 @@ check error[type-mismatch]: "https://example.com/x.json" is a URL, not a file; a
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
-[The network](network.md) adds `http`, `websocket` and `socket` with
+[The network](network.md) adds `http`, `websocket` and `tcp` with
 `import net`, and a [channel](channels.md) is an endpoint of values rather
 than bytes.

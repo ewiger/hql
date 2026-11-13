@@ -31,11 +31,11 @@ type WebSocket : {Readable, Writable} {
     url : String
 }
 
-/// A TCP connection to `host` on `port`. A socket carries bytes, not
+/// A TCP connection to `host` on `port`. A TCP stream carries bytes, not
 /// messages, so the documents on it are separated as their format
 /// separates them: whitespace between `Json` values, a line for `Lines`,
 /// `JsonLines` and `Csv`, a `---` line for `Yaml`.
-type Socket : {Readable, Writable} {
+type Tcp : {Readable, Writable} {
     host : String
     port : Int
 }
@@ -50,6 +50,6 @@ fn http(url: String, method: String = "GET", headers: Data = {:}) : Http
 /// no connection.
 fn websocket(url: String) : WebSocket
 
-/// The TCP endpoint `host` on `port`, as a `Socket`. Constructing it opens
+/// The TCP endpoint `host` on `port`, as a `Tcp`. Constructing it opens
 /// no connection.
-fn socket(host: String, port: Int) : Socket
+fn tcp(host: String, port: Int) : Tcp

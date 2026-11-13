@@ -47,7 +47,7 @@ source(file("examples/io/sightings.jsonl"))
 Step
 ```
 
-`socket(host, port)` is a TCP connection: its documents are separated as
+`tcp(host, port)` is a TCP connection: its documents are separated as
 their format separates them, one JSON value after another or one line at a
 time.
 

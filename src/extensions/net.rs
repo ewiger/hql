@@ -37,7 +37,7 @@ pub(crate) static STEPS: &[Operation] = &[
         eval: eval_websocket,
     },
     Operation {
-        name: "socket",
+        name: "tcp",
         spec: Signature::Declared,
         purity: Purity::Pure,
         shape: super::Shape::Barrier,
@@ -152,7 +152,7 @@ fn eval_socket(
     let host = text(input, "a host", &span)?;
     let port = match super::named_or_first(arguments, "port") {
         Some(argument) => cx.evaluate(&argument.value)?,
-        None => return Err(Diagnostic::runtime(span, "a socket needs a `port`")),
+        None => return Err(Diagnostic::runtime(span, "a `tcp` endpoint needs a `port`")),
     };
     let port = match port {
         Value::Int(port) => u16::try_from(port).ok().filter(|port| *port > 0),
