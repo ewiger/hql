@@ -1,0 +1,13 @@
+<!-- hql reference: std/crypto.Signing -->
+# `Signing`
+
+In [`std/crypto`](../index.md).
+
+```hql
+abstract type Signing : KeyAlgorithm
+```
+
+An asymmetric key algorithm. A `Signing` one's private key signs and
+its public key verifies; an `Agreement` one's public key receives
+encrypted messages.
+<!-- hql reference: end -->
