@@ -1102,7 +1102,8 @@ Unit and integration tests MUST include:
   `tx.retry()` run `attempts` times giving `kind = "exhausted"`; a `sink`
   to a file inside the block written three times and warned once;
 - over PostgreSQL 17 and Spark 3.5 with Delta 3.3, in `hql-demo`: the
-  benchmark transfer, committed and rolled back; two programs transferring
+  benchmark transfer, committed and rolled back, which is the `ledger`
+  case, `../hql-demo/ledger/run.sh`; two programs transferring
   concurrently under `Serializable` with one of them retried; `update` and
   `delete` of a Delta table as one commit each, and a second statement in
   a `spark` scope refused.

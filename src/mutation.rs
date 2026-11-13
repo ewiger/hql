@@ -94,7 +94,10 @@ impl Param {
             Self::Float(_) => "::float8",
             Self::Bool(_) => "::bool",
             Self::Text(_) => "::text",
-            Self::Numeric(_) => "::numeric",
+            // The digits are sent as text, so the server types the
+            // parameter as text and casts it, rather than typing it as
+            // numeric and refusing the text.
+            Self::Numeric(_) => "::text::numeric",
         }
     }
 }
@@ -454,6 +457,6 @@ mod tests {
     #[test]
     fn a_postgres_placeholder_carries_its_cast() {
         assert_eq!(Param::Int(1).cast(), "::int8");
-        assert_eq!(Param::Numeric("1.50".to_owned()).cast(), "::numeric");
+        assert_eq!(Param::Numeric("1.50".to_owned()).cast(), "::text::numeric");
     }
 }
