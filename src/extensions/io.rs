@@ -444,6 +444,36 @@ fn live_by_source(id: &str, kind: &crate::endpoints::Kind) -> String {
     )
 }
 
+/// The configuration of the endpoint an id names, for a statement over it
+/// (HQL-0051).
+pub(crate) fn configured_endpoint<'v>(
+    id: &str,
+    vault: &'v crate::vault::Vault,
+) -> Result<&'v crate::endpoints::Configured, String> {
+    configured(id, vault)
+}
+
+/// The literal id an endpoint expression names, `"id"` or
+/// `configured("id")`, for the checker.
+pub(crate) fn literal_endpoint_id(expression: &Expr) -> Option<&str> {
+    literal_id(expression)
+}
+
+/// The element type a configured endpoint names, `element = "Order"`:
+/// `None` where it names none.
+pub(crate) fn configured_element(
+    id: &str,
+    vault: &crate::vault::Vault,
+) -> Result<Option<TypeRef>, String> {
+    let held = configured(id, vault)?;
+    match &held.element {
+        Some(written) => crate::types::named(written, &[]).map(Some).ok_or_else(|| {
+            format!("endpoint `{id}` names the element type `{written}`, which is not a type")
+        }),
+        None => Ok(None),
+    }
+}
+
 /// The configuration of the source an id names: the id must be one, and
 /// configured.
 fn configured<'v>(
@@ -867,7 +897,7 @@ fn table_rows(endpoint: &Endpoint, span: &Range<usize>) -> Result<Option<Vec<Val
 /// A constructed table as a configured endpoint with no boundary of its
 /// own, so that it reads and writes as its kind does; `None` for an
 /// endpoint that is not one.
-fn constructed_table(endpoint: &Endpoint) -> Option<crate::endpoints::Configured> {
+pub(crate) fn constructed_table(endpoint: &Endpoint) -> Option<crate::endpoints::Configured> {
     let kind = match endpoint {
         Endpoint::Sqlite { path, table, order } => crate::endpoints::Kind::Sqlite {
             path: io::database_path(path),
@@ -2095,6 +2125,84 @@ fn write_configured(
         .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
         .clone();
     write_to(cx, &configured, input, span)
+}
+
+/// `insert E rows` (HQL-0051): the rows added to the table the endpoint
+/// names, after the ones it holds, in one statement of its system. A tree
+/// is read as the rows' declared type; a table that does not exist is a
+/// failure, since a mutation changes rows that exist and `target` creates
+/// a table. The value is the number of rows added.
+pub(crate) fn insert_rows(
+    cx: &mut dyn EvalCx,
+    configured: &crate::endpoints::Configured,
+    row: &TypeRef,
+    input: Value,
+    span: &Range<usize>,
+) -> Result<Value, Diagnostic> {
+    use crate::endpoints::{Kind as Source, WriteMode};
+    let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
+    let id = configured.id.as_str();
+    let (element, rows) = match &input {
+        Value::Table(table) => (table.row.clone(), table.rows.clone()),
+        Value::Traversal(traversal) => {
+            let mut values = Vec::new();
+            cx.traverse(traversal, &mut |_, value| {
+                values.push(value);
+                Ok(true)
+            })?;
+            (traversal.element.clone(), values)
+        }
+        other if other.type_of().is_collection() => (
+            other.type_of().element().unwrap_or(TypeRef::DATA),
+            other.elements().unwrap_or_default(),
+        ),
+        one => (one.type_of(), vec![one.clone()]),
+    };
+    // A tree is read as the row the table holds.
+    let element = if *row == TypeRef::DATA { element } else { row.clone() };
+    let rows = rows
+        .into_iter()
+        .enumerate()
+        .map(|(index, value)| match value {
+            Value::Data(_) if element != TypeRef::DATA => decode_document(
+                &value,
+                &element,
+                crate::types::Leaves::AsWritten,
+                index + 1,
+                &format!("endpoint `{id}`"),
+            )
+            .map_err(failed),
+            other => Ok(other),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let count = i64::try_from(rows.len()).unwrap_or(i64::MAX);
+    let missing = |table: &str| {
+        failed(format!(
+            "endpoint `{id}`: the table `{table}` does not exist; `insert` adds rows to a table,              and `target` creates one"
+        ))
+    };
+    match &configured.kind {
+        Source::Sqlite { path, table, .. } => {
+            let columns = crate::endpoints::sqlite_columns(path, table).unwrap_or_default();
+            if columns.is_empty() {
+                return Err(missing(table));
+            }
+        }
+        Source::Postgres { dsn_env, table, .. } => {
+            let dsn = dsn(configured, dsn_env).map_err(failed)?;
+            crate::postgres::columns(&dsn, table).map_err(|_| missing(table))?;
+        }
+        other => {
+            return Err(failed(format!(
+                "`insert` adds rows to a table of a database, and endpoint `{id}` is a `{}`                  endpoint",
+                other.name()
+            )));
+        }
+    }
+    let mut appended = configured.clone();
+    appended.mode = WriteMode::Append;
+    write_to(cx, &appended, Value::list(rows, element), span)?;
+    Ok(Value::Int(count))
 }
 
 /// A `Table<R>` or `Seq<R>` written to an endpoint as its configuration

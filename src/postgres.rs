@@ -159,6 +159,36 @@ pub(crate) fn text_of(value: &Data) -> Option<String> {
     })
 }
 
+/// Run one statement that changes rows, `UPDATE` or `DELETE`, with its
+/// parameters bound, and give the number of rows it changed (HQL-0051).
+///
+/// # Errors
+/// Names what failed: the connection, or the statement as the server
+/// refused it.
+pub(crate) fn execute(
+    dsn: &str,
+    statement: &str,
+    params: &[crate::mutation::Param],
+) -> Result<u64, String> {
+    use crate::mutation::Param;
+    let mut client = connect(dsn)?;
+    let bound: Vec<&(dyn postgres::types::ToSql + Sync)> = params
+        .iter()
+        .map(|param| match param {
+            Param::Int(n) => n as &(dyn postgres::types::ToSql + Sync),
+            Param::Float(x) => x as &(dyn postgres::types::ToSql + Sync),
+            Param::Bool(b) => b as &(dyn postgres::types::ToSql + Sync),
+            Param::Text(text) | Param::Numeric(text) => {
+                text as &(dyn postgres::types::ToSql + Sync)
+            }
+        })
+        .collect();
+    client.execute(statement, &bound).map_err(|error| match error.as_db_error() {
+        Some(db) => format!("statement refused: {}", db.message()),
+        None => format!("statement failed: {error}"),
+    })
+}
+
 /// A table opened for writing, its `mode` applied: rows are inserted one at
 /// a time, each committed as it is written.
 pub(crate) struct Writer {

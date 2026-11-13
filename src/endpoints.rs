@@ -1137,6 +1137,39 @@ pub fn sqlite_rows(
     Ok(read)
 }
 
+/// Run one statement that changes rows of an SQLite database, `UPDATE` or
+/// `DELETE`, with its parameters bound, and give the number of rows it
+/// changed (HQL-0051). The database file must exist: a mutation changes
+/// rows that exist.
+///
+/// # Errors
+/// Names the database and what failed: opening it, or the statement.
+pub(crate) fn sqlite_execute(
+    path: &Path,
+    statement: &str,
+    params: &[crate::mutation::Param],
+) -> Result<usize, String> {
+    use crate::mutation::Param;
+    let located = |error: rusqlite::Error| format!("{}: {error}", path.display());
+    let connection =
+        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)
+            .map_err(located)?;
+    let values: Vec<rusqlite::types::Value> = params
+        .iter()
+        .map(|param| match param {
+            Param::Int(n) => rusqlite::types::Value::Integer(*n),
+            Param::Float(x) => rusqlite::types::Value::Real(*x),
+            Param::Bool(b) => rusqlite::types::Value::Integer(i64::from(*b)),
+            Param::Text(text) | Param::Numeric(text) => {
+                rusqlite::types::Value::Text(text.clone())
+            }
+        })
+        .collect();
+    connection
+        .execute(statement, rusqlite::params_from_iter(values.iter()))
+        .map_err(located)
+}
+
 /// Write rows to one SQLite table as `mode` says, the table's columns each
 /// a name and the type it is declared with, the rows in one transaction.
 ///

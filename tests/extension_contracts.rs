@@ -10,7 +10,7 @@ fn every_catalogue_signature_is_generated_from_its_structural_contract() {
     // The core, string, seq, math, option, result, graph, format and io
     // modules of the prelude, and the nine imported where they are used,
     // `time` and `io.db.postgres` among them.
-    assert_eq!(count, 243);
+    assert_eq!(count, 244);
     for provider in providers {
         for step in provider.steps {
             let mut lines = Vec::new();

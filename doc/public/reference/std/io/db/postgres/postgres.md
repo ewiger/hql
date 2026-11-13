@@ -4,13 +4,14 @@
 In [`std/io/db/postgres`](index.md).
 
 ```hql
-fn postgres(dsn_env: String, table: String, order: List<String> = []) : Postgres
+fn postgres(*, dsn_env: String, table: String, order: List<String> = []) : Postgres
 ```
 
 The table `table` of the database whose connection string the
 environment variable `dsn_env` holds, as a `Postgres` transport; its
-parameters are the keys of the `postgres` kind. A connection string may
-hold a password, so a program names the variable and never the string.
+parameters are the keys of the `postgres` kind, each written by name. A
+connection string may hold a password, so a program names the variable
+and never the string.
 `table` is schema-qualified where it holds a dot, `audit.events`. Rows
 are read in the order of the columns `order` names, and as the table is
 scanned without them. Constructing it opens no connection.

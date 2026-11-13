@@ -629,6 +629,10 @@ struct Checker<'a> {
     /// What this program has declared.
     declarations: Declarations,
     checked: Checked,
+    /// Each binding whose value is `configured("id")`, by the id, so a
+    /// mutation over the binding reads the rows' type from the endpoint's
+    /// configuration as one over the call does (HQL-0051).
+    configured_bindings: HashMap<String, String>,
     /// Declared functions whose last parameter collects trailing arguments,
     /// with their parameter count.
     variadic: HashMap<String, usize>,
@@ -1087,6 +1091,7 @@ impl<'a> Checker<'a> {
             resolution,
             declarations: Declarations::default(),
             checked: Checked::default(),
+            configured_bindings: HashMap::new(),
             variadic: HashMap::new(),
             parameter_names: HashMap::new(),
             generic_functions: HashMap::new(),
@@ -1338,6 +1343,20 @@ impl<'a> Checker<'a> {
             Kind::Fork { branches } => branches
                 .iter()
                 .find_map(|(_, branch)| self.read_beyond(branch, bound)),
+            Kind::Mutation {
+                target, rows, steps, ..
+            } => self
+                .read_beyond(target, bound)
+                .or_else(|| rows.as_deref().and_then(|rows| self.read_beyond(rows, bound)))
+                .or_else(|| {
+                    steps.iter().find_map(|step| match &step.kind {
+                        crate::ast::MutationStepKind::OfType(_) => None,
+                        crate::ast::MutationStepKind::Filter(lambda)
+                        | crate::ast::MutationStepKind::Set(lambda) => {
+                            self.read_beyond(lambda, bound)
+                        }
+                    })
+                }),
             Kind::Given {
                 value,
                 condition,
@@ -1528,6 +1547,15 @@ impl<'a> Checker<'a> {
                         self.scope.insert(name.clone(), declared);
                     } else {
                         self.scope.insert(name.clone(), inferred);
+                    }
+                    match crate::extensions::io::literal_endpoint_id(value) {
+                        Some(id) if !matches!(value.kind, Kind::Str(_)) => {
+                            self.configured_bindings
+                                .insert(name.clone(), id.to_owned());
+                        }
+                        _ => {
+                            self.configured_bindings.remove(name);
+                        }
                     }
                     TypeRef::UNIT
                 }
@@ -4865,6 +4893,12 @@ impl<'a> Checker<'a> {
                     )
                 }
             }),
+            Kind::Mutation {
+                verb,
+                target,
+                rows,
+                steps,
+            } => self.mutation(*verb, target, rows.as_deref(), steps, span),
             Kind::Given {
                 value,
                 condition,
@@ -5700,6 +5734,313 @@ impl<'a> Checker<'a> {
             });
         }
         Ok(result)
+    }
+}
+
+// Mutations (HQL-0051): `insert`, `update … set` and `delete` over an
+// endpoint with the capability, each one statement of the endpoint's
+// system, so the lambdas they hold are restricted to what is translated.
+impl Checker<'_> {
+    fn mutation(
+        &mut self,
+        verb: crate::ast::Verb,
+        target: &Expr,
+        rows: Option<&Expr>,
+        steps: &[crate::ast::MutationStep],
+        span: Range<usize>,
+    ) -> Result<TypeRef, Diagnostic> {
+        use crate::ast::{MutationStepKind, Verb};
+        if matches!(crate::io::policy(), crate::io::Policy::Document { .. }) {
+            return Err(Diagnostic::typing(
+                span,
+                format!(
+                    "a document changes no table: `{}` is refused while a document is rendered",
+                    verb.word()
+                ),
+            ));
+        }
+        let endpoint = self.expression(target)?;
+        let capability = match verb {
+            Verb::Insert => TypeRef::INSERTABLE,
+            Verb::Update => TypeRef::UPDATABLE,
+            Verb::Delete => TypeRef::DELETABLE,
+        };
+        if !endpoint.is(&capability) {
+            return Err(Diagnostic::typing(
+                target.span.clone(),
+                format!(
+                    "`{}` changes the rows of an endpoint that is `{}`, and {endpoint} is not one",
+                    verb.word(),
+                    verb.capability()
+                ),
+            ));
+        }
+        // The rows' type: the element the endpoint's configuration names,
+        // `Data` otherwise, and what `of_type` narrows it to.
+        let id = crate::extensions::io::literal_endpoint_id(target)
+            .map(str::to_owned)
+            .or_else(|| match &target.kind {
+                Kind::Ident(name) => self.configured_bindings.get(name).cloned(),
+                _ => None,
+            });
+        let mut row = id
+            .map(|id| crate::extensions::io::configured_element(&id, self.vault))
+            .transpose()
+            .map_err(|message| Diagnostic::typing(target.span.clone(), message))?
+            .flatten()
+            .unwrap_or(TypeRef::DATA);
+        for step in steps {
+            match &step.kind {
+                MutationStepKind::OfType(name) => {
+                    let narrowed = crate::types::named(name, &[]).ok_or_else(|| {
+                        Diagnostic::name(step.span.clone(), format!("unknown type `{name}`"))
+                    })?;
+                    if crate::types::program::record(name).is_none() {
+                        return Err(Diagnostic::typing(
+                            step.span.clone(),
+                            format!(
+                                "`of_type` in a `{}` names the declared record the rows are, and \
+                                 {narrowed} is not one",
+                                verb.word()
+                            ),
+                        ));
+                    }
+                    if row != TypeRef::DATA && !narrowed.is(&row) {
+                        return Err(Diagnostic::typing(
+                            step.span.clone(),
+                            format!("the rows are {row}, which {narrowed} does not narrow"),
+                        ));
+                    }
+                    row = narrowed;
+                }
+                MutationStepKind::Filter(lambda) => {
+                    let (parameter, body) = row_lambda(lambda)?;
+                    let produced = self.with_bindings(
+                        [(parameter.to_owned(), row.clone())],
+                        |checker| checker.expression(body),
+                    )?;
+                    if produced != TypeRef::BOOL {
+                        return Err(Diagnostic::typing(
+                            body.span.clone(),
+                            format!("a `filter` predicate gives a Bool, not {produced}"),
+                        ));
+                    }
+                    translatable(verb, body, parameter)?;
+                }
+                MutationStepKind::Set(lambda) => {
+                    let (parameter, body) = row_lambda(lambda)?;
+                    let Kind::Data(entries) = &body.kind else {
+                        return Err(Diagnostic::typing(
+                            body.span.clone(),
+                            "`set` gives the fields that change as a tree: \
+                             `set(a => {balance: a.balance - 100})`",
+                        ));
+                    };
+                    if entries.is_empty() {
+                        return Err(Diagnostic::typing(
+                            body.span.clone(),
+                            "`set` names at least one field that changes",
+                        ));
+                    }
+                    let shape = crate::types::program::record(row.constructor.0);
+                    for (key, value) in entries {
+                        let produced = self.with_bindings(
+                            [(parameter.to_owned(), row.clone())],
+                            |checker| checker.expression(value),
+                        )?;
+                        if let Some(shape) = &shape {
+                            let declared = shape.field_type(&row.args, key).ok_or_else(|| {
+                                Diagnostic::typing(
+                                    value.span.clone(),
+                                    format!("{row} declares no field `{key}`"),
+                                )
+                            })?;
+                            let fits = produced.is(&declared) || produced.is(declared.present());
+                            if !fits {
+                                return Err(Diagnostic::typing(
+                                    value.span.clone(),
+                                    format!(
+                                        "`{key}` of {row} is {declared}, and `set` gives it {produced}"
+                                    ),
+                                ));
+                            }
+                        }
+                        translatable(verb, value, parameter)?;
+                    }
+                }
+            }
+        }
+        if let Some(rows) = rows {
+            let written = self.expression(rows)?;
+            let element = if written.is_collection() || written.constructor.0 == "Table" {
+                written
+                    .iterated()
+                    .or_else(|| written.args.first().cloned())
+                    .unwrap_or(TypeRef::DATA)
+            } else {
+                written.clone()
+            };
+            if element == TypeRef::DATA {
+                if row == TypeRef::DATA {
+                    return Err(Diagnostic::typing(
+                        rows.span.clone(),
+                        "`insert` adds rows of a declared record: write one, \
+                         `Transfer(from_id = 1, …)`, or name the endpoint's `element` in its \
+                         configuration so a tree is read as one",
+                    ));
+                }
+            } else if !crate::types::program::record(element.constructor.0)
+                .is_some_and(|shape| !shape.fields.is_empty())
+            {
+                return Err(Diagnostic::typing(
+                    rows.span.clone(),
+                    format!("`insert` adds rows of a declared record, and {element} is not one"),
+                ));
+            } else if row != TypeRef::DATA && !element.is(&row) {
+                return Err(Diagnostic::typing(
+                    rows.span.clone(),
+                    format!("the endpoint holds rows of {row}, and `insert` is given {element}"),
+                ));
+            }
+        }
+        self.using(verb.word(), true);
+        self.checked.mutations.insert(span, row);
+        Ok(TypeRef::INT)
+    }
+}
+
+/// The one parameter and the body of a lambda of one row.
+fn row_lambda(lambda: &Expr) -> Result<(&str, &Expr), Diagnostic> {
+    match &lambda.kind {
+        Kind::Lambda {
+            parameters, body, ..
+        } if parameters.len() == 1 => Ok((parameters[0].as_str(), body)),
+        _ => Err(Diagnostic::typing(
+            lambda.span.clone(),
+            "a mutation's clause takes a lambda of one row",
+        )),
+    }
+}
+
+/// Whether an expression reads `name`: a lambda or a block inside it is
+/// taken to, so that no translation looks into one.
+fn mentions(expression: &Expr, name: &str) -> bool {
+    match &expression.kind {
+        Kind::Ident(held) => held == name,
+        Kind::Int(_)
+        | Kind::Float(_)
+        | Kind::Decimal(_)
+        | Kind::Bool(_)
+        | Kind::Str(_)
+        | Kind::DocRef(_) => false,
+        Kind::List(values) | Kind::Set(values) => values.iter().any(|value| mentions(value, name)),
+        Kind::Construct { arguments, .. } | Kind::Call { arguments, .. } => {
+            let callee = match &expression.kind {
+                Kind::Call { callee, .. } => mentions(callee, name),
+                _ => false,
+            };
+            callee || arguments.iter().any(|argument| mentions(&argument.value, name))
+        }
+        Kind::Data(entries) => entries.iter().any(|(_, value)| mentions(value, name)),
+        Kind::Arith(_, left, right)
+        | Kind::Logic(_, left, right)
+        | Kind::Pipe(left, right)
+        | Kind::Index(left, right) => mentions(left, name) || mentions(right, name),
+        Kind::Compare { left, right, .. } | Kind::Relate { left, right, .. } => {
+            mentions(left, name) || mentions(right, name)
+        }
+        Kind::Not(inner) | Kind::Field(inner, _) => mentions(inner, name),
+        Kind::Slice(inner, start, end) => {
+            mentions(inner, name)
+                || start.as_deref().is_some_and(|bound| mentions(bound, name))
+                || end.as_deref().is_some_and(|bound| mentions(bound, name))
+        }
+        Kind::Link {
+            source,
+            target,
+            data,
+        } => {
+            mentions(source, name)
+                || mentions(target, name)
+                || data.as_deref().is_some_and(|data| mentions(data, name))
+        }
+        Kind::Given {
+            value,
+            condition,
+            otherwise,
+        } => {
+            mentions(value, name)
+                || mentions(condition, name)
+                || otherwise.as_deref().is_some_and(|other| mentions(other, name))
+        }
+        Kind::Block(_)
+        | Kind::Lambda { .. }
+        | Kind::Match { .. }
+        | Kind::Tee { .. }
+        | Kind::Fork { .. }
+        | Kind::Mutation { .. } => true,
+    }
+}
+
+/// Whether `expression`, a clause of a mutation over the row `parameter`,
+/// is one the endpoint's system runs: a sub-expression that reads no field
+/// of the row is computed in HQL and sent as a parameter; one that does is
+/// a field, a comparison, a connective, arithmetic, `contains` of a bound
+/// collection, or `is_none` and `is_some` of a field (HQL-0051).
+fn translatable(verb: crate::ast::Verb, expression: &Expr, parameter: &str) -> Result<(), Diagnostic> {
+    if !mentions(expression, parameter) {
+        return Ok(());
+    }
+    let refused = || {
+        Diagnostic::typing(
+            expression.span.clone(),
+            format!(
+                "`{}` runs on the endpoint's system, and this is not translated there: a field \
+                 of the row, a literal, a value bound outside the lambda, a comparison, `and`, \
+                 `or`, `not`, arithmetic, `contains` of a bound collection, and `is_none` or \
+                 `is_some` of a field are; compute anything else in HQL and bind it",
+                verb.word()
+            ),
+        )
+    };
+    let is_test = |name: &str| matches!(name, "is_none" | "is_some");
+    match &expression.kind {
+        Kind::Field(inner, _) if matches!(&inner.kind, Kind::Ident(held) if held == parameter) => {
+            Ok(())
+        }
+        Kind::Arith(_, left, right) | Kind::Logic(_, left, right) => {
+            translatable(verb, left, parameter)?;
+            translatable(verb, right, parameter)
+        }
+        Kind::Compare { left, right, .. } | Kind::Relate { left, right, .. } => {
+            translatable(verb, left, parameter)?;
+            translatable(verb, right, parameter)
+        }
+        Kind::Not(inner) => translatable(verb, inner, parameter),
+        Kind::Pipe(input, step) => match &step.kind {
+            Kind::Ident(name) if is_test(name) => translatable(verb, input, parameter),
+            Kind::Call { callee, arguments }
+                if matches!(&callee.kind, Kind::Ident(name) if name == "contains")
+                    && arguments.len() == 1
+                    && !mentions(input, parameter) =>
+            {
+                translatable(verb, &arguments[0].value, parameter)
+            }
+            _ => Err(refused()),
+        },
+        Kind::Call { callee, arguments } => match (&callee.kind, arguments.as_slice()) {
+            (Kind::Ident(name), [collection, value])
+                if name == "contains" && !mentions(&collection.value, parameter) =>
+            {
+                translatable(verb, &value.value, parameter)
+            }
+            (Kind::Ident(name), [value]) if is_test(name) => {
+                translatable(verb, &value.value, parameter)
+            }
+            (Kind::Field(inner, name), []) if is_test(name) => translatable(verb, inner, parameter),
+            _ => Err(refused()),
+        },
+        _ => Err(refused()),
     }
 }
 

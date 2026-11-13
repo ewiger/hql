@@ -12,5 +12,5 @@ with a schema boundary. A program imports the module:
 `import io.db.postgres`.
 
 - [`Postgres`](types/Postgres.md) — One table of a PostgreSQL database.
-- [`postgres`](postgres.md) — The table `table` of the database whose connection string the environment variable `dsn_env` holds, as a `Postgres` transport; its parameters are the keys of the `postgres` kind.
+- [`postgres`](postgres.md) — The table `table` of the database whose connection string the environment variable `dsn_env` holds, as a `Postgres` transport; its parameters are the keys of the `postgres` kind, each written by name.
 <!-- hql reference: end -->

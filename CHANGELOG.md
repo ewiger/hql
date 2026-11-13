@@ -20,6 +20,22 @@ The language continues to be in active development.
   kind's transport type, with its boundary, so `source(configured("id"))`
   reads what `source("id")` reads and `target(xs, configured("id"))` writes
   what `target(xs, "id")` writes.
+- Transactions and relational mutations, phase 2
+  ([HQL-0051](doc/proposals/HQL-0051/README.md)): `insert E rows`,
+  `update E | filter(p) | set(f)` and `delete E | filter(p)` change the
+  rows of an `Insertable`, `Updatable` or `Deletable` endpoint in place,
+  each as one statement of the endpoint's system, committed when it ends,
+  with its value the number of rows changed. A clause's lambda is
+  translated, never run row by row: a field of the row, a literal, a value
+  bound outside, comparisons, `and`, `or`, `not`, arithmetic, `contains`
+  of a bound collection and `is_none` or `is_some` of a field; anything
+  else is a check error. The rows' type is the endpoint's configured
+  `element`, or what `of_type(T)`, written first, names; `set` gives the
+  fields that change as a tree, each key a field of the rows. `sqlite` and
+  `postgres` tables take all three. A table that does not exist is not
+  created.
+- `one` in `seq`: the one element of a sequence of exactly one, and an
+  evaluation failure naming the count otherwise.
 - The module `io.db.postgres` ([HQL-0047](doc/proposals/HQL-0047/README.md),
   [HQL-0048](doc/proposals/HQL-0048/README.md)): the transport `Postgres :
   {Network, RowTransport, Replayable, Writable, …}` and its constructor

@@ -114,11 +114,11 @@ Each construct this record uses is one of three things.
 | `Window<T>`, a value that does not leave the `into` it is handed to | implemented, [HQL-0050](../HQL-0050/README.md) |
 | `Transactional`, `Insertable`, `Updatable`, `Deletable` | **proposed** here; implemented by phase 1 |
 | `configured("id")` | **proposed** here; implemented by phase 1 for every kind with a transport type |
-| `insert`, `update … set`, `delete` | **proposed** here |
+| `insert`, `update … set`, `delete` | **proposed** here; implemented by phase 2 over `sqlite` and `postgres`, outside a scope |
 | `with transaction tx on … { … }`, `Transaction`, `commit`, `rollback`, `retry` | **proposed** here |
 | `IsolationLevel` and its three levels | **proposed** here; implemented by phase 1 |
 | `TransactionFailure` | **proposed** here |
-| `one` over a sequence | **proposed** here, in `seq` |
+| `one` over a sequence | **proposed** here, in `seq`; implemented by phase 2 |
 
 Every example below that uses a proposed construct is marked `// proposed`
 on its first line.
@@ -611,17 +611,28 @@ reports it, so a program checks what it changed: `n = update …` and
 `tx.rollback("no such account") given n == 0`.
 
 ```text
-mutation ::= "insert" link value
-           | "update" link ("|" filter)* "|" "set" "(" lambda ")"
-           | "delete" link ("|" filter)*
+mutation ::= "insert" link link
+           | "update" link ("|" of_type)? ("|" filter)* "|" "set" "(" lambda ")"
+           | "delete" link ("|" of_type)? ("|" filter)*
+of_type  ::= "of_type" "(" ident ")"
 filter   ::= "filter" "(" lambda ")"
 ```
 
 - `insert`, `update` and `delete` are words recognized by position at the
-  start of a statement or after `=` in a binding, when an expression follows
-  on the same line. `update(x)`, `update | f` and a binding named `update`
-  keep their meaning; `update accounts` is a syntax error today and a
-  mutation after this record.
+  start of a statement or after `=` in a binding, when a name follows on
+  the same line: the binding an endpoint is held under, or the constructor
+  or `configured` call that makes one. `update(x)`, `update | f` and a
+  binding named `update` keep their meaning; `update accounts` is a syntax
+  error today and a mutation after this record.
+- The rows' type is the `element` the endpoint's configuration names, read
+  through `configured("id")` or through a binding of it, and `Data`
+  otherwise: a constructed transport has no boundary
+  ([HQL-0047](../HQL-0047/README.md)). `of_type(T)`, written first, names
+  the declared record the rows are, as `of_type` reads a `Data` tree as a
+  declared type anywhere ([HQL-0016](../HQL-0016/README.md)); over a
+  configured element it MUST narrow it. Without a row type a field is an
+  `Option<Data>`, so `a.id == 1` checks and `a.balance - 100` is refused as
+  it is anywhere, naming the type.
 - A mutation is a statement or the whole right side of a binding. It is not
   a sub-expression: `delete accounts | filter(p) | size` is refused, since a
   mutation's pipeline is closed by the grammar above.
@@ -664,10 +675,12 @@ insert transfers (pending | filter(t => t.amount > 0))
   last clause of an `update` and nowhere else, as `tee name =` is written
   only in a pipeline. The constructor `Set` and the type `Set<T>` are
   unaffected.
-- `f : R -> Data` gives, for a row, the fields that change. Every key of the
-  tree it gives MUST be a writable field of `R`; the value MUST have the
-  field's type; a key `R` does not declare is a check error naming it. A
-  field `f` does not name keeps its value.
+- `f : R -> Data` gives, for a row, the fields that change, and its body
+  MUST be a tree literal, so the keys are known. Every key MUST be a
+  writable field of `R`; the value MUST have the field's type; a key `R`
+  does not declare is a check error naming it. A field `f` does not name
+  keeps its value. Over `Data` rows the keys are the columns named, checked
+  by the system.
 - Zero filters select every row, as `UPDATE` without `WHERE` does.
 - The statement MUST run as one `UPDATE … SET … WHERE …`: `p` and `f` are
   translated to the system's language by section 13, and no row crosses to
@@ -749,6 +762,13 @@ in HQL, so the lambdas they hold are restricted to what the kind translates.
   which is the rule [HQL-0004](../HQL-0004/README.md) gives pushdown; a
   mutation has no other way to run, so the rule is a requirement and not an
   option.
+- A sub-expression that reads no field of the row is evaluated in HQL and
+  bound as a parameter, so no value reaches the system as statement text. A
+  `Decimal` is bound as its digits and cast by the system: exact in
+  PostgreSQL's `NUMERIC`, and a float in SQLite, which has no decimal type,
+  so `a.balance - 100` over a `Decimal` column of an SQLite table is
+  computed as a `REAL` and may lose scale. A ledger of decimals is a
+  PostgreSQL table.
 
 ### 14. Reads inside a scope
 
@@ -1123,3 +1143,7 @@ cargo clippy --locked --all-targets -- -D warnings
   `IsolationLevel` in `io`, `Sqlite` declaring the four, `io.db.postgres`
   with `Postgres` and `postgres(dsn_env = …, table = …)`, and
   `configured("id")` for every kind with a transport type
+- 2026-11-13: phase 2 implemented: `insert`, `update … set` and `delete`
+  over `sqlite` and `postgres` tables outside a scope, each one statement
+  with its clauses translated and its values bound, `of_type` naming the
+  rows of a constructed table, and `one` in `seq`

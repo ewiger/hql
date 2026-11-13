@@ -684,6 +684,24 @@ impl Evaluator<'_> {
                 }
             }
             Kind::Match { subject, arms } => self.matched(subject, arms, span),
+            Kind::Mutation {
+                verb,
+                target,
+                rows,
+                row,
+                filters,
+                set,
+                ..
+            } => crate::mutation::run(
+                self,
+                *verb,
+                target,
+                rows.as_deref(),
+                row,
+                filters,
+                set.as_ref(),
+                &span,
+            ),
         }
     }
 
