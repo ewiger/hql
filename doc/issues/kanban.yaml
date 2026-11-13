@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 68 # to be incremented when adding a new issue card
+  last_id: 70 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -42,6 +42,12 @@ board:
         title: "General-purpose gap analysis: what Python and its peers have that HQL lacks"
         file: 0068-general-purpose-gap-analysis.md
     todo:
+      - id: "0070"
+        title: "The HQL book catches up with the general-purpose leap"
+        file: 0070-the-book-catches-up.md
+      - id: "0069"
+        title: "Transports: the core of HQL-0047 and HQL-0048"
+        file: 0069-transports-core.md
       - id: "0063"
         title: "The result of a write: `Unit` is the wrong answer"
         file: 0063-the-result-of-a-write.md

@@ -8,6 +8,31 @@ program runs. A function of a trait is either **required**, a signature with
 no body that every implementation supplies, or has a **default body**, which an implementation inherits unless it writes the
 function itself.
 
+## In short
+
+- **A trait is not a type.** No value, parameter or binding is typed by a
+  trait. A function over every implementing type takes a bound,
+  `<T : Shape>(s: T)`, and a call through it runs the implementation of the
+  value's own type. See [A trait is not a type](#a-trait-is-not-a-type) and
+  [Generic functions over a trait](#generic-functions-over-a-trait).
+- **One construct, three uses.** A *capability* trait is named in bounds. An
+  *operator* trait is what an operator resolves through: `Eq` for `==`, `Ord`
+  for `<`, `Index` for `xs[i]`. A *validator* trait extends `Validator` and
+  states a check that a value passes. See [Operators are traits](#operators-are-traits)
+  and [Validators](../11-advanced-data-typing/validators.md).
+- **Two ways to implement.** `impl Shape for Rect { … }`, or a trait list on a
+  receiver module, `module shapes.circle for Circle : Shape`, whose `self`
+  functions are the implementation. See
+  [A module that implements a trait](#a-module-that-implements-a-trait).
+- **One implementation per trait and type**, whichever form declares it.
+- **A trait may name a type.** `trait Shape as Figure` declares `Figure`, the
+  union of the types that implement `Shape`, so a `List<Figure>` holds a
+  `Rect` and a `Circle` together. See [A trait's type](#a-traits-type).
+- **A validator field is a refinement.** In a field `email: Email`, `Email`
+  is a validator trait. The field's type is the one type that implements it,
+  and the field's value is held to its check. See
+  [Validators](../11-advanced-data-typing/validators.md).
+
 ## A trait and an implementation
 
 `Shape` requires `area` and gives `describe` a default body. `impl Shape for
