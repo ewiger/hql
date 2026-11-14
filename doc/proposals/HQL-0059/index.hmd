@@ -110,6 +110,20 @@ Resolution order:
 Resolution selects only the project layer. The system file and the user
 file contribute their layers in every run, with a project or without one.
 
+Without an HMD host, `hql` resolves the project itself, by steps 2 and 3:
+
+- The walk starts at the anchor HQL-0025 defines: the program file's
+  directory for `run`, `check`, `plan`, `boundary` and `context <file>`,
+  and the current directory otherwise.
+- `--project <dir>` replaces the walk; the directory MUST hold
+  `.hql/config.toml`, and one that does not is refused.
+- `--bare` runs with no project and no walk; `--bare` with `--project` is
+  a usage error.
+- `--workspace` is removed. `--vault <dir>` names the HMD vault the `hmd`
+  module reads where no host supplies one, and never selects a project.
+- A named context binds a project with the key `project`, read against
+  the file that declares it; the key `workspace` is removed.
+
 The HQL home (`$HQL_HOME`, else `~/.hql`) is never a project, though its
 `config.toml` has the marker's shape. The ancestor walk skips the directory
 whose `.hql/` is the HQL home: a walk that reaches it without finding a
