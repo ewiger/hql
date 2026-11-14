@@ -82,6 +82,13 @@ with the meanings the proposals defining them give. `hql.toml` is not a
 configuration file and not a marker: HQL reads no file of that name, and a
 directory holding one is neither a project nor a workspace boundary.
 
+A relative path in `.hql/config.toml` resolves against the project root,
+the directory holding `.hql/`, never against `.hql/` itself: a
+`[packages] paths` entry, an endpoint's `root` or `path`, a semantic index,
+a `[modules] roots` entry. A path that moved from `hql.toml` to
+`.hql/config.toml` keeps its meaning. A relative path in the user or the
+system file resolves against the directory holding that file.
+
 ### 3. HyperMarkdown vaults may select an HQL project
 
 An HMD vault may optionally declare which HQL project should be used when executing HQL from that vault.
