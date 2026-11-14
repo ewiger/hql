@@ -1,0 +1,103 @@
+# Functions and the context
+
+Some declarations take a function, as `map` and `filter` do. The function
+belongs to the program, so the native cannot run it: it asks the running
+`hql` to. Everything a native asks of the running program goes through its
+first parameter, the **context**, `cx: &mut dyn EvalCx`.
+
+## Applying a function argument
+
+`fn total<T>(self: List<T>, weight: T -> Int) : Int` sums a function over
+a list:
+
+```rust
+fn total(
+    cx: &mut dyn EvalCx,
+    input: Value,
+    arguments: &[TypedArg],
+    span: Span,
+) -> Result<Value, Diagnostic> {
+    let Value::List(elements, _) = input else {
+        return Err(ext::failure(span, "expected a `List`"));
+    };
+    let Some(weight) = ext::positional(arguments, 0) else {
+        return Err(ext::failure(span, "`total` takes a function"));
+    };
+    let mut sum = 0_i64;
+    for element in elements.iter() {
+        match cx.apply_lambda(weight, element.clone())? {
+            Value::Int(weighed) => {
+                sum = sum
+                    .checked_add(weighed)
+                    .ok_or_else(|| ext::failure(span.clone(), "numeric overflow"))?;
+            }
+            _ => return Err(ext::failure(span, "`weight` gives an `Int`")),
+        }
+    }
+    Ok(Value::Int(sum))
+}
+```
+
+`cx.apply_lambda(weight, element)` applies the function written as the
+argument `weight` to one element and gives its result. A failure inside
+the program's function comes back through `?` as the call's failure.
+
+<!-- run: --workspace examples/packages -->
+```hql
+import hello
+
+[[1, 2, 3].total(x => x * 10), ["ab", "cde"].total(word => word.size())]
+```
+
+```text
+[60, 5]
+```
+
+The contract's `T -> Int` is what lets the program write `x => x * 10`
+without a type: the checker gives `x` the element type of the list, and
+checks that the body is an `Int`, before `total` is ever called.
+
+## What the context offers
+
+| Method | What it does |
+| --- | --- |
+| `evaluate(&argument.value)` | the value of an argument; `ext::value_of` calls it |
+| `apply_lambda(argument, element)` | an argument that is a function, applied to one value |
+| `apply_function(argument, values)` | an argument that is a function, applied to several values |
+| `call(&function, values, &span)` | a function *value*, applied to values: an element of a list of functions, for example |
+| `compare_values(&a, &b, &span)` | the order of two values, by the type's own `Ord` where it has one |
+| `equal_values(&a, &b, &span)` | whether two values are equal as `==` says |
+| `draw(&span)` | 64 bits from the evaluation's random seed, which `--seed` fixes |
+| `warn(diagnostic)` | a diagnostic that does not fail the call |
+| `vault()` | the vault the program runs against |
+
+`call` differs from `apply_lambda` in what it is given. `apply_lambda`
+takes an argument of the call, still unevaluated. `call` takes a value
+that already is a function, which is what a list of functions holds once
+the list is evaluated:
+
+```rust
+let readers = ext::value_of(cx, features)?;          // a List of functions
+for reader in elements(&readers) {
+    let feature = cx.call(reader, vec![row.clone()], &span)?;
+}
+```
+
+`draw` is how a function without a `seed` argument of its own stays
+reproducible: its draws follow the program's seed, so `hql --seed 7`
+repeats them. A function that draws this way is declared `effectful fn`
+([[32-functions-and-declarations/declarations#purity|purity]]).
+
+## Why everything goes through the context
+
+A package's library holds its own compiled copy of the `hql` crate
+([[35-how-a-library-is-loaded/static-and-dynamic|chapter 35]]). The
+running program's state, its bindings, its seed, its clock, its
+diagnostics, lives in the copy inside the `hql` binary. The library's copy
+has state of its own, which no program ever set.
+
+The context is a reference into the running copy. A native that calls
+`cx.draw` reads the program's seed. A native that reached for the `hql`
+crate's random functions directly would read its own copy's, which is
+unseeded. For that reason `hql::ext` exposes values, diagnostics and the
+context, and a native uses nothing else of the crate.

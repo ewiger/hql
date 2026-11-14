@@ -35,30 +35,25 @@ with it and its extension is compiled into it. There are two.
 
 "The standard library" is another name for the `std` package, and
 [[learn#part-iv-the-standard-library|Part IV]] is its guide. `hql builtins` names the package beside
-each module, `collections (std 0.6.0, always available)`
+each module, `collections (std 0.7.0, always available)`
 ([[13-working-with-hql|chapter 13]]).
 
 ## Installable packages
 
-!!! warning "Design only"
-
-    This section describes functionality that is not in the current release.
-    It is written as if it existed: these commands do not run, and names may
-    change before they ship.
-
-An **installable** package is installed on its own, and its extension is
-built into a library that `hql` loads when a program imports one of the
-package's modules:
+An **installable** package is installed on its own. Its extension is built
+into a library on your machine, and `hql` loads the library when it
+starts, so that a program imports the package's modules as it imports a
+standard one:
 
 ```sh
-hql package install ml
+hql package install --path hql-extensions/crates/hql-ext-ml
 ```
 
 <!-- run: skip -->
 ```hql
 import ml
 
-[[1.0, 2.0], [2.0, 4.0]].Dataset(target = [3.0, 6.0]).fit_linear()
+Dataset([[1.0f], [2.0f], [3.0f]], target = [3.0f, 5.0f, 7.0f]).fit_linear()
 ```
 
 `hql package install` puts the package under `~/.hql/lib/ml/`: its modules,
@@ -71,15 +66,23 @@ The source of an installable package is a Rust **crate** named
 provides modules under its own name only, `ml` and `ml.metrics`, and never
 takes a builtin package's or a builtin module's name.
 
-Packages are installed by name from the **package registry**, a list kept
-in the [hql-extensions](https://github.com/ewiger/hql-extensions)
-repository. A package is
+A package is
 
-- **official** when its crate lives in that repository, as `ml` does;
-- **known** when its crate lives elsewhere and the registry admits it by
-  name;
-- a **path** package when it is installed from a directory,
-  `hql package install --path ../hql-ext-ml`.
+- **official** when its crate lives in the
+  [hql-extensions](https://github.com/ewiger/hql-extensions) repository,
+  as `ml` does;
+- **known** when its crate lives elsewhere and the **package registry**
+  kept in that repository admits it by name;
+- a **path** package when it is installed from a directory.
 
-`hql package list` shows what is installed, and `hql package search <text>`
-what the registry offers.
+`hql package list` shows what is installed. Installing by name from the
+registry, `hql package install ml`, is design and not in the current
+release.
+
+[[learn#part-v-extending-hql|Part V]] is the whole of this subject: how a
+declaration without a body is implemented
+([[32-functions-and-declarations|chapter 32]]), writing a package
+([[34-writing-an-extension|chapter 34]]), how its library is loaded
+([[35-how-a-library-is-loaded|chapter 35]]), the commands
+([[36-installing-packages|chapter 36]]) and the registry
+([[37-the-registry-and-publishing|chapter 37]]).

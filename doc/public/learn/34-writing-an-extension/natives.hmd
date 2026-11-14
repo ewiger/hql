@@ -1,0 +1,117 @@
+# Natives
+
+A **native** is a Rust function that implements the declarations of one
+name. This page writes the simplest one, lists it in a table, and exports
+the table as the package's extension. All of it is `src/lib.rs`.
+
+## One function
+
+`fn greet(name: String) : String` is implemented by:
+
+```rust
+use hql::ext::{self, Diagnostic, EvalCx, Operation, Span, TypedArg, Value};
+
+fn greet(
+    _cx: &mut dyn EvalCx,
+    input: Value,
+    _arguments: &[TypedArg],
+    span: Span,
+) -> Result<Value, Diagnostic> {
+    match input {
+        Value::Str(name) => Ok(Value::Str(format!("Hello, {name}!").into())),
+        _ => Err(ext::failure(span, "expected a `String`")),
+    }
+}
+```
+
+Every native has this signature.
+
+| Parameter | What it is |
+| --- | --- |
+| `cx` | the running program: what the function may ask of `hql` while it runs ([[lambdas-and-context|Functions and the context]]) |
+| `input` | the value the call is made on: the receiver, or the first argument where the declaration has no `self` |
+| `arguments` | the call's other arguments, unevaluated, each with the name it was written with, if any |
+| `span` | where the call is in the program's source, for a diagnostic to point at |
+
+The result is a `Value` or a `Diagnostic`.
+
+By the time `greet` runs, the call was checked against the contract, so
+`input` is a `String`. The second arm of the `match` cannot be reached by
+a program. It is there because Rust requires every case, and a failure is
+a better answer to an impossible case than a panic.
+
+## The table
+
+The functions of a module are listed in a table, each under the name its
+declarations use:
+
+```rust
+static HELLO: &[Operation] = &[
+    hql::native!("Greeting", greeting),
+    hql::native!("greet", greet),
+    hql::native!("shout", shout),
+    hql::native!("total", total),
+    hql::native!("fail", fail),
+];
+```
+
+`hql::native!` makes an `Operation` from a name and a function. A name
+with several forms, `shout`, has one entry. The table has an entry for
+every name the contract declares and no others: a declaration without an
+entry, or an entry without a declaration, refuses the package.
+
+An operation built this way is pure and a barrier, which is what a
+declaration written plain `fn` states. A declaration written `effectful
+fn` takes `.effectful()` on its entry, and one written with a shape word
+takes `.shaped(…)`:
+
+```rust
+hql::native!("split", split).effectful(),
+hql::native!("double", double).shaped(hql::ext::Shape::Elementwise),
+```
+
+## The extension
+
+One line states the package and exports it:
+
+```rust
+hql::extension!(ext::extension(
+    "hello",
+    env!("CARGO_PKG_VERSION"),
+    &[ext::provided("hello", HELLO)],
+));
+```
+
+`ext::extension` takes the package's name, the crate's version, and one
+`ext::provided` per module: the module's name with its table. The names
+and their order are those of `provides` in `Cargo.toml`.
+
+`hql::extension!` is written once in the crate. It defines the one
+function `hql` looks for when it loads the library, `hql_extension_v1`
+([[35-how-a-library-is-loaded/the-entry-point|chapter 35]]).
+
+## Building and trying it
+
+```sh
+hql package install --path hello
+```
+
+```text
+installed hello 0.1.0 (hello) in /home/ada/.hql/lib/hello
+```
+
+The command runs `cargo build --release` on the crate, copies the library
+and the module root into the HQL home, and loads the result. A package
+that builds and does not bind is reported here, by the defect binding
+found, and not when a program later imports it.
+
+<!-- run: --workspace examples/packages -->
+```hql
+import hello
+
+hello.greet("Ada")
+```
+
+```text
+"Hello, Ada!"
+```

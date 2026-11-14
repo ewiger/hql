@@ -1,0 +1,77 @@
+# The crate
+
+A package is a Cargo crate with three additions: a name that says so, a
+library type `hql` can load, and a table naming the package. This is the
+whole `Cargo.toml` of `hello`:
+
+```toml
+[package]
+name = "hql-ext-hello"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+hql = "0.7"
+
+[package.metadata.hql]
+package = "hello"
+provides = ["hello"]
+modules = "modules"
+```
+
+## The name
+
+The crate is named `hql-ext-` and then the package's name. The package
+name is one lowercase word, and it is also the namespace of the package's
+modules: `hello` provides `hello` and may provide `hello.words`, and
+nothing outside that prefix. A package named `ml` provides `ml` and
+`ml.metrics`.
+
+## The library type
+
+`crate-type` states what the compiler produces from the crate.
+
+| Type | What it is | Why it is listed |
+| --- | --- | --- |
+| `cdylib` | a dynamic library: one file the operating system can load into a running process | this is what `hql` loads |
+| `rlib` | a Rust library other Rust code links against at build time | so `cargo test` can test the crate's own functions |
+
+Without `cdylib` the build leaves no file to load, and `hql package
+install` says so. [[35-how-a-library-is-loaded/static-and-dynamic|Chapter 35]] explains the two kinds.
+
+## The `hql` dependency
+
+The crate depends on `hql`, the same crate the `hql` binary is built from,
+and uses one module of it, `hql::ext`. `hql = "0.7"` is a range: every
+0.7 release. It says which versions the crate's source is written for.
+
+The version the crate is actually built against is not chosen by this
+line. `hql package install` builds the crate against the exact version of
+the `hql` that runs the command, and refuses a crate whose range excludes
+that version before it builds anything
+([[35-how-a-library-is-loaded/the-version-rule|the version rule]]).
+
+## The package table
+
+`[package.metadata.hql]` is the part Cargo ignores and `hql` reads.
+
+| Key | What it states |
+| --- | --- |
+| `package` | the package's name, which is also its extension's name and its directory once installed |
+| `provides` | every module the package provides, in the order they are loaded; a module that imports another comes after it |
+| `modules` | the module root: the directory holding the contracts, relative to the crate |
+
+`provides` is stated twice more, by the files under the module root and by
+the extension in `src/lib.rs`. The three must agree, and a package where
+they differ is refused when it is loaded.
+
+A module's contract is found under the module root by its name, a dot
+becoming a directory:
+
+| Module | File |
+| --- | --- |
+| `hello` | `modules/hello/mod.hql` or `modules/hello.hql` |
+| `hello.words` | `modules/hello/words.hql` or `modules/hello/words/mod.hql` |

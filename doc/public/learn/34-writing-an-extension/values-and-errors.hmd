@@ -1,0 +1,145 @@
+# Values and errors
+
+A native receives HQL values and returns one. This page covers the Rust
+type that holds them, arguments written by name, records of a type the
+package declares, and the two ways a call fails.
+
+## `Value`
+
+Every HQL value is a `hql::ext::Value`, an enum with one variant per kind
+of value. The ones a package meets most:
+
+| HQL type | Variant | Holds |
+| --- | --- | --- |
+| `Int` | `Value::Int(i64)` | a 64-bit integer |
+| `Float` | `Value::Float(f64)` | a double |
+| `Bool` | `Value::Bool(bool)` | |
+| `String` | `Value::Str(Arc<str>)` | text |
+| `List<T>` | `Value::List(Arc<Vec<Value>>, TypeRef)` | the elements and the element type |
+| a record type | `Value::Record(Arc<Record>)` | the type and the fields in declaration order |
+| `Option<T>`, present | `Value::Present(Arc<Value>)` | the value |
+| `Option<T>`, absent | `Value::Absent(TypeRef)` | the type of what is absent |
+| a function | `Value::Function(…)` | applied through the context, never by hand |
+
+A list is built with `Value::list(elements, element_type)`, and the common
+types are constants: `TypeRef::INT`, `TypeRef::FLOAT`, `TypeRef::STR`.
+
+A native matches on the variant the contract promises. `shout` is declared
+on a `String` and on a `Greeting`, so its one function reads both:
+
+```rust
+fn shout(
+    _cx: &mut dyn EvalCx,
+    input: Value,
+    _arguments: &[TypedArg],
+    span: Span,
+) -> Result<Value, Diagnostic> {
+    let said = match &input {
+        Value::Record(record) => match record.field("text") {
+            Some(held) => text(held, &span)?,
+            None => return Err(ext::failure(span, "expected a `Greeting`")),
+        },
+        other => text(other, &span)?,
+    };
+    Ok(Value::Str(said.to_uppercase().into()))
+}
+```
+
+## Arguments
+
+`input` is evaluated when the function is called. The other arguments are
+not: each is a `TypedArg`, the argument's expression with the name it was
+written with. A function finds the ones it wants and evaluates them:
+
+| Function | Gives |
+| --- | --- |
+| `ext::named(arguments, "punctuation")` | the argument written `punctuation = …`, if the call wrote it |
+| `ext::positional(arguments, 0)` | the first argument written without a name, after the input |
+| `ext::value_of(cx, argument)` | the argument's value |
+
+An argument with a default that the call leaves out is not in
+`arguments`. The function supplies the default the contract states:
+
+```rust
+let punctuation = match ext::named(arguments, "punctuation") {
+    Some(argument) => text(&ext::value_of(cx, argument)?, &span)?,
+    None => "!".to_owned(),
+};
+```
+
+<!-- run: --workspace examples/packages -->
+```hql
+import hello
+
+g = Greeting("Ada", punctuation = "?")
+[g.text, str(g.length)]
+```
+
+```text
+["Hello, Ada?", "11"]
+```
+
+## Records
+
+A value of a record type the contract declares is built with
+`ext::record`: the type by its name, then the fields in the order the
+contract declares them.
+
+```rust
+Ok(ext::record(
+    ext::ty("Greeting", []),
+    [
+        ("text", Value::Str(said.into())),
+        ("length", Value::Int(length)),
+    ],
+))
+```
+
+`ext::ty("Greeting", [])` is the type `Greeting` with no type arguments.
+The name is the one the contract declares; the contract is where the
+fields and their types are stated, and the Rust follows it. An optional
+field, `target? : List<Float>`, holds a `Value::Present` or a
+`Value::Absent`.
+
+## Failures
+
+A function that cannot give a result returns a diagnostic.
+`ext::failure(span, message)` makes one that points at the call:
+
+```rust
+let length = i64::try_from(said.chars().count())
+    .map_err(|_| ext::failure(span.clone(), "the greeting is too long"))?;
+```
+
+The message is one sentence for the person who wrote the program. It says
+what was wrong with the value, in the program's terms: `row 1 has 2
+features; row 0 has 1`, not the name of a Rust error.
+
+A failure is an ordinary failure of the program. Under `collect`, or
+handled by the steps of [[12-errors|chapter 12]], it behaves as a failure
+of a standard function does.
+
+## Panics
+
+A Rust panic inside a native does not end `hql`. `hql::native!` runs each
+function under a guard that catches a panic and returns it as a failure
+of the call, naming the function:
+
+<!-- run: skip -->
+```hql
+import hello
+
+hello.fail("boom")
+```
+
+```text
+execute failure[invalid-argument]: the extension function `fail` panicked: boom
+ --> <expression>:3:1
+  |
+3 | hello.fail("boom")
+  | ^^^^^^^^^^^^^^^^^^
+```
+
+The guard is a net, and a failure is the intended path. A panic reports a
+defect of the package: an index out of range, an `unwrap` on nothing. A
+value a program can pass is refused with `ext::failure`.

@@ -1,0 +1,190 @@
+# 37. The registry and publishing
+
+A package on your machine installs from its directory. This chapter is how
+a package reaches other machines: the repository that holds the official
+packages, the registry that names them, and publishing a package's crate
+to crates.io.
+
+## Official and known packages
+
+[`hql-extensions`](https://github.com/ewiger/hql-extensions) is the
+repository of official packages. It is a Cargo workspace with one crate
+per package under `crates/`, and one file at its root,
+`hql-packages.yaml`, the **registry**.
+
+| Kind | Where its crate is kept | Who maintains it |
+| --- | --- | --- |
+| **official** | under `crates/` of `hql-extensions` | the HQL project |
+| **known** | anywhere, pinned by the registry to a crates.io version or a git revision | its author |
+| a path package | on your machine | you; it is in no registry |
+
+The registry is a list of names. It decides what `ml` means when someone
+writes `hql package install ml`, and it is reviewed, because a package is
+native code with the rights of the `hql` process
+([[35-how-a-library-is-loaded/static-and-dynamic#what-a-library-is-not|chapter 35]]).
+
+## A registry entry
+
+```yaml
+registry: 1
+packages:
+  - name: ml
+    crate: hql-ext-ml
+    kind: official
+    version: 0.1.0
+    hql: ">=0.7.0, <0.8.0"
+    provides: [ml, ml.metrics]
+    description: Datasets from records, linear and logistic regression and k-means as values, prediction, and metrics
+```
+
+| Key | States |
+| --- | --- |
+| `name` | the package's name, unique in the registry and distinct from every builtin package |
+| `crate` | its crate, `hql-ext-<name>` |
+| `kind` | `official` or `known` |
+| `version` | the version the entry pins; for an official package the tag `<crate>-v<version>` of the repository |
+| `hql` | the `hql` versions the package builds against |
+| `provides` | the modules it provides, all under its own name |
+
+The `hql` key is read before anything is fetched. A package whose range
+excludes the running `hql` is refused there, with both versions named.
+The same range is in the crate's own `Cargo.toml`, as `hql = "0.7"`.
+
+## Version ranges and exact versions
+
+Two version statements concern a package, and they answer different
+questions.
+
+| Statement | Where | Answers |
+| --- | --- | --- |
+| a range, `hql = "0.7"` | the crate's `Cargo.toml`, and `hql:` in the registry | which `hql` versions is this source written for? |
+| an exact version, `hql = "0.7.0"` | `[build]` in an installed `package.toml` | which `hql` was this library built against? |
+
+A crate is published with the range. One release of `hql-ext-ml` serves
+every `hql` 0.7, because each install builds it again against the `hql`
+that runs the install. The exact version exists only in a build
+([[35-how-a-library-is-loaded/the-version-rule|the version rule]]).
+
+## Installing by name
+
+!!! warning "Design only"
+
+    This section describes functionality that is not in the current release.
+    It is written as if it existed: these commands do not run, and names may
+    change before they ship.
+
+`hql package install ml` reads the registry, checks the entry's `hql`
+range, fetches the crate at the pinned version, and then does what
+`install --path` does: builds it against the running `hql` and installs
+the result.
+
+| Command | What it does |
+| --- | --- |
+| `hql package install <name>` | install the registry's pinned version of a package |
+| `hql package search <word>` | registry entries whose name or description holds the word |
+| `hql package update [<name>]` | install the version the registry now pins, where it is newer |
+| `hql package registry --refresh` | fetch the registry again; a copy is kept under `~/.hql/registry/` for a day |
+
+Until this ships, an official package installs from a checkout of the
+repository:
+
+```sh
+git clone https://github.com/ewiger/hql-extensions
+hql package install --path hql-extensions/crates/hql-ext-ml
+```
+
+## Publishing a crate
+
+A package's crate is published to [crates.io](https://crates.io) under its
+crate name, so that a pinned version of it can be fetched by anyone. The
+`Cargo.toml` of a published package states what crates.io requires and
+what ships:
+
+```toml
+[package]
+name = "hql-ext-ml"
+version = "0.1.0"
+description = "HQL package `ml`: datasets, fitted models as values, prediction and metrics"
+license = "MIT"
+repository = "https://github.com/ewiger/hql-extensions"
+readme = "README.md"
+include = ["/src", "/modules", "/examples/*.hql", "/examples/hql.toml", "/README.md"]
+
+[dependencies]
+hql = "0.7"
+```
+
+The module root is part of the published crate: `include` lists
+`/modules`, since a crate without its contracts is not a package.
+
+Three rules follow from how Cargo publishes:
+
+- **`hql` is a version range from crates.io.** A crate with a path or git
+  dependency cannot be published, so the `hql` version a package names is
+  on crates.io before the package is.
+- **Everything else is ordinary.** A package depends on any crate, and
+  those dependencies are built on the installing machine with the rest.
+- **A crate does not enable features of the crates it shares with `hql`.**
+  The values the two exchange hold types of those crates, and a feature
+  can change a type
+  ([[35-how-a-library-is-loaded/the-version-rule#every-refusal|every refusal]]).
+
+`cargo publish --dry-run` builds the crate as crates.io would, from the
+packaged files alone, and is worth running before a tag:
+
+```sh
+cargo publish -p hql-ext-ml --dry-run
+```
+
+## A release of an official package
+
+In `hql-extensions` a package is released by a tag:
+
+1. Set `version` in the crate's `Cargo.toml` and in its registry entry.
+2. Merge to `main`. CI tests the crate and runs every program under its
+   `examples/` against a build of `hql`.
+3. Push the tag `<crate>-v<version>`, `hql-ext-ml-v0.1.0`.
+
+The release workflow checks that the tag, the crate and the registry
+entry state one version, and runs `cargo publish` for that crate alone.
+
+## Registering a package of your own
+
+A known package is added by a pull request to `hql-extensions` that adds
+one entry to `hql-packages.yaml`. The review checks that:
+
+- the crate is named `hql-ext-<name>`, the name is one lowercase word no
+  other package uses, and the modules are under that name;
+- `[package.metadata.hql]` states the package, its modules and its module
+  root, and the contracts under the root declare those modules;
+- the entry is pinned, to a crates.io version or a git revision, and
+  states the `hql` versions it builds against;
+- the crate builds and its examples run against those versions.
+
+A package nobody registers is still a package. It installs with
+`--path`, and a team shares it as it shares any repository.
+
+## Prebuilt libraries
+
+!!! warning "Design only"
+
+    This section describes functionality that is not in the current release.
+    It is written as if it existed, and names may change before it ships.
+
+Building from source needs a Rust toolchain and a minute. A **prebuilt
+library** removes both for official packages: each `hql` release is built
+with one exact compiler, and the official packages are built with that
+same compiler for that same release, per platform, and published with
+checksums. `hql package install` then fetches the library that matches
+the running `hql` exactly, verifies its checksum, and falls back to
+building from source where none matches.
+
+The version rule is unchanged. A prebuilt library is one that happens to
+have been built for this `hql` already, and the header check of
+[[35-how-a-library-is-loaded/the-entry-point#the-header|chapter 35]] holds
+it to that.
+
+## What is next
+
+[[38-the-ml-package|Chapter 38]] uses a real package: `ml`, with
+datasets, three kinds of model and their metrics.

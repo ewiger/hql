@@ -210,6 +210,7 @@ every mode, each read in turn:
 | user | `config.toml` in the **HQL home**, `~/.hql/`; `$HQL_HOME` names another directory |
 | named context | the selected `[context.<name>]` table of the system or user file |
 | HQL home modules | `~/.hql/modules/`, a module root when it exists |
+| HQL home packages | `~/.hql/lib/`, the packages `hql package` installed ([[36-installing-packages|chapter 36]]) |
 | workspace | the workspace's `hql.toml` |
 | `$HQL_PATH` | further module roots, separated as `$PATH` is |
 | command line | `--modules <dir>` |
@@ -224,6 +225,11 @@ Module roots and extension imports gather across the layers, each once. A
 gathered root is a place to look, not a priority: a module that two roots
 provide is still an error. `prelude` is the last layer's that states it. The
 HQL home is the user's environment, not a workspace, and never a vault.
+
+A workspace's `hql.toml` takes one more key, `[packages] paths`: the crates
+of packages under development, each built on first use and loaded before
+the installed ones
+([[36-installing-packages#a-package-under-development|chapter 36]]).
 
 ### Named contexts
 

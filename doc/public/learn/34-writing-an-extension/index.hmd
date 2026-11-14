@@ -1,0 +1,80 @@
+# 34. Writing an extension
+
+This chapter writes a package from an empty directory: `hello`, which
+provides one module of the same name. It has a crate, a contract and five
+Rust functions, and it is small enough to read whole. The finished package
+is in the `hql` repository under
+[`tests/packages/hello/`](https://github.com/ewiger/hql/tree/main/tests/packages/hello),
+where the tests of `hql` build and load it.
+
+A package needs a Rust toolchain: `cargo`, installed with
+[rustup](https://rustup.rs). It needs no knowledge of how `hql` is built
+beyond one module of its crate, `hql::ext`.
+
+## The parts of a package
+
+```text
+hello/
+├── Cargo.toml                the crate, and what package it is
+├── modules/
+│   └── hello/mod.hql         the contract: declarations without bodies
+└── src/
+    └── lib.rs                the extension: one Rust function per name
+```
+
+| Part | Written in | Says |
+| --- | --- | --- |
+| `Cargo.toml` | TOML | the crate's name, that its library is loadable, and the package's name and modules |
+| `modules/` | HQL | what a program may call, with types and doc strings |
+| `src/` | Rust | what each call computes |
+
+## The order of work
+
+1. [The crate](the-crate.hmd): a `Cargo.toml` that makes a crate a package.
+2. [The contract](contracts.hmd): the module file a program is checked
+   against.
+3. [Natives](natives.hmd): a Rust function per declared name, the table
+   that lists them, and the extension that exports the table.
+4. [Values and errors](values-and-errors.hmd): what a function receives and
+   returns, records of the package's own types, and failures.
+5. [Functions and the context](lambdas-and-context.hmd): calling a function
+   the program passed in, and what else the running program offers.
+
+With the three files written, one command builds the package and installs
+it, and a program imports it:
+
+```sh
+hql package install --path hello
+```
+
+<!-- run: --workspace examples/packages -->
+```hql
+import hello
+
+hello.greet("Ada")
+```
+
+```text
+"Hello, Ada!"
+```
+
+While a package is being written, a workspace names its crate instead, and
+`hql` rebuilds it whenever its source is newer than the last build
+([[36-installing-packages#a-package-under-development|chapter 36]]). The
+programs of this chapter run that way.
+
+## The pages of this chapter
+
+| Page | What it covers |
+| --- | --- |
+| [The crate](the-crate.hmd) | `Cargo.toml`: the crate type, the `hql` dependency, `[package.metadata.hql]` |
+| [The contract](contracts.hmd) | the module file, its types, its declarations and their doc strings |
+| [Natives](natives.hmd) | the signature of a native function, the table of operations, `hql::extension!` |
+| [Values and errors](values-and-errors.hmd) | `Value`, records, named arguments and defaults, failures and panics |
+| [Functions and the context](lambdas-and-context.hmd) | applying a function argument, and `EvalCx` |
+
+## What is next
+
+[[35-how-a-library-is-loaded|Chapter 35]] is about what `hql package
+install` produced and how the running `hql` reaches it: a library, a
+symbol, and the rule that makes the two fit.

@@ -3,7 +3,7 @@
 
 #![deny(unsafe_code)]
 
-use hql::ext::{self, Diagnostic, EvalCx, Operation, Span, TypeRef, TypedArg, Value};
+use hql::ext::{self, Diagnostic, EvalCx, Operation, Span, TypedArg, Value};
 
 /// The text greeting a name.
 fn hello(name: &str, punctuation: &str) -> String {
@@ -122,9 +122,3 @@ hql::extension!(ext::extension(
     env!("CARGO_PKG_VERSION"),
     &[ext::provided("hello", HELLO)],
 ));
-
-/// What `total` gives over a list of `Int`s, for the crate's own tests.
-#[must_use]
-pub fn element() -> TypeRef {
-    TypeRef::INT
-}

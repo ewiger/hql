@@ -1,0 +1,234 @@
+# 38. The ml package
+
+`ml` is the first official package: datasets, models fitted over them,
+prediction, and metrics. It is written as [[34-writing-an-extension|chapter 34]] describes, over the Rust crate [linfa](https://github.com/rust-ml/linfa),
+and it provides two modules, `ml` and `ml.metrics`.
+
+The programs of this chapter need the package installed. They are not run
+when the book is built; the same programs are the package's examples, which
+its own repository runs.
+
+```sh
+git clone https://github.com/ewiger/hql-extensions
+hql package install --path hql-extensions/crates/hql-ext-ml
+```
+
+Every number of `ml` is a `Float`, written with the suffix `f`
+([[02-data-types/float|chapter 2]]). `1.0` is a `Decimal` and is refused.
+
+## A dataset
+
+A `Dataset` is rows of features, each row a list of `Float`s of one
+length, and optionally a target per row:
+
+<!-- run: skip -->
+```hql
+import ml
+
+Dataset([[1.0f], [2.0f], [3.0f]], target = [3.0f, 5.0f, 7.0f])
+```
+
+```text
+Dataset(features = [[1.0], [2.0], [3.0]], target = [3.0, 5.0, 7.0])
+```
+
+`Dataset` is a record type with a constructor of the package's own, which
+checks what a record literal would not: rows of unequal length are
+refused, naming the first that differs.
+
+<!-- run: skip -->
+```hql
+import ml
+
+Dataset([[1.0f], [2.0f, 3.0f]])
+```
+
+```text
+execute failure[invalid-argument]: row 1 has 2 features; row 0 has 1
+ --> <expression>:3:1
+  |
+3 | Dataset([[1.0f], [2.0f, 3.0f]])
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+A dataset without `target` is unlabelled: it can be clustered, and a fit
+that needs a target refuses it.
+
+## A dataset from records
+
+Data rarely arrives as rows of numbers. `dataset` reads one from any
+collection, by one function per feature and one for the target:
+
+<!-- run: skip -->
+```hql
+import ml
+
+type House { area : Float, rooms : Float, price : Float }
+
+houses = [
+    House(area = 50.0f, rooms = 2.0f, price = 200.0f),
+    House(area = 80.0f, rooms = 3.0f, price = 310.0f),
+    House(area = 120.0f, rooms = 4.0f, price = 450.0f),
+    House(area = 65.0f, rooms = 2.0f, price = 240.0f),
+]
+d = houses.dataset([(h: House) => h.area, (h: House) => h.rooms], target = h => h.price)
+[d.features.count(), d.features[0].count()]
+```
+
+```text
+[4, 2]
+```
+
+A function written inside the list states its parameter's type,
+`(h: House) => h.area`. The `target` function is an argument of its own
+and takes its type from the collection.
+
+## Splitting
+
+`split` shuffles a dataset and divides it into a training part and a test
+part, the test part the fraction `test` of the rows:
+
+<!-- run: skip -->
+```hql
+import ml
+
+d = Dataset([[1.0f], [2.0f], [3.0f], [4.0f]], target = [1.0f, 2.0f, 3.0f, 4.0f])
+parts = d.split(test = 0.25f, seed = 7)
+[parts.train.features.count(), parts.test.features.count()]
+```
+
+```text
+[3, 1]
+```
+
+With a `seed` the split is pure: the same seed gives the same parts. Without
+one, `split` draws from the program's seed and is effectful, as `shuffle`
+is ([[29-random|chapter 29]]); `hql --seed 7` then repeats it.
+
+## Models are values
+
+A fit gives a **model**, and a model is a record. Its fields print and
+read as any record's do:
+
+<!-- run: skip -->
+```hql
+import ml
+
+d = Dataset([[0.0f], [1.0f], [2.0f]], target = [1.0f, 3.0f, 5.0f])
+d.fit_linear()
+```
+
+```text
+Linear(coefficients = [1.9999999999999991], intercept = 1.0000000000000009)
+```
+
+The data lie on the line `2x + 1`, and the fit finds it to the last few
+digits of a `Float`: a least-squares solution is computed, not looked up.
+
+| Function | Fits | Gives |
+| --- | --- | --- |
+| `fit_linear()` | ordinary least squares over a labelled dataset | `Linear { coefficients, intercept }` |
+| `fit_logistic(max_iterations = 100)` | logistic regression over a target of 0 and 1 | `Logistic { coefficients, intercept }` |
+| `fit_kmeans(clusters = k, seed = s)` | k-means over the features | `KMeans { centroids }` |
+
+A model holds no hidden state. It can be kept in a binding, put in a list,
+compared, written out as JSON, and read back.
+
+## Prediction
+
+`predict` takes a model and rows of features, or a model and a dataset,
+and gives one value per row: a number for `Linear`, a probability for
+`Logistic`, the index of the nearest centroid for `KMeans`.
+
+<!-- run: skip -->
+```hql
+import ml
+
+d = Dataset([[1.0f, 1.0f], [1.2f, 0.8f], [8.0f, 8.0f], [8.2f, 7.9f]])
+model = d.fit_kmeans(clusters = 2, seed = 1)
+nearest = model.predict(d)
+[nearest[0] == nearest[1], nearest[2] == nearest[3], nearest[0] != nearest[2]]
+```
+
+```text
+[true, true, true]
+```
+
+`predict` is one name with six forms, three models by two kinds of input.
+A call takes the form its model and its argument fit, and the checker
+gives the result its type: `List<Float>` or `List<Int>`.
+
+## Metrics
+
+`ml.metrics` is imported by name. Its functions compare predictions with
+what was observed:
+
+| Function | Gives |
+| --- | --- |
+| `rmse(predicted, actual)` | the root of the mean squared difference |
+| `mae(predicted, actual)` | the mean absolute difference |
+| `r2(predicted, actual)` | the coefficient of determination: 1 for a perfect fit |
+| `accuracy(predicted, actual, threshold = 0.5)` | the fraction of rows classified as observed |
+| `confusion(predicted, actual, threshold = 0.5)` | the four counts of a classification, as a `Confusion` record |
+
+<!-- run: skip -->
+```hql
+import ml
+import ml.metrics
+
+observed = [0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f]
+d = Dataset([[0.0f], [1.0f], [2.0f], [3.0f], [4.0f], [5.0f]], target = observed)
+probabilities = d.fit_logistic(max_iterations = 200).predict(d)
+counts = metrics.confusion(probabilities, observed)
+[metrics.accuracy(probabilities, observed), counts.true_positive.float(), counts.true_negative.float()]
+```
+
+```text
+[1.0, 3.0, 3.0]
+```
+
+## A whole program
+
+A fit is exact only up to rounding, so a program that prints its results
+rounds them:
+
+<!-- run: skip -->
+```hql
+import ml
+import ml.metrics
+
+fn near(x: Float) : Float = (x * 1000.0f).round() / 1000.0f
+
+target = [3.0f, 5.0f, 7.0f]
+d = Dataset([[1.0f], [2.0f], [3.0f]], target = target)
+model = d.fit_linear()
+[model.predict([[4.0f]]) | map(near), [near(metrics.rmse(model.predict(d), target))]]
+```
+
+```text
+[[9.0], [0.0]]
+```
+
+This is `examples/linear.hql` of the package's crate. That directory holds
+an `hql.toml` listing the crate under `[packages] paths`, so in a checkout
+the example runs against the source beside it, with no install:
+
+```sh
+cd hql-extensions/crates/hql-ext-ml/examples
+hql run linear.hql
+```
+
+## How ml is put together
+
+`ml` has the three parts of every package, and one more layer of its own:
+
+| Part | Holds |
+| --- | --- |
+| `modules/ml/mod.hql`, `modules/ml/metrics.hql` | the contracts: the types, and every function declared without a body |
+| `src/core/` | the computations, over plain Rust values, with no `hql` type in them |
+| `src/natives/` | one Rust function per declared name: it converts the call's values, runs `core`, converts the result |
+| `src/lib.rs` | the extension, stated with `hql::extension!` |
+
+Keeping `core` free of HQL types means it is tested as ordinary Rust, and
+the natives are short: reading a list of `Float`s, building a record,
+turning a refusal of `core` into a failure of the call.

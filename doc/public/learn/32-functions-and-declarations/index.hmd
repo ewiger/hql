@@ -1,0 +1,98 @@
+# 32. Functions and declarations
+
+A **function** is a name, a signature and a body: an expression in HQL that
+gives the result. A **declaration** is a name and a signature with no body:
+the result comes from a function written in Rust. A program calls both the
+same way, and the checker types a call from the signature alone, so nothing
+at the call says which of the two it reaches.
+
+This chapter is about the second kind. Every function of the standard
+library that a program cannot write for itself, from `abs` to `split`, is a
+declaration, and [[learn#part-v-extending-hql|Part V]] is about adding
+declarations of your own.
+
+## A function has a body
+
+[[04-functions|Chapter 4]] declares functions. The body follows `=`, and its
+type is checked against the result the signature states:
+
+```hql
+fn double(n: Int) : Int = n * 2
+
+double(21)
+```
+
+```text
+42
+```
+
+Everything `double` does is in the program. Removing the Rust that
+implements `hql` would leave the function exactly as it is written.
+
+## A declaration has none
+
+The same signature without `=` is a declaration. It states what a call takes
+and gives, and nothing about how:
+
+```hql
+abs(-3)
+```
+
+```text
+3
+```
+
+`abs` is declared in the standard module `math` as
+`fn abs(self: Int) : Int`. The line has no body, because no HQL expression
+defines the absolute value of an `Int` without already having one. The
+result comes from a Rust function inside the `hql` binary.
+
+A declaration is one half of a pair. The other half is the Rust function,
+and the pair is joined by an **extension**: the unit that implements the
+declarations of a package's modules. A declaration in a file that no
+extension implements is checked and binds no name:
+
+```hql
+fn area(side: Float) : Float
+
+area(2.0f)
+```
+
+```text
+check error[unknown-name]: `area` is not bound
+ --> <expression>:3:1
+  |
+3 | area(2.0f)
+  | ^^^^^^^^^^
+```
+
+The declaration itself is accepted: its types exist and its name is free.
+The call is refused because a program has no extension, so nothing
+implements `area`.
+
+## Which one to write
+
+| | A function | A declaration |
+| --- | --- | --- |
+| Written in | HQL | HQL for the signature, Rust for the result |
+| Lives in | a program or a module of a workspace | a module of a package |
+| Needs | nothing beyond `hql` | a Rust toolchain to build the package |
+| Reaches | what HQL expresses | anything a Rust crate does |
+| Changes take effect | on the next run | after the package is rebuilt |
+
+A function is the default. A declaration is for what HQL cannot express or
+should not repeat: a numeric routine a Rust crate already provides, a file
+format, a protocol, a computation whose speed matters.
+
+## The pages of this chapter
+
+| Page | What it covers |
+| --- | --- |
+| [Declarations](declarations.hmd) | the receiver, positional and named parameters, defaults, forms of one name, purity and shape |
+| [How the standard library is built](how-std-is-built.hmd) | a standard module's contract, the Rust beside it, and the check that joins them |
+
+## What is next
+
+[[33-packages-and-extensions|Chapter 33]] follows an `import` from the
+module it names to the package that provides it and the file the package's
+extension is loaded from.

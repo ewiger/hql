@@ -1,0 +1,193 @@
+# 36. Installing packages
+
+`hql package` builds a package from its crate and keeps it under the HQL
+home, where every program on the machine reaches it. This chapter is the
+commands, the files they write, and the two settings of `hql.toml` that
+concern packages.
+
+## The commands
+
+| Command | What it does |
+| --- | --- |
+| `hql package install --path <dir>` | build the package of a crate on this machine and install it |
+| `hql package list` | the installed packages, with the modules each provides |
+| `hql package info <name>` | what an installed package records about itself |
+| `hql package rebuild <name>` | build an installed package again from its source |
+| `hql package remove <name>` | remove an installed package |
+
+Installing needs `cargo` on the `PATH`
+([rustup](https://rustup.rs) installs it). Listing, describing and
+removing need nothing but `hql`.
+
+## Installing
+
+```sh
+git clone https://github.com/ewiger/hql && cd hql
+hql package install --path tests/packages/hello
+```
+
+```text
+   Compiling hql-ext-hello v0.1.0
+    Finished `release` profile [optimized] target(s) in 58.20s
+installed hello 0.1.0 (hello) in /home/ada/.hql/lib/hello
+```
+
+The first build of a package compiles the `hql` crate and its
+dependencies, which takes about a minute; later builds reuse them. The
+last line is written once the package has been built, installed and
+loaded: a package that builds and cannot be loaded is reported here, with
+the reason, and not left for a program to find.
+
+```sh
+hql package list
+```
+
+```text
+hello 0.1.0 (hello)
+```
+
+```sh
+hql eval 'import hello
+hello.greet("Ada")'
+```
+
+```text
+"Hello, Ada!"
+```
+
+## What is installed
+
+A package is a directory under the HQL home, `~/.hql` unless `$HQL_HOME`
+names another:
+
+```text
+~/.hql/lib/hello/
+├── package.toml
+├── modules/
+│   └── hello/mod.hql
+└── libhql_ext_hello.dylib
+```
+
+`package.toml` is the record of the build:
+
+```toml
+[package]
+name = "hello"
+crate = "hql-ext-hello"
+version = "0.1.0"
+provides = ["hello"]
+
+[source]
+kind = "path"
+path = "/home/ada/hql/tests/packages/hello"
+
+[build]
+hql = "0.7.0"
+rustc = "1.98.1 (48a229cea 2026-09-01)"
+target = "aarch64-apple-darwin"
+library = "libhql_ext_hello.dylib"
+built = "2026-11-14T10:02:11Z"
+```
+
+| Table | Records |
+| --- | --- |
+| `[package]` | the package, its crate and version, and the modules it provides |
+| `[source]` | where the source came from, which is what `rebuild` builds again |
+| `[build]` | the `hql` and the compiler it was built with, and the library's file name |
+
+The directory is self-contained. Removing it removes the package, which
+is all `hql package remove` does. The crate it was built from is not
+needed again until a rebuild.
+
+## Describing and rebuilding
+
+```sh
+hql package info hello
+```
+
+```text
+package: hello
+crate: hql-ext-hello 0.1.0
+provides: hello
+source: path /home/ada/hql/tests/packages/hello
+built: 2026-11-14T10:02:11Z against hql 0.7.0 with rustc 1.98.1 (48a229cea 2026-09-01) for aarch64-apple-darwin
+library: /home/ada/.hql/lib/hello/libhql_ext_hello.dylib
+```
+
+After `hql` is upgraded, an installed package was built for the previous
+one and is refused until it is rebuilt
+([[35-how-a-library-is-loaded/the-version-rule|the version rule]]).
+`hql package list` says which:
+
+```text
+hello 0.1.0 (hello): built against hql 0.7.0, run `hql package rebuild hello`
+```
+
+```sh
+hql package rebuild hello
+```
+
+## A package under development
+
+Installing copies a build. While a package is being written, a workspace
+names the crate instead, under `[packages] paths` in its `hql.toml`:
+
+```toml
+[packages]
+paths = ["../hello"]
+```
+
+A path is read against the directory of the `hql.toml`. Each crate listed
+is built the first time a program runs in the workspace, and again
+whenever its `Cargo.toml`, a file under `src/` or a file under its module
+root is newer than the build. The build is kept under the crate's own
+`target/` directory, and nothing is written to the HQL home.
+
+<!-- run: --workspace examples/packages -->
+```hql
+import hello
+
+Greeting("Ada").length
+```
+
+```text
+11
+```
+
+The workspace of that program is
+[`examples/packages/`](https://github.com/ewiger/hql/tree/main/examples/packages),
+whose `hql.toml` lists the `hello` crate. A crate a workspace lists comes
+before an installed package of the same name, so the checkout being edited
+is the one that runs.
+
+## Importing a package for every program
+
+A module of a package is imported where it is used, as any module outside
+the prelude is. A workspace whose programs all use one may import it once,
+under `[extensions] import` in `hql.toml`, by the package's name:
+
+```toml
+[extensions]
+import = ["hello"]
+```
+
+Every program of the workspace then starts with the package's modules
+imported, and `greet("Ada")` needs no `import` line. The setting names a
+standard module or a package; it is the one place a package is named.
+
+## Where a module comes from
+
+| Source | Found in | Wins over |
+| --- | --- | --- |
+| a builtin package | the `hql` binary | everything: no package provides a module `std` or `search` does |
+| a crate under `[packages] paths` | the workspace's `hql.toml` | an installed package of the same name |
+| an installed package | `~/.hql/lib/` | a workspace module of the same name |
+| a workspace module | the module roots ([[05-modules|chapter 5]]) | |
+
+`hql builtins` prints the module graph a program in the current directory
+would see, each module with the package and version providing it.
+
+## What is next
+
+[[37-the-registry-and-publishing|Chapter 37]] is how a package reaches
+other people: the registry that names packages, and publishing a crate.
