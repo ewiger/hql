@@ -196,9 +196,9 @@ order, reading `[hql] project` from the vault's `.hmd/config.toml`.
 
 Without an HMD host, `hql` resolves the project itself, by steps 2 and 3:
 
-- The walk starts at the anchor HQL-0025 defines: the program file's
+- The walk starts at the program's source directory: the program file's
   directory for `run`, `check`, `plan`, `boundary` and `context <file>`,
-  and the current directory otherwise.
+  and the working directory for a program with no file.
 - `--project <dir>` replaces the walk; the directory MUST hold
   `.hql/config.toml`, and one that does not is refused.
 - `--bare` runs with no project and no walk; `--bare` with `--project` is
@@ -244,14 +244,32 @@ When HQL runs from an HMD document, the host MUST supply an execution context co
 ```text
 hql_project_root
 source_document
-working_directory
+source_directory
 hmd_project_root
 hmd_namespace_root
 ```
 
 Different operations use different roots.
 
-Filesystem-relative operations use the execution working directory:
+#### The source directory and the working directory
+
+Two directories are distinct, and only one of them resolves paths:
+
+- The **source directory** of a unit is the directory holding its source:
+  the HMD document of a cell, the `.hql` file of a program or module, as
+  Python's `dirname(__file__)` is. A program with no file, written on the
+  command line or read from standard input, has the working directory as
+  its source directory.
+- The **working directory** is the directory `hql` was started in, the
+  process's current directory. It is a fact about the invocation, as an
+  environment variable is.
+
+A relative path in HQL source MUST resolve against the source directory of
+the unit that names it, and never against the working directory
+([[HQL-0040]]). Each unit has its own: a module imported from `lib/`
+resolves its relative paths against its own directory, not its caller's.
+The project walk starts at the same directory ("HyperMarkdown vaults may
+select an HQL project" above).
 
 ```hql
 file("./data.json")
@@ -263,11 +281,34 @@ For a source document at:
 repo/docs/wiki/design/foo.hmd
 ```
 
-this resolves relative to:
+this resolves relative to its source directory:
 
 ```text
 repo/docs/wiki/design/
 ```
+
+whatever directory `hql` was started in.
+
+`io.fs` exposes both, as `Path` values, so a program composes paths from
+either explicitly:
+
+```hql
+fn source_dir() : Path      // the source directory of the calling unit
+fn working_dir() : Path     // the directory hql was started in
+```
+
+```hql
+fs.source_dir().join("data/users.csv")     // beside this file
+fs.working_dir().join("out.csv")           // where the user ran hql
+```
+
+- `source_dir()` is fixed per unit when the unit is checked, so it is
+  pure. `working_dir()` reads the invocation and is effectful, as reading
+  the environment is ([[HQL-0041]]).
+- Neither is an environment variable. The source directory differs per
+  unit and cannot be one process-wide variable; the working directory is
+  the process's, read through `io.fs` rather than `$PWD`, which a shell
+  sets and a host may not.
 
 HyperMarkdown card references use HyperMarkdown resolution:
 
@@ -557,6 +598,8 @@ project.
     from `hmd`.
 15. Rename "workspace" to "project" in the code, the CLI and the
     documentation.
+16. Add `fs.source_dir()` and `fs.working_dir()` to `io.fs`; resolve a
+    module's relative paths against its own source directory.
 
 ## Invariant
 
