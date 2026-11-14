@@ -140,6 +140,10 @@ pub(crate) struct WorkspaceModule {
     pub private_types: Vec<String>,
     /// The checked program whose `fn` statements are the functions.
     pub program: Arc<crate::execution::Program>,
+    /// The module's source directory: the directory holding its file, which
+    /// its relative paths resolve against (HQL-0059). `None` for a written
+    /// module of the standard library, which reads no file.
+    pub source_dir: Option<Arc<std::path::PathBuf>>,
     /// The public traits it declares, by name.
     pub traits: HashMap<String, crate::checker::TraitInfo>,
     /// The implementations it declares.

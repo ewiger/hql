@@ -514,3 +514,54 @@ fn io_fs_is_imported_and_not_in_the_prelude() {
         Some("b")
     );
 }
+
+/// HQL-0059: a relative path resolves against the source directory of the
+/// unit naming it, a module's own included, and never against the working
+/// directory, which `fs.working_dir()` reads.
+#[test]
+fn a_relative_path_resolves_against_the_source_directory_of_its_unit() {
+    let root = tempdir().unwrap();
+    let root = fs::canonicalize(root.path()).unwrap();
+    let repo = root.join("repo");
+    fs::create_dir_all(repo.join(".hql")).unwrap();
+    fs::create_dir_all(repo.join("lib/shelf")).unwrap();
+    fs::create_dir_all(repo.join("jobs")).unwrap();
+    fs::create_dir_all(root.join("elsewhere")).unwrap();
+    fs::write(
+        repo.join(".hql/config.toml"),
+        "[modules]\nroots = [\"lib\"]\n",
+    )
+    .unwrap();
+    fs::write(
+        repo.join("lib/shelf/mod.hql"),
+        "module shelf\nimport io\nimport io.fs\n\n\
+         fn here() : String = fs.source_dir().text\n\
+         fn note() : String = source(file(\"note.txt\"), Lines) | first | text\n",
+    )
+    .unwrap();
+    fs::write(repo.join("lib/shelf/note.txt"), "from the module\n").unwrap();
+    fs::write(repo.join("jobs/note.txt"), "from the job\n").unwrap();
+    fs::write(
+        repo.join("jobs/job.hql"),
+        "import io\nimport io.fs\nimport shelf\n\
+         [fs.source_dir().text, shelf.here(), shelf.note(), \
+         source(file(\"note.txt\"), Lines) | first | text, fs.working_dir().text]\n",
+    )
+    .unwrap();
+    let output = hql_in(&root.join("elsewhere"), &["run", "../repo/jobs/job.hql"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let written = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(
+        written.trim(),
+        format!(
+            "[{:?}, {:?}, from the module, from the job, {:?}]",
+            repo.join("jobs").display().to_string(),
+            repo.join("lib/shelf").display().to_string(),
+            root.join("elsewhere").display().to_string()
+        )
+    );
+}

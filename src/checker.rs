@@ -3368,6 +3368,7 @@ impl<'a> Checker<'a> {
         self.checked.modules.push(crate::execution::LoadedModule {
             local: local.to_owned(),
             program: std::sync::Arc::clone(&module.program),
+            source_dir: module.source_dir.clone(),
         });
         self.modules.push((local.to_owned(), module));
         Ok(())
@@ -3600,6 +3601,13 @@ impl<'a> Checker<'a> {
             bindings,
             private_types,
             program: std::sync::Arc::new(typed),
+            source_dir: written
+                .is_none()
+                .then(|| path.parent().map(std::path::Path::to_path_buf))
+                .flatten()
+                .map(|directory| {
+                    std::sync::Arc::new(std::fs::canonicalize(&directory).unwrap_or(directory))
+                }),
             traits,
             impls: checker.impls.clone(),
         });

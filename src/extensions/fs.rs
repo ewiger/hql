@@ -42,6 +42,8 @@ pub(crate) static STEPS: &[Operation] = &[
     listing("glob", eval_glob),
     listing("exists", eval_exists),
     listing("entry", eval_entry),
+    declared("source_dir", eval_source_dir),
+    listing("working_dir", eval_working_dir),
 ];
 
 /// How `io.fs` lists: every entry, hidden ones included, and a link
@@ -140,6 +142,27 @@ fn eval_folder(
         other => path_value(&path_text(&other, "folder", &span)?),
     };
     Ok(record(TypeRef::FOLDER, vec![("path", path)]))
+}
+
+/// The source directory of the running unit (HQL-0059).
+fn eval_source_dir(_: &mut dyn EvalCx, _: Value, _: &[TypedArg], _: Range<usize>) -> Result<Value> {
+    Ok(path_value(&io::source_directory().display().to_string()))
+}
+
+/// The directory `hql` was started in.
+fn eval_working_dir(
+    _: &mut dyn EvalCx,
+    _: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value> {
+    let cwd = std::env::current_dir().map_err(|error| {
+        fail(
+            &span,
+            format!("the working directory cannot be read: {error}"),
+        )
+    })?;
+    Ok(path_value(&cwd.display().to_string()))
 }
 
 fn eval_glob_of(

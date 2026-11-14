@@ -33,6 +33,9 @@ pub(crate) struct Program {
 pub(crate) struct LoadedModule {
     pub local: String,
     pub program: std::sync::Arc<Program>,
+    /// The module's source directory, which its functions resolve relative
+    /// paths against wherever they are called from.
+    pub source_dir: Option<std::sync::Arc<std::path::PathBuf>>,
 }
 
 #[derive(Debug)]

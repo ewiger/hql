@@ -18,6 +18,8 @@ reaches it as `fs`.
 - [`Glob`](types/Glob.hmd) — A pattern over paths, matched against a path relative to the folder it is applied to: `*` matches within one segment, `**` any number of whole segments, `?` one character other than `/`, and `[abc]` one character of the set, `[a-z]` one of the range.
 - [`Entry`](types/Entry.hmd) — One thing a folder holds: its `path`, the listed folder's path joined with the entry's path below it, so `file(e.path)` reads it; its `name`, the last segment; its `kind`, `"file"`, `"folder"` or `"link"`; its `size`, a file's length in bytes, absent for a folder or a link; and its `modified`, the time the entry was last modified, a link's own and not its target's, absent where the platform does not record one.
 - [`folder`](folder.hmd) — The `Folder` at `path`, a `String` or a `Path`.
+- [`source_dir`](source_dir.hmd) — The source directory of the unit calling it: the directory holding the program's file, the document of a cell, or the module whose function calls it, and the working directory for a program with no file.
+- [`working_dir`](working_dir.hmd) — The working directory: the directory `hql` was started in.
 - [`matches`](matches.hmd) — Whether `path`, read as relative to the folder the glob is applied to, matches `self`.
 - [`entries`](entries.hmd) — The entries directly in `self`, sorted by name, an entry whose name opens with `.` included.
 - [`walk`](walk.hmd) — Every entry below `self`, the folder itself excluded: depth first, each folder's entries sorted by name, and each folder followed at once by what it holds.

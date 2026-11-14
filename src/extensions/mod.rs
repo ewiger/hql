@@ -1699,7 +1699,10 @@ mod tests {
                 ))
                 || entry.module == "io.transaction"
                 || (entry.module == "io.fs"
-                    && matches!(entry.name, "entries" | "walk" | "glob" | "exists" | "entry"))
+                    && matches!(
+                        entry.name,
+                        "entries" | "walk" | "glob" | "exists" | "entry" | "working_dir"
+                    ))
                 || (entry.module == "io.logging" && entry.name != "Logger")
                 || (entry.module == "time" && matches!(entry.name, "now" | "today" | "local_zone"))
                 || entry.module == "random"

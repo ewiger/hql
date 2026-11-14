@@ -91,6 +91,7 @@ pub(crate) fn traverse(
         log: Vec::new(),
         impls: Vec::new(),
         mode: Mode::Strict,
+        source: None,
     };
     evaluator
         .run_traversal(traversal, &mut |_, value| Ok(sink(value)))
@@ -130,6 +131,7 @@ fn evaluate_in(
         log: Vec::new(),
         impls: Vec::new(),
         mode,
+        source: None,
     };
     // A finite traversal is the values it produces, so the result holds them;
     // a stream that may not end is left for the host to bound.
@@ -154,6 +156,10 @@ struct Evaluator<'a> {
     /// How much continuation the run asks for: under `collect` a step may
     /// go on past an element its function failed on.
     mode: Mode,
+    /// The source directory of the workspace module being evaluated, which
+    /// the closures it makes keep; `None` in the program unit, whose
+    /// directory is the host's.
+    source: Option<Arc<std::path::PathBuf>>,
 }
 
 /// An implementation of a trait for a type, as closures over the scope
@@ -186,6 +192,7 @@ impl Evaluator<'_> {
                         parameters: parameters.clone(),
                         body: Arc::clone(body),
                         captured: self.scope.clone(),
+                        source: self.source.clone(),
                         ty: ty.clone(),
                     }));
                     self.scope.insert(name.clone(), function);
@@ -206,6 +213,7 @@ impl Evaluator<'_> {
                                         parameters: parameters.clone(),
                                         body: Arc::clone(body),
                                         captured: self.scope.clone(),
+                                        source: self.source.clone(),
                                         ty: ty.clone(),
                                     }))
                                 }
@@ -247,6 +255,7 @@ impl Evaluator<'_> {
                                     .collect(),
                                 body: Arc::clone(&rule.body),
                                 captured: self.scope.clone(),
+                                source: self.source.clone(),
                                 ty: TypeRef::BOOL,
                             })),
                         })
@@ -270,9 +279,18 @@ impl Evaluator<'_> {
     fn load_modules(&mut self, program: &Program) -> Result<(), Diagnostic> {
         for module in &program.modules {
             let outer = std::mem::take(&mut self.scope);
+            // A module's top-level bindings and the closures it makes read
+            // relative paths against its own directory.
+            let source = std::mem::replace(&mut self.source, module.source_dir.clone());
+            let entered = module
+                .source_dir
+                .as_ref()
+                .map(|directory| crate::io::enter_source(directory));
             let loaded = self
                 .load_modules(&module.program)
                 .and_then(|()| self.program(&module.program));
+            drop(entered);
+            self.source = source;
             let inner = std::mem::replace(&mut self.scope, outer);
             loaded?;
             for statement in &module.program.statements {
@@ -542,6 +560,7 @@ impl Evaluator<'_> {
                 parameters: parameters.clone(),
                 body: Arc::clone(body),
                 captured: self.scope.clone(),
+                source: self.source.clone(),
                 ty: function.clone().unwrap_or_else(|| expression.ty.clone()),
             }))),
             Kind::Apply {
@@ -1538,7 +1557,19 @@ impl Evaluator<'_> {
         let source = card_source(values.iter());
         scope.extend(function.parameters.iter().cloned().zip(values));
         let outer = std::mem::replace(&mut self.scope, scope);
+        // A module's function resolves relative paths against the module's
+        // directory, wherever it is called from.
+        let entered = function
+            .source
+            .as_ref()
+            .map(|directory| crate::io::enter_source(directory));
+        let caller = match &function.source {
+            Some(source) => self.source.replace(Arc::clone(source)),
+            None => self.source.clone(),
+        };
         let result = self.expression(&function.body);
+        self.source = caller;
+        drop(entered);
         self.scope = outer;
         // A failure in the body says where it was, in the function's own
         // bindings, and through which call it was reached.
