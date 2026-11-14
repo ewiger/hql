@@ -27,7 +27,7 @@ fn fixture() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/packages/hello")
 }
 
-/// `hql` under an HQL home, in a directory that is no workspace.
+/// `hql` under an HQL home, in a directory that is no project.
 fn hql(home: &Path) -> Command {
     let mut command = Command::new(HQL);
     command
@@ -52,7 +52,7 @@ fn installed() -> &'static Path {
     HOME.get_or_init(|| {
         let home = tempfile::tempdir().unwrap();
         let output = hql(home.path())
-            .args(["package", "install", "--path"])
+            .args(["package", "install", "--home", "--path"])
             .arg(fixture())
             .output()
             .unwrap();
@@ -103,14 +103,14 @@ fn refused(home: &Path, program: &str) -> String {
 
 /// Rewrite a file of the installed package.
 fn edit(home: &Path, file: &str, change: impl FnOnce(String) -> String) {
-    let path = home.join("lib/hello").join(file);
+    let path = home.join("packages/hello").join(file);
     let text = std::fs::read_to_string(&path).unwrap();
     std::fs::write(path, change(text)).unwrap();
 }
 
 #[test]
 fn an_installed_package_is_a_record_a_module_root_and_a_library() {
-    let directory = installed().join("lib/hello");
+    let directory = installed().join("packages/hello");
     assert!(directory.join("package.toml").is_file());
     assert!(directory.join("modules/hello/mod.hql").is_file());
     let record = std::fs::read_to_string(directory.join("package.toml")).unwrap();
@@ -197,7 +197,7 @@ fn a_panic_in_the_library_is_a_failure_of_the_call() {
 fn the_commands_list_describe_and_remove_a_package() {
     let home = home();
     let list = hql(home.path()).args(["package", "list"]).output().unwrap();
-    assert_eq!(stdout(&list), "hello 0.1.0 (hello)");
+    assert_eq!(stdout(&list), "hello 0.1.0 (hello) [home]");
     let info = hql(home.path())
         .args(["package", "info", "hello"])
         .output()
@@ -211,7 +211,7 @@ fn the_commands_list_describe_and_remove_a_package() {
         "builtins does not name the package"
     );
     let removed = hql(home.path())
-        .args(["package", "remove", "hello"])
+        .args(["package", "remove", "--home", "hello"])
         .output()
         .unwrap();
     assert_eq!(stdout(&removed), "removed hello 0.1.0");
@@ -244,7 +244,7 @@ fn a_package_built_against_another_hql_is_refused_until_rebuilt() {
     let list = hql(home.path()).args(["package", "list"]).output().unwrap();
     assert!(stdout(&list).contains("run `hql package rebuild hello`"));
     let rebuilt = hql(home.path())
-        .args(["package", "rebuild", "hello"])
+        .args(["package", "rebuild", "--home", "hello"])
         .output()
         .unwrap();
     assert!(rebuilt.status.success(), "{}", stderr(&rebuilt));
@@ -302,8 +302,8 @@ fn a_contract_and_an_extension_that_disagree_refuse_the_package() {
 #[test]
 fn a_module_two_packages_provide_has_no_provider() {
     let home = home();
-    let twin = home.path().join("lib/twin");
-    copy_tree(&home.path().join("lib/hello"), &twin);
+    let twin = home.path().join("packages/twin");
+    copy_tree(&home.path().join("packages/hello"), &twin);
     let record = std::fs::read_to_string(twin.join("package.toml")).unwrap();
     std::fs::write(
         twin.join("package.toml"),
@@ -334,7 +334,7 @@ fn a_module_two_packages_provide_has_no_provider() {
 #[test]
 fn a_file_that_is_no_package_library_is_refused() {
     let home = home();
-    let directory = home.path().join("lib/hello");
+    let directory = home.path().join("packages/hello");
     let library = std::fs::read_dir(&directory)
         .unwrap()
         .flatten()
@@ -351,7 +351,7 @@ fn a_file_that_is_no_package_library_is_refused() {
 }
 
 #[test]
-fn a_workspace_lists_the_crate_of_a_package_it_develops() {
+fn a_project_lists_the_crate_of_a_package_it_develops() {
     // Built first, so the two builds of the fixture do not run at once.
     let _ = installed();
     let home = tempfile::tempdir().unwrap();
@@ -373,7 +373,7 @@ fn a_workspace_lists_the_crate_of_a_package_it_develops() {
     assert_eq!(stdout(&output), "\"Hello, Ada!\"");
     assert!(fixture().join("target/hql/hello/package.toml").is_file());
     // Nothing was installed under the home.
-    assert!(!home.path().join("lib").exists());
+    assert!(!home.path().join("packages").exists());
 }
 
 #[test]
@@ -381,7 +381,7 @@ fn installing_needs_cargo_and_a_package_crate() {
     let home = tempfile::tempdir().unwrap();
     let without = hql(home.path())
         .env("PATH", "")
-        .args(["package", "install", "--path"])
+        .args(["package", "install", "--home", "--path"])
         .arg(fixture())
         .output()
         .unwrap();
@@ -398,7 +398,7 @@ fn installing_needs_cargo_and_a_package_crate() {
     )
     .unwrap();
     let no_package = hql(home.path())
-        .args(["package", "install", "--path"])
+        .args(["package", "install", "--home", "--path"])
         .arg(plain.path())
         .output()
         .unwrap();
@@ -476,14 +476,26 @@ fn a_package_the_registry_lists_installs_by_name() {
         "{}",
         stdout(&listed)
     );
-    assert!(home.path().join("registry/hql-packages.yaml").is_file());
-    let absent = registered(home.path(), repository.path(), &["install", "absent"]);
+    assert!(
+        home.path()
+            .join("cache/registry/hql-packages.yaml")
+            .is_file()
+    );
+    let absent = registered(
+        home.path(),
+        repository.path(),
+        &["install", "--home", "absent"],
+    );
     assert!(
         stderr(&absent).contains("the registry lists no package `absent`"),
         "{}",
         stderr(&absent)
     );
-    let installed = registered(home.path(), repository.path(), &["install", "hello"]);
+    let installed = registered(
+        home.path(),
+        repository.path(),
+        &["install", "--home", "hello"],
+    );
     assert!(installed.status.success(), "{}", stderr(&installed));
     assert!(
         stdout(&installed).starts_with("installed hello 0.1.0 (hello) in "),
@@ -493,7 +505,7 @@ fn a_package_the_registry_lists_installs_by_name() {
     // The source is the tag's, kept under the home for a rebuild.
     assert!(
         home.path()
-            .join("src/hello/crates/hql-ext-hello/Cargo.toml")
+            .join("cache/src/hello/crates/hql-ext-hello/Cargo.toml")
             .is_file()
     );
     let info = registered(home.path(), repository.path(), &["info", "hello"]);
@@ -506,20 +518,32 @@ fn a_package_the_registry_lists_installs_by_name() {
         shown(home.path(), "import hello\nhello.greet(\"Ada\")"),
         "\"Hello, Ada!\""
     );
-    let current = registered(home.path(), repository.path(), &["update"]);
+    let current = registered(home.path(), repository.path(), &["update", "--home"]);
     assert_eq!(stdout(&current), "hello 0.1.0 is the registry's version");
-    let rebuilt = registered(home.path(), repository.path(), &["rebuild", "hello"]);
+    let rebuilt = registered(
+        home.path(),
+        repository.path(),
+        &["rebuild", "--home", "hello"],
+    );
     assert!(rebuilt.status.success(), "{}", stderr(&rebuilt));
-    let removed = registered(home.path(), repository.path(), &["remove", "hello"]);
+    let removed = registered(
+        home.path(),
+        repository.path(),
+        &["remove", "--home", "hello"],
+    );
     assert_eq!(stdout(&removed), "removed hello 0.1.0");
-    assert!(!home.path().join("src/hello").exists());
+    assert!(!home.path().join("cache/src/hello").exists());
 }
 
 #[test]
 fn an_entry_that_excludes_this_hql_is_refused_before_anything_is_fetched() {
     let repository = repository(">=9.0.0");
     let home = tempfile::tempdir().unwrap();
-    let refused = registered(home.path(), repository.path(), &["install", "hello"]);
+    let refused = registered(
+        home.path(),
+        repository.path(),
+        &["install", "--home", "hello"],
+    );
     assert!(!refused.status.success());
     assert!(
         stderr(&refused).contains(concat!(
@@ -529,6 +553,89 @@ fn an_entry_that_excludes_this_hql_is_refused_before_anything_is_fetched() {
         "{}",
         stderr(&refused)
     );
-    assert!(!home.path().join("src").exists());
-    assert!(!home.path().join("lib").exists());
+    assert!(!home.path().join("cache/src").exists());
+    assert!(!home.path().join("packages").exists());
+}
+
+#[test]
+fn a_project_installs_declares_and_pins_its_packages_and_the_home_is_second() {
+    // Built first, so the two builds of the fixture do not run at once.
+    let _ = installed();
+    let home = tempfile::tempdir().unwrap();
+    let project = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(project.path().join(".hql")).unwrap();
+    std::fs::write(project.path().join(".hql/config.toml"), "# mine\n").unwrap();
+    let in_project = |arguments: &[&str]| {
+        hql(home.path())
+            .current_dir(project.path())
+            .args(arguments)
+            .output()
+            .unwrap()
+    };
+    // Outside every project, installing needs `--home`.
+    let nowhere = hql(home.path())
+        .args(["package", "install", "--path"])
+        .arg(fixture())
+        .output()
+        .unwrap();
+    assert!(stderr(&nowhere).contains("--home"), "{}", stderr(&nowhere));
+
+    let output = hql(home.path())
+        .current_dir(project.path())
+        .args(["package", "install", "--path"])
+        .arg(fixture())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", stderr(&output));
+    let level = project.path().join(".hql");
+    assert!(level.join("packages/hello/package.toml").is_file());
+    // The configuration declares it by name; the lock pins it.
+    let config = std::fs::read_to_string(level.join("config.toml")).unwrap();
+    assert_eq!(config, "# mine\n\n[packages]\ndependencies = [\"hello\"]\n");
+    let lock = std::fs::read_to_string(level.join("lock.toml")).unwrap();
+    assert!(
+        lock.contains("name = \"hello\"\nversion = \"0.1.0\"\nsource = \"path\""),
+        "{lock}"
+    );
+    let shown = in_project(&["eval", "import hello\nhello.greet(\"Ada\")"]);
+    assert_eq!(stdout(&shown), "\"Hello, Ada!\"");
+    let listed = in_project(&["package", "list"]);
+    assert_eq!(stdout(&listed), "hello 0.1.0 (hello) [project]");
+
+    // A declared package that is not installed fails every run, and
+    // `install` with no name installs it again from its pin.
+    std::fs::remove_dir_all(level.join("packages")).unwrap();
+    let missing = in_project(&["eval", "1"]);
+    assert!(!missing.status.success());
+    assert!(
+        stderr(&missing).contains("package `hello` is a dependency")
+            && stderr(&missing).contains("hql package install"),
+        "{}",
+        stderr(&missing)
+    );
+    let reinstalled = in_project(&["package", "install"]);
+    assert!(reinstalled.status.success(), "{}", stderr(&reinstalled));
+    assert_eq!(stdout(&in_project(&["eval", "1"])), "1");
+
+    // The home's packages are found after the project's.
+    copy_tree(installed(), home.path());
+    let both = in_project(&["package", "list"]);
+    assert_eq!(
+        stdout(&both),
+        "hello 0.1.0 (hello) [project]\nhello 0.1.0 (hello) [home]"
+    );
+    assert_eq!(
+        stdout(&in_project(&["eval", "import hello\nhello.greet(\"Ada\")"])),
+        "\"Hello, Ada!\""
+    );
+
+    let removed = in_project(&["package", "remove", "hello"]);
+    assert_eq!(stdout(&removed), "removed hello 0.1.0");
+    let config = std::fs::read_to_string(level.join("config.toml")).unwrap();
+    assert_eq!(config, "# mine\n\n[packages]\ndependencies = []\n");
+    assert!(
+        !std::fs::read_to_string(level.join("lock.toml"))
+            .unwrap()
+            .contains("hello")
+    );
 }

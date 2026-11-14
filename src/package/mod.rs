@@ -12,6 +12,7 @@
 
 pub mod build;
 mod load;
+pub mod lock;
 pub mod manifest;
 pub mod registry;
 
@@ -22,8 +23,9 @@ use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-/// The directory of installed packages under the HQL home.
-pub const LIBRARY_DIRECTORY: &str = "lib";
+/// The directory of installed packages in a level: a project's `.hql/`, or
+/// the HQL home (HQL-0059).
+pub const PACKAGES_DIRECTORY: &str = "packages";
 
 /// A package the process loaded.
 #[derive(Debug, Clone)]
@@ -103,10 +105,10 @@ pub fn refusal(module: &str) -> Option<&'static Refused> {
         .find(|refused| refused.provides.iter().any(|held| held == module))
 }
 
-/// The directories of the packages installed under an HQL home, by name.
+/// The directories of the packages installed in a level, by name.
 #[must_use]
-pub fn installed(home: &Path) -> Vec<PathBuf> {
-    let mut found: Vec<PathBuf> = std::fs::read_dir(home.join(LIBRARY_DIRECTORY))
+pub fn installed(level: &Path) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = std::fs::read_dir(level.join(PACKAGES_DIRECTORY))
         .into_iter()
         .flatten()
         .flatten()
@@ -117,10 +119,10 @@ pub fn installed(home: &Path) -> Vec<PathBuf> {
     found
 }
 
-/// The directory a package is installed in under an HQL home.
+/// The directory a package is installed in, in a level.
 #[must_use]
-pub fn directory(home: &Path, package: &str) -> PathBuf {
-    home.join(LIBRARY_DIRECTORY).join(package)
+pub fn directory(level: &Path, package: &str) -> PathBuf {
+    level.join(PACKAGES_DIRECTORY).join(package)
 }
 
 /// One package under admission: what it adds to the graph and the set.
@@ -365,10 +367,11 @@ fn admit(directories: &[PathBuf]) -> Active {
     }
 }
 
-/// Activate the packages a workspace and an HQL home name: the crates
+/// Activate the packages a run discovers, in order (HQL-0059): the crates
 /// `[packages] paths` lists, each built where its build is missing or old,
-/// then the packages installed under the home.
-pub fn activate_configured(paths: &[PathBuf], home: Option<&Path>) -> &'static Active {
+/// then the packages installed in each level, the project's `.hql/` before
+/// the HQL home. The same package found twice is the first found.
+pub fn activate_configured(paths: &[PathBuf], levels: &[PathBuf]) -> &'static Active {
     if let Some(active) = ACTIVE.get() {
         return active;
     }
@@ -387,8 +390,8 @@ pub fn activate_configured(paths: &[PathBuf], home: Option<&Path>) -> &'static A
             }),
         }
     }
-    if let Some(home) = home {
-        directories.extend(installed(home));
+    for level in levels {
+        directories.extend(installed(level));
     }
     ACTIVE.get_or_init(|| {
         let mut active = admit(&directories);

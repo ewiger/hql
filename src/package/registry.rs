@@ -24,11 +24,13 @@ pub const REGISTRY_ENVIRONMENT: &str = "HQL_REGISTRY";
 /// packages: a URL or a directory.
 pub const REPOSITORY_ENVIRONMENT: &str = "HQL_REGISTRY_REPOSITORY";
 
-/// The directory of the registry's cache under the HQL home.
-pub const CACHE_DIRECTORY: &str = "registry";
+/// The directory of the registry's cache under the HQL home: the registry is
+/// cached once, in the home's `cache/`.
+pub const CACHE_DIRECTORY: &str = "cache/registry";
 
-/// The directory of fetched sources under the HQL home.
-pub const SOURCE_DIRECTORY: &str = "src";
+/// The directory of fetched sources in a level: the `cache/` of the level a
+/// package is installed into.
+pub const SOURCE_DIRECTORY: &str = "cache/src";
 
 /// The registry's file name.
 pub const FILE: &str = "hql-packages.yaml";
@@ -352,17 +354,17 @@ fn run(command: &mut Command, what: &str) -> Result<(), String> {
     }
 }
 
-/// The directory a package's source is kept in under the HQL home.
+/// The directory a package's source is kept in, in a level.
 #[must_use]
-pub fn source_directory(home: &Path, package: &str) -> PathBuf {
-    home.join(SOURCE_DIRECTORY).join(package)
+pub fn source_directory(level: &Path, package: &str) -> PathBuf {
+    level.join(SOURCE_DIRECTORY).join(package)
 }
 
 /// The crate of a fetched package: under `crates/` of a checkout of the
 /// registry's repository, or the fetched directory itself.
 #[must_use]
-pub fn crate_directory(home: &Path, package: &str, krate: &str) -> PathBuf {
-    let fetched = source_directory(home, package);
+pub fn crate_directory(level: &Path, package: &str, krate: &str) -> PathBuf {
+    let fetched = source_directory(level, package);
     let nested = fetched.join("crates").join(krate);
     if nested.join("Cargo.toml").is_file() {
         nested
@@ -371,7 +373,7 @@ pub fn crate_directory(home: &Path, package: &str, krate: &str) -> PathBuf {
     }
 }
 
-/// Fetch an entry's source into the HQL home, replacing what was there, and
+/// Fetch an entry's source into a level, replacing what was there, and
 /// return the crate's directory and the record of where it came from.
 /// `version` picks another version of an official package or of one on
 /// crates.io than the one the entry pins.
@@ -381,12 +383,12 @@ pub fn crate_directory(home: &Path, package: &str, krate: &str) -> PathBuf {
 /// Returns why the source cannot be fetched: no `git`, a tag or a version
 /// that does not exist, a download that fails.
 pub fn fetch_source(
-    home: &Path,
+    level: &Path,
     registry: &Registry,
     entry: &Entry,
     version: Option<&str>,
 ) -> Result<(PathBuf, Source), String> {
-    let destination = source_directory(home, &entry.name);
+    let destination = source_directory(level, &entry.name);
     if destination.exists() {
         std::fs::remove_dir_all(&destination)
             .map_err(|error| format!("{}: {error}", destination.display()))?;
@@ -479,7 +481,7 @@ pub fn fetch_source(
         }
     };
     Ok((
-        crate_directory(home, &entry.name, &entry.krate),
+        crate_directory(level, &entry.name, &entry.krate),
         Source::Registry {
             registry: registry.origin.clone(),
             tag,
