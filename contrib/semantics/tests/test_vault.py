@@ -81,7 +81,7 @@ def test_the_title_falls_back_to_the_first_heading():
 def test_the_committed_index_describes_the_committed_corpus():
     # The golden test from the Python side: every card's text hashes to what
     # the index says it hashed to when the vectors were computed.
-    index = store.read(BIRDS / ".hql" / "index.sqlite")
+    index = store.read(BIRDS / ".hmd" / "index.sqlite")
     indexed = {name: digest for name, _, digest, _ in index["cards"]}
     documents = vault.load(BIRDS)
     assert set(indexed) == {document.name for document in documents}

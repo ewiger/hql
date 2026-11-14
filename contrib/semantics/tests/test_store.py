@@ -18,7 +18,7 @@ def test_vectors_round_trip_as_little_endian_f32():
 
 
 def test_the_committed_index_pins_its_schema_and_its_model():
-    index = store.read(BIRDS / ".hql" / "index.sqlite")
+    index = store.read(BIRDS / ".hmd" / "index.sqlite")
     model_id, revision, dimensions, metric, normalized = index["model"]
     version, vault_name, _, _ = index["meta"]
     assert version == store.SCHEMA_VERSION
@@ -29,7 +29,7 @@ def test_the_committed_index_pins_its_schema_and_its_model():
 
 
 def test_every_vector_is_the_declared_length_and_unit_long():
-    index = store.read(BIRDS / ".hql" / "index.sqlite")
+    index = store.read(BIRDS / ".hmd" / "index.sqlite")
     dimensions = index["model"][2]
     for name, _, _, blob in index["cards"]:
         assert len(blob) == dimensions * 4, name

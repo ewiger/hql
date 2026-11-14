@@ -1,8 +1,9 @@
 """Which embedder fills an index, as a vault declares it.
 
-A vault's `hql.toml` owns its index, and an embedder is how an index comes to
-exist, so `[semantics.embedder]` lives there rather than in a third file or in
-flags a contributor has to remember. Only this producer reads the table: the Rust
+A vault's `.hmd/config.toml` owns its index, and an embedder is how an index
+comes to exist, so `[semantics]` names the index path and `[semantics.embedder]`
+the model that fills it, rather than a third file or flags a contributor has to
+remember. The table is HyperMarkdown's: no HQL configuration file takes it. Only this producer reads the table: the Rust
 consumer has no model to configure, and reads what produced a score out of the
 index rather than out of configuration.
 
@@ -15,8 +16,11 @@ import tomllib
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-CONFIG_FILE = "hql.toml"
-"""The same file `src/reporting.rs` names, at the vault root."""
+CONFIG_FILE = ".hmd/config.toml"
+"""The file `src/extensions/semantic.rs` reads, relative to the vault root."""
+
+DEFAULT_INDEX = ".hmd/index.sqlite"
+"""Where a vault's index is when `[semantics] index` does not say."""
 
 LOCAL = "local"
 HTTP = "http"
@@ -61,21 +65,7 @@ def read(root: Path) -> Embedder:
     and is refused.
     """
     path = Path(root) / CONFIG_FILE
-    try:
-        text = path.read_bytes()
-    except FileNotFoundError:
-        return Embedder()
-    except OSError as error:
-        raise ConfigError(f"{path}: cannot be read: {error}") from error
-    try:
-        parsed = tomllib.loads(text.decode("utf-8"))
-    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
-        raise ConfigError(f"{path}: is not readable TOML: {error}") from error
-
-    section = parsed.get("semantics")
-    if not isinstance(section, dict):
-        return Embedder()
-    table = section.get("embedder")
+    table = _semantics(path).get("embedder")
     if table is None:
         return Embedder()
     if not isinstance(table, dict):
@@ -83,11 +73,49 @@ def read(root: Path) -> Embedder:
     return _from_table(table, path)
 
 
+def index(root: Path) -> Path:
+    """The vault's index: `[semantics] index` against the vault root, or
+    `.hmd/index.sqlite` where the vault does not say.
+
+    The path stays inside the vault, as the Rust reader requires: an index
+    belongs to the one vault whose cards it was built from.
+    """
+    root = Path(root)
+    path = root / CONFIG_FILE
+    declared = _semantics(path).get("index", DEFAULT_INDEX)
+    if not isinstance(declared, str) or not declared.strip():
+        raise ConfigError(f"{path}: [semantics] `index` must be a non-empty string")
+    relative = Path(declared.strip())
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ConfigError(
+            f"{path}: [semantics] `index` must be a path inside the vault, "
+            f"not `{declared}`"
+        )
+    return root / relative
+
+
+def _semantics(path: Path) -> dict:
+    """The `[semantics]` table of a vault's configuration, empty where the
+    file or the table is absent."""
+    try:
+        text = path.read_bytes()
+    except (FileNotFoundError, NotADirectoryError):
+        return {}
+    except OSError as error:
+        raise ConfigError(f"{path}: cannot be read: {error}") from error
+    try:
+        parsed = tomllib.loads(text.decode("utf-8"))
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
+        raise ConfigError(f"{path}: is not readable TOML: {error}") from error
+    section = parsed.get("semantics")
+    return section if isinstance(section, dict) else {}
+
+
 def _from_table(table: dict, path: Path) -> Embedder:
     where = f"{path}: [semantics.embedder]"
     if "api_key" in table:
         # Whoever wrote a key here needs telling where it goes, not only that it
-        # is wrong: `hql.toml` is committed, and a key in it is a leaked key.
+        # is wrong: `.hmd/config.toml` is committed, and a key in it is a leaked key.
         raise ConfigError(
             f"{where}: `api_key` must not hold a key, because this file is "
             "committed. Name the environment variable that holds it instead: "

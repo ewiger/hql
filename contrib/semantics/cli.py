@@ -49,7 +49,7 @@ def build(args) -> int:
         )
         for document, vector in zip(documents, vectors)
     ]
-    out = Path(args.out)
+    out = Path(args.out) if args.out else config.index(root)
     store.write(out, root.as_posix(), model, rows, query_rows, built_at=args.built_at)
     print(
         f"{out}: {len(rows)} cards, {len(query_rows)} queries, "
@@ -61,7 +61,8 @@ def build(args) -> int:
 def verify(args) -> int:
     """Exit 1 when the index no longer describes the vault."""
     root = Path(args.vault)
-    index = store.read(Path(args.index))
+    path = Path(args.index) if args.index else config.index(root)
+    index = store.read(path)
     if index["meta"][0] != store.SCHEMA_VERSION:
         print(f"unknown index schema: {index['meta'][0]}", file=sys.stderr)
         return 1
@@ -103,7 +104,7 @@ def verify(args) -> int:
         print(problem, file=sys.stderr)
     if problems:
         return 1
-    print(f"{args.index}: clean, {len(indexed)} cards")
+    print(f"{path}: clean, {len(indexed)} cards")
     return 0
 
 
@@ -133,7 +134,9 @@ def main(argv=None) -> int:
 
     builder = commands.add_parser("build", help="embed a vault into an index")
     builder.add_argument("--vault", required=True)
-    builder.add_argument("--out", required=True)
+    builder.add_argument("--out", default=None,
+                         help="the index to write; the vault's `[semantics] index` "
+                              f"otherwise, else {config.DEFAULT_INDEX}")
     # Every embedder flag defaults to None so that "not given" stays
     # distinguishable from "given the default", which is what lets the vault's
     # `[semantics.embedder]` be overridden field by field.
@@ -160,7 +163,8 @@ def main(argv=None) -> int:
 
     verifier = commands.add_parser("verify", help="check an index against a vault")
     verifier.add_argument("--vault", required=True)
-    verifier.add_argument("--index", required=True)
+    verifier.add_argument("--index", default=None,
+                          help="the index to check; the vault's own otherwise")
     verifier.set_defaults(run=verify)
 
     inspector = commands.add_parser("inspect", help="what an index says about itself")

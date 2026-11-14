@@ -283,7 +283,7 @@ def test_an_index_built_from_a_fake_model_holds_only_unit_vectors(tmp_path):
         for index, vector in enumerate(vectors)
     ]
     queries = list(zip(["a question"], model.embed(["a question"])))
-    out = tmp_path / ".hql" / "index.sqlite"
+    out = tmp_path / ".hmd" / "index.sqlite"
     store.write(out, "a/vault", model, rows, queries)
 
     index = store.read(out)

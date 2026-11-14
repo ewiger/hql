@@ -24,15 +24,20 @@ work.
 
 ```sh
 python3 cli.py build   --vault ../../tests/fixtures/birds \
-                       --out   ../../tests/fixtures/birds/.hmd/index.sqlite \
                        --built-at 2026-09-18T00:00:00+00:00 \
                        --query "night hunting birds" \
                        --query "birds swimming underwater catching fish" \
                        --query "birds weaving hanging nests"
-python3 cli.py verify  --vault ../../tests/fixtures/birds \
-                       --index ../../tests/fixtures/birds/.hmd/index.sqlite
+python3 cli.py verify  --vault ../../tests/fixtures/birds
 python3 cli.py inspect --index ../../tests/fixtures/birds/.hmd/index.sqlite
 ```
+
+`build` writes, and `verify` reads, the index the vault names with
+`[semantics] index` in its `.hmd/config.toml`, a path inside the vault read
+against the vault root. A vault that names none gets `.hmd/index.sqlite`.
+`--out` and `--index` name another file for one run. The `hql` binary reads
+only an index the vault names, so a vault that `semantic` is to rank states
+`index`.
 
 `--offline` refuses the network and is what CI uses; the model must already be
 in the local cache. `--built-at` pins the build stamp, so rebuilding an
@@ -66,8 +71,10 @@ two vendors anyone happens to use.
 model server on `localhost` both implement. It uses only the standard library,
 so reaching a hosted embedder costs this tool no dependency.
 
-A vault declares its embedder in `.hql/config.toml`, beside the index the embedder
-fills. The whole table is optional and its absence means `local`.
+A vault declares its embedder in its `.hmd/config.toml`, beside the index the
+embedder fills. The table is HyperMarkdown's: no HQL configuration file takes
+`[semantics]`, and this tool reads none.
+`[semantics.embedder]` is optional and its absence means `local`.
 
 ```toml
 [semantics]
@@ -107,8 +114,8 @@ calling. An unpinnable claim is better refused than invented.
 ### Keys
 
 `api_key_env` names the environment variable holding the key. It never holds the
-key: `.hql/config.toml` is committed, and
-[`tests/fixtures/birds/.hql/config.toml`](../../tests/fixtures/birds/.hql/config.toml) already
+key: `.hmd/config.toml` is committed, and
+[`tests/fixtures/birds/.hmd/config.toml`](../../tests/fixtures/birds/.hmd/config.toml) already
 is. A literal `api_key` in the table is refused, and the refusal says where the
 key goes. An unset variable is refused before a single card is read, so the
 failure is the variable rather than an HTTP 401 a hundred requests later.

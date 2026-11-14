@@ -16,7 +16,7 @@ BIRDS = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "birds"
 
 REMOTE = """
 [semantics]
-index = ".hql/index.sqlite"
+index = ".hmd/index.sqlite"
 
 [semantics.embedder]
 provider    = "http"
@@ -30,7 +30,9 @@ dimensions  = 1536
 
 def vault(tmp_path, text=None):
     if text is not None:
-        (tmp_path / config.CONFIG_FILE).write_text(text, encoding="utf-8")
+        path = tmp_path / config.CONFIG_FILE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
     return tmp_path
 
 
@@ -42,8 +44,43 @@ def test_a_vault_with_no_config_file_is_local(tmp_path):
 
 def test_a_vault_that_names_only_its_index_is_local(tmp_path):
     # What every existing vault looks like, the committed fixture included.
-    declared = config.read(vault(tmp_path, '[semantics]\nindex = ".hql/index.sqlite"\n'))
+    declared = config.read(vault(tmp_path, '[semantics]\nindex = ".hmd/index.sqlite"\n'))
     assert declared == config.Embedder()
+
+
+def test_the_index_defaults_to_the_vaults_hmd_directory(tmp_path):
+    assert config.index(vault(tmp_path)) == tmp_path / ".hmd" / "index.sqlite"
+    assert config.index(vault(tmp_path, "[semantics.embedder]\n")) == (
+        tmp_path / ".hmd" / "index.sqlite"
+    )
+
+
+def test_the_declared_index_is_read_against_the_vault_root(tmp_path):
+    declared = vault(tmp_path, '[semantics]\nindex = ".hmd/cards.sqlite"\n')
+    assert config.index(declared) == tmp_path / ".hmd" / "cards.sqlite"
+
+
+@pytest.mark.parametrize("path", ["/tmp/index.sqlite", "../index.sqlite", "", 7])
+def test_an_index_outside_the_vault_is_refused(tmp_path, path):
+    value = path if isinstance(path, int) else f'"{path}"'
+    with pytest.raises(config.ConfigError, match="index"):
+        config.index(vault(tmp_path, f"[semantics]\nindex = {value}\n"))
+
+
+def test_hql_configuration_is_not_read(tmp_path):
+    # `[semantics]` is HyperMarkdown's: a table in an HQL file selects nothing.
+    (tmp_path / ".hql").mkdir()
+    (tmp_path / ".hql" / "config.toml").write_text(
+        '[semantics]\nindex = "elsewhere.sqlite"\n[semantics.embedder]\nprovider = "http"\n',
+        encoding="utf-8",
+    )
+    assert config.index(tmp_path) == tmp_path / ".hmd" / "index.sqlite"
+    assert config.read(tmp_path) == config.Embedder()
+
+
+def test_the_committed_birds_vault_names_its_index():
+    assert config.index(BIRDS) == BIRDS / ".hmd" / "index.sqlite"
+    assert config.index(BIRDS).is_file()
 
 
 def test_the_committed_birds_vault_stays_local():
