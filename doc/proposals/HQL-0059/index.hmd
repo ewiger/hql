@@ -1,0 +1,348 @@
+# HQL-0059: HyperMarkdown vaults and HQL project resolution
+
+**Status**: drafted
+**Created**: 2026-11-14
+
+## Context
+
+HyperMarkdown and HQL currently overlap in several places:
+
+- HyperMarkdown has the concept of a **vault / namespace root** used for document and card resolution.
+- HQL has configuration, packages, endpoints, secrets, execution settings, and runtime state.
+- HQL can be executed from inside HyperMarkdown documents and HQL cells.
+- Existing HQL behavior exposes some HyperMarkdown-specific concepts, such as cards and vault-aware resolution, through the default prelude.
+
+This creates ambiguity around what belongs to HyperMarkdown versus what belongs to HQL.
+
+The two systems require separate roots and separate resolution semantics.
+
+HyperMarkdown needs to answer:
+
+- Which HMD project or vault does this document belong to?
+- What is the namespace root?
+- How does `[[...]]` resolve?
+- How are relative, absolute, imported, and namespace-qualified card references interpreted?
+
+HQL needs to answer:
+
+- Which HQL project provides configuration for this execution?
+- Which packages are installed and available?
+- Which endpoints and secrets are configured?
+- Which runtime and execution policies apply?
+
+These concerns must remain independent even when HQL executes inside an HMD document.
+
+## Decision
+
+### 1. HyperMarkdown owns vaults
+
+A **vault** is a HyperMarkdown concept.
+
+HyperMarkdown owns:
+
+- `.hmd/config.toml`
+- document and card discovery
+- namespace roots
+- `[[...]]` resolution
+- relative and absolute card paths
+- imports and namespace resolution
+- cross-vault or external namespace providers
+
+HQL must not define or reinterpret HyperMarkdown vault semantics.
+
+### 2. HQL owns projects
+
+HQL introduces the concept of an **HQL project**.
+
+An HQL project contains configuration and runtime state required to execute HQL.
+
+The preferred project marker is:
+
+```text
+.hql/
+└── config.toml
+```
+
+The `.hql` directory may additionally contain project-local state such as:
+
+```text
+.hql/
+├── config.toml
+├── packages/
+├── cache/
+└── lock.toml
+```
+
+An HQL project is not a vault and does not contain document namespace semantics.
+
+### 3. HyperMarkdown vaults may select an HQL project
+
+An HMD vault may optionally declare which HQL project should be used when executing HQL from that vault.
+
+Example:
+
+```toml
+[hql]
+project = "../.."
+```
+
+The path is resolved relative to the HyperMarkdown project or vault root.
+
+If no explicit project is configured, the HMD host discovers the HQL project by walking parent directories and selecting the nearest ancestor containing:
+
+```text
+.hql/config.toml
+```
+
+Resolution order:
+
+1. Explicit `hql.project` from `.hmd/config.toml`
+2. Nearest ancestor containing `.hql/config.toml`
+3. User-level/default HQL environment
+
+### 4. HQL project discovery and HMD card resolution are independent
+
+The HQL project root must never participate in `[[...]]` resolution.
+
+Likewise, the HMD vault root must not determine package, endpoint, or secret resolution in HQL.
+
+For an HQL cell inside:
+
+```text
+repo/docs/wiki/design/foo.hmd
+```
+
+the runtime may have:
+
+```text
+HQL project root   = repo/
+HMD vault root     = repo/docs/
+HMD namespace root = repo/docs/wiki/
+document directory = repo/docs/wiki/design/
+```
+
+These are distinct values.
+
+### 5. Execution context preserves all relevant roots
+
+When HQL runs from an HMD document, the host supplies an execution context containing at least:
+
+```text
+hql_project_root
+source_document
+working_directory
+hmd_project_root
+hmd_namespace_root
+```
+
+Different operations use different roots.
+
+Filesystem-relative operations use the execution working directory:
+
+```hql
+file("./data.json")
+```
+
+For a source document at:
+
+```text
+repo/docs/wiki/design/foo.hmd
+```
+
+this resolves relative to:
+
+```text
+repo/docs/wiki/design/
+```
+
+HyperMarkdown card references use HyperMarkdown resolution:
+
+```hql
+@[[foo]]
+```
+
+The HQL project root has no role in resolving this reference.
+
+### 6. HyperMarkdown support moves out of the global HQL prelude
+
+HMD-specific functionality should be moved into an internal HQL extension or module:
+
+```text
+hmd
+```
+
+This module may provide:
+
+- `Card`
+- `cards`
+- `@[[...]]`
+- `uplinks`
+- `downlinks`
+- HMD namespace operations
+- HMD document traversal
+- other HyperMarkdown-specific functionality
+
+Plain HQL should not automatically expose these concepts.
+
+### 7. HMD becomes an explicitly imported capability
+
+At language level:
+
+```hql
+import hmd
+```
+
+activates HyperMarkdown-specific functionality.
+
+The HMD VS Code extension may inject this import automatically when executing HQL from an HMD document.
+
+The preferred CLI mechanism is explicit host-side import injection:
+
+```text
+hql eval --import hmd ...
+```
+
+or:
+
+```text
+hql run --import hmd file.hql
+```
+
+A more general form may also exist:
+
+```text
+--init 'import hmd'
+```
+
+The implementation should not modify the user's source text through string concatenation.
+
+Injected imports should be represented as execution configuration so diagnostics and source locations remain correct.
+
+### 8. The HMD host supplies context; the HMD module consumes it
+
+`import hmd` enables HMD functionality but does not itself determine which document or vault is active.
+
+The host is responsible for supplying the HMD execution context.
+
+For example, the HyperMarkdown VS Code extension:
+
+```text
+current HMD document
+        ↓
+resolve HMD vault / namespace
+        ↓
+resolve HQL project
+        ↓
+invoke HQL with --import hmd
+        ↓
+pass HMD execution context
+```
+
+The `hmd` module consumes this context.
+
+If `hmd` is imported without an HMD context, HQL should either:
+
+- use an explicitly configured HMD source, or
+- return a clear diagnostic indicating that no HyperMarkdown context is available.
+
+### 9. HMD resolution remains implemented by HyperMarkdown
+
+HQL must not independently implement wikilink or card resolution rules.
+
+The `hmd` module delegates to the canonical HyperMarkdown resolver.
+
+This includes:
+
+- relative references
+- namespace-root references
+- named imports
+- wildcard imports
+- spine lookup
+- autodiscovery
+- ambiguity detection
+- namespace-qualified references
+- external namespace providers
+
+This prevents divergence between:
+
+- HMD CLI behavior
+- VS Code behavior
+- HQL execution
+- future HyperMarkdown integrations
+
+## Example topology
+
+```text
+repo/
+├── .hql/
+│   ├── config.toml
+│   └── packages/
+│
+├── product-docs/
+│   ├── .hmd/
+│   │   └── config.toml
+│   └── wiki/
+│       └── ...
+│
+├── research/
+│   ├── .hmd/
+│   │   └── config.toml
+│   └── wiki/
+│       └── ...
+│
+└── pipelines/
+    └── ingest.hql
+```
+
+Both HyperMarkdown vaults may use the same HQL project:
+
+```text
+product-docs ─┐
+              ├──> repo/.hql/
+research ─────┘
+```
+
+`pipelines/ingest.hql` may use the same HQL project without involving HyperMarkdown at all.
+
+## Consequences
+
+### Positive
+
+- HMD vaults and HQL projects become clearly separated concepts.
+- HQL remains usable independently of HyperMarkdown.
+- Multiple HMD vaults can share one HQL execution environment.
+- One HMD vault can explicitly select a different HQL project.
+- HyperMarkdown resolution semantics remain centralized.
+- HQL package discovery remains independent from document discovery.
+- HMD functionality becomes modular rather than part of the global prelude.
+- Other host integrations can use the same execution-context mechanism later.
+
+### Negative
+
+- Existing implicit HMD behavior in the HQL prelude becomes a compatibility concern.
+- The HMD VS Code extension must pass richer execution context to HQL.
+- CLI and runtime APIs need explicit support for injected imports and host context.
+- Existing terminology around “HQL vaults” must be removed or deprecated.
+
+## Required implementation work
+
+1. Introduce `.hql/config.toml` as the HQL project marker.
+2. Define HQL project discovery independently from HyperMarkdown discovery.
+3. Add optional `[hql] project = ...` configuration to `.hmd/config.toml`.
+4. Implement ancestor-based fallback discovery for HQL projects.
+5. Define an execution context carrying both HQL and HMD roots.
+6. Extract HMD-specific symbols from the global HQL prelude.
+7. Add an internal `hmd` extension/module.
+8. Add `import hmd`.
+9. Add CLI support for injected imports such as `--import hmd`.
+10. Update the HMD VS Code extension to inject `hmd` and pass document context.
+11. Delegate all card and wikilink resolution to HyperMarkdown.
+12. Add tests proving that HQL project discovery and HMD document resolution are orthogonal.
+
+## Invariant
+
+The central invariant is:
+
+> HyperMarkdown determines what a document reference means. HQL determines how an HQL program executes.
+
+An HMD host may select an HQL project, but an HQL project never defines a HyperMarkdown vault.
