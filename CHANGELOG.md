@@ -8,7 +8,38 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Changed
+
+- Projects and vaults are separate
+  ([HQL-0059](doc/proposals/HQL-0059/index.hmd)). A **project** is a
+  directory holding `.hql/config.toml`, which takes every key `hql.toml`
+  took; `hql.toml` is no longer read. A **vault** is a directory holding
+  `.hmd/`. Each is found by its own walk up from the program's source
+  directory, and the HQL home is never a project. `--project` replaces
+  `--workspace`, `--vault` names only the vault, and the named context key
+  `workspace` is `project`. `[extensions] import` and `prelude` are
+  `[modules] import` and `prelude`, and `--import <module>` is the
+  command-line layer of `[modules] import`. A configuration file that
+  states a key its layer does not take fails every run.
+- HyperMarkdown is the builtin package `hmd`, beside `std`. `hmd.vault`
+  holds the vault, and `hmd.search` with `hmd.search.lexical` and
+  `hmd.search.semantic` replaces the `search` package and its modules
+  `lexical` and `semantic`. A run that imports `hmd`, by `import hmd`,
+  `--import hmd` or `[modules] import`, gets `hmd`'s prelude, the bindings
+  `vault`, `cards` and `graph`, document references `@[[..]]` and vault
+  endpoints; plain HQL has none of them. `hql render` imports `hmd` into
+  every cell, and reads a vault's `[hql] project` from its
+  `.hmd/config.toml`.
+- The semantic index and its `[semantics]` table live in the vault's
+  `.hmd/`, not the project's configuration.
+- A relative path resolves against the source directory of the unit naming
+  it, a project module's own directory included, never the working
+  directory.
+
 ### Added
+
+- `fs.source_dir()` and `fs.working_dir()` in `io.fs`: the source directory
+  of the calling unit, and the directory `hql` was started in.
 
 - Packages ([HQL-0057](doc/proposals/HQL-0057/index.hmd), issue 0078). A
   package is a Cargo crate named `hql-ext-<name>` whose library is an
@@ -16,13 +47,18 @@ The language continues to be in active development.
   provides. `hql package install <name>` builds one the registry of
   [hql-extensions](https://github.com/ewiger/hql-extensions) lists, and
   `install --path <dir>` one on this machine, with `cargo` against the
-  running `hql`, and installs it under `~/.hql/lib/<name>/`; `list`,
-  `info`, `search`, `update`, `rebuild`, `remove` and `registry` manage
-  what is installed and what the registry offers, and `hql doctor` and
-  `hql builtins` report it. `[packages] paths` in
-  `hql.toml` names the crate of a package under development, built on
-  first use. A program reaches a package's module with `import`, as it
-  reaches a standard one, and `[extensions] import` names a package too.
+  running `hql`, and installs it into the project's `.hql/packages/<name>/`,
+  or with `--home` into `~/.hql/packages/<name>/`, declaring it by name in
+  that level's `config.toml` and pinning it in its `lock.toml`;
+  `hql package install` with no name installs every declared package at its
+  pin. `list`, `info`, `search`, `update`, `rebuild`, `remove` and
+  `registry` manage what is installed and what the registry offers, and
+  `hql doctor` and `hql builtins` report it. A run finds packages in
+  `[packages] paths`, then the project, then the HQL home, and refuses a
+  declared package that is not installed. `[packages] paths` in
+  `.hql/config.toml` names the crate of a package under development, built
+  on first use. A program reaches a package's module with `import`, as it
+  reaches a standard one, and `[modules] import` names a package too.
 - `hql::ext`, the API a package's crate implements an extension against,
   with `hql::extension!` and `hql::native!`. A library is loaded through
   the symbol `hql_extension_v1` and held to the `hql` version, the

@@ -1,6 +1,6 @@
 # HQL-0059: HyperMarkdown vaults and HQL project resolution
 
-**Status**: drafted
+**Status**: implemented in part
 **Created**: 2026-11-14
 
 ## Companion notes
@@ -611,3 +611,17 @@ An HMD host may select an HQL project, but an HQL project never defines a HyperM
 ## Changelog
 
 - 2026-11-14: drafted
+- 2026-11-14: accepted, and implemented in part. Built: `.hql/config.toml`
+  as the project marker with the keys of part 1, `hql.toml` retired;
+  project and vault discovery apart, the HQL home never a project, `[hql]
+  project` read from a vault; `--project`, `--vault`, `--bare` and
+  `--import`; the builtin package `hmd` with `hmd.vault` and `hmd.search`,
+  its prelude, and `vault`, `cards`, `@[[..]]` and vault endpoints only
+  while it is active; the semantic index in the vault's `.hmd/`; packages at
+  two levels with `[packages] dependencies` and `lock.toml`; the source
+  directory, `fs.source_dir()` and `fs.working_dir()`. Not built:
+  HyperMarkdown's Rust resolver crate, which `hmd` is to resolve through
+  (until then it resolves a reference by name within its vault), the VS
+  Code extension's context, and HyperMarkdown's depth levels of the index,
+  all in the HyperMarkdown repository. `Card`, `Doc`, `uplinks`,
+  `downlinks` and `expand` stay in `std`

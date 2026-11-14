@@ -312,13 +312,16 @@ project, an action without `--home` is refused, naming `--home`.
   is `tests/packages/hello/`.
 - `src/package/` reads and writes `package.toml`, drives `cargo`, loads a
   library and activates the packages of a process. `hql package` has
-  `install --path`, `list`, `info`, `rebuild` and `remove`; `[packages]
-  paths` builds a crate on first use; `hql doctor` and `hql builtins`
+  `install --path`, `list`, `info`, `rebuild` and `remove`, each acting on
+  the project or, with `--home`, the HQL home; `src/package/lock.rs` reads
+  and writes `[packages] dependencies` and `lock.toml`; `[packages] paths`
+  builds a crate on first use; `hql doctor` and `hql builtins`
   report packages.
 - `[extensions] import` names builtin modules, a builtin package or an
   installed package, which imports every module it provides.
 - `src/package/registry.rs` reads the registry, with its cache under
-  `~/.hql/registry/`, and fetches an entry's source into `~/.hql/src/`:
+  `~/.hql/cache/registry/`, and fetches an entry's source into the
+  `.hql/cache/src/` of the level installed into:
   `install <name>[@<version>]`, `search`, `update` and `registry`. The
   fetch of a known package from crates.io has run against no published
   package yet.

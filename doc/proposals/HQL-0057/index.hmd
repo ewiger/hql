@@ -1,6 +1,6 @@
 # HQL-0057: Packages: the `hql-extensions` registry, `hql package`, and installed extensions
 
-**Status**: drafted
+**Status**: implemented in part
 **Created**: 2026-11-13
 **Source**: [[09-packages-and-extensions|HQL-0024 part 9]],
 whose transport, ABI and package-management records this is;
@@ -198,7 +198,9 @@ authors; the rest of the crate's public surface is unchanged.
 - 2026-11-14: installation locations follow [[HQL-0059]]: packages install
   into `<project>/.hql/packages/` by default and into `~/.hql/packages/`
   with `--home`, each level with its `cache/` and `lock.toml`; `~/.hql/lib/`
-  is gone. The code still installs into `~/.hql/lib/`
+  is gone
 - 2026-11-14: the builtin packages are `std` and `hmd` ([[HQL-0059]]);
-  `search` is retired and its `lexical` and `semantic` modules join `hmd`.
-  The code still registers `std` and `search`
+  `search` is retired and its `lexical` and `semantic` modules join `hmd`
+- 2026-11-14: implemented in part: packages at two levels, `--home`,
+  `[packages] dependencies` and `lock.toml`, and `hql package install` with
+  no name, as [[HQL-0059]] states them
