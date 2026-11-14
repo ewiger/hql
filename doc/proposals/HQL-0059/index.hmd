@@ -286,11 +286,29 @@ packages; the builtin `search` package is retired, and its modules join
 - `downlinks`
 - HMD namespace operations
 - HMD document traversal
-- retrieval over a vault's cards: the `lexical` and `semantic` modules,
-  formerly the builtin `search` package
+- retrieval over a vault's cards: the module `hmd.search`, with
+  `hmd.search.lexical` and `hmd.search.semantic`, formerly the builtin
+  `search` package
 - other HyperMarkdown-specific functionality
 
 Plain HQL should not automatically expose these concepts.
+
+`hmd` has its own `prelude.hql` at the root of `lib/hmd/`, as every package
+does (HQL-0024, part "The standard library"). It imports `hmd.search` and
+the card modules, so once `hmd` is loaded a unit writes `search` with no
+import of its own, since an import binds a module under its final segment.
+The prelude applies only when `hmd` is loaded: `hmd` is always available,
+being builtin, but only `std`'s prelude applies to every run.
+
+```text
+lib/hmd/
+├── prelude.hql      import hmd.search, and the card modules
+├── mod.hql          the module hmd: Card, cards, uplinks, downlinks
+└── search/
+    ├── mod.hql      the module hmd.search
+    ├── lexical.hql
+    └── semantic.hql
+```
 
 ### 7. HMD becomes an explicitly imported capability
 
