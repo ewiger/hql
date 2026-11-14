@@ -15,9 +15,6 @@ pub fn exists(name: &str) -> bool {
     extensions::names().any(|step| step == name)
 }
 
-/// Names that were steps and are not, with the step that replaces each.
-const RETIRED: &[(&str, &str)] = &[("typed", "of_type"), ("flatten", "emit")];
-
 /// Names that were steps and have no single replacement, with what to write
 /// instead.
 const EXPLAINED: &[(&str, &str)] = &[
@@ -63,13 +60,9 @@ pub fn hint(name: &str) -> Option<String> {
     nearest(name).map(|near| format!("did you mean `{near}`?"))
 }
 
-/// The closest step name by edit distance, for a "did you mean" hint. A
-/// retired name suggests the step that replaced it.
+/// The closest step name by edit distance, for a "did you mean" hint.
 #[must_use]
 pub fn nearest(name: &str) -> Option<&'static str> {
-    if let Some((_, replacement)) = RETIRED.iter().find(|(retired, _)| *retired == name) {
-        return Some(replacement);
-    }
     // A lowercase spelling of a type names its constructor: `list` is `List`.
     let mut letters = name.chars();
     if let Some(first) = letters.next() {

@@ -211,8 +211,6 @@ fn collect_and_emit_refuse_what_has_no_positions_or_no_batch() {
         let failure = check(source).expect_err(source);
         assert!(failure.contains(message), "{source}: {failure}");
     }
-    let flatten = check("[ [1] ] | flatten").expect_err("flatten is emit");
-    assert!(flatten.contains("`emit`"), "{flatten}");
 }
 
 #[test]

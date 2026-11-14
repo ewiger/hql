@@ -1786,6 +1786,8 @@ mod tests {
         };
         let refused = refusal("tree/.hql/config.toml", "[semantics]\nindex = \"i\"\n");
         assert!(refused.contains("`semantics`"), "{refused}");
+        let refused = refusal("tree/.hql/config.toml", "[sources.db]\nkind = \"csv\"\n");
+        assert!(refused.contains("`sources`"), "{refused}");
         let refused = refusal("tree/.hql/config.toml", "[nonsense]\n");
         assert!(refused.contains("`nonsense`"), "{refused}");
         let refused = refusal("tree/.hql/config.toml", "current-context = \"a\"\n");

@@ -278,7 +278,7 @@ fn is_tests_a_type_and_a_filter_by_it_narrows_the_element_type() {
 }
 
 #[test]
-fn a_test_no_value_can_pass_and_the_retired_name_are_refused() {
+fn a_test_no_value_can_pass_is_refused() {
     let vault = fixture();
     let always_false = hql::check_in("1 | is(Card)", &vault).unwrap_err();
     assert!(
@@ -291,8 +291,6 @@ fn a_test_no_value_can_pass_and_the_retired_name_are_refused() {
     )
     .unwrap_err();
     assert!(renamed.to_string().contains("`value`"), "{renamed}");
-    let retired = hql::check_in("cards | typed(RelationCard)", &vault).unwrap_err();
-    assert!(retired.to_string().contains("of_type"), "{retired}");
 }
 
 #[test]

@@ -489,12 +489,8 @@ fn a_near_miss_on_a_step_name_is_suggested() {
 }
 
 #[test]
-fn a_retired_step_names_what_replaces_it() {
-    for (source, replacement) in [
-        ("@[[oauth]] | graph", "`Graph`"),
-        ("1 | table", "`Table`"),
-        ("[1] | typed(Int)", "`of_type`"),
-    ] {
+fn a_step_named_as_a_type_names_its_constructor() {
+    for (source, replacement) in [("@[[oauth]] | graph", "`Graph`"), ("1 | table", "`Table`")] {
         let failed = hql::check_in(
             source,
             &hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap(),

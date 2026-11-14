@@ -243,10 +243,6 @@ fn a_malformed_configuration_refuses_the_vault() {
             "[endpoint.db]\nkind = \"csv\"\npath = \"x\"\nstart = \"earliest\"\n",
             "no `start`",
         ),
-        (
-            "[sources.db]\nkind = \"csv\"\npath = \"x\"\n",
-            "declared under `[endpoint.<id>]`",
-        ),
     ] {
         let dir = tempdir().unwrap();
         fs::write(project_config(dir.path()), entry).unwrap();

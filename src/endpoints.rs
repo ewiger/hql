@@ -538,7 +538,7 @@ impl Endpoints {
     ///
     /// # Errors
     /// Names the first entry that is malformed: an id off `[a-z][a-z0-9_]*`,
-    /// the reserved id `vault`, a `[sources]` table, a literal secret, an
+    /// the reserved id `vault`, a literal secret, an
     /// unknown kind, a missing or unknown key.
     pub fn read(root: &Path) -> Result<Self, String> {
         // Only a missing file means no endpoints; one that cannot be read is
@@ -565,12 +565,6 @@ impl Endpoints {
             bounds: bounds(parsed.get("execution"))?,
             ..Self::default()
         };
-        if parsed.get("sources").is_some() {
-            return Err(
-                "`[sources]` is not read; an endpoint is declared under `[endpoint.<id>]`"
-                    .to_owned(),
-            );
-        }
         let Some(section) = parsed.get("endpoint") else {
             return Ok(endpoints);
         };
