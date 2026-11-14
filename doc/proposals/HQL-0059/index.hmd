@@ -75,6 +75,13 @@ The `.hql` directory may additionally contain project-local state such as:
 
 An HQL project is not a vault and does not contain document namespace semantics.
 
+`.hql/config.toml` takes every key `hql.toml` held: `[extensions]`,
+`[modules]`, `[packages]`, `[endpoint.<id>]`, `[execution]`, `[report]`,
+`[semantics]`, `[keyvault.<id>]`, `env`, `prelude` and the renderer tables,
+with the meanings the proposals defining them give. `hql.toml` is not a
+configuration file and not a marker: HQL reads no file of that name, and a
+directory holding one is neither a project nor a workspace boundary.
+
 ### 3. HyperMarkdown vaults may select an HQL project
 
 An HMD vault may optionally declare which HQL project should be used when executing HQL from that vault.
@@ -323,10 +330,14 @@ research ─────┘
 - The HMD VS Code extension must pass richer execution context to HQL.
 - CLI and runtime APIs need explicit support for injected imports and host context.
 - Existing terminology around “HQL vaults” must be removed or deprecated.
+- Every `hql.toml` moves to `.hql/config.toml`; one left in place is
+  ignored. The proposals, models and cards that name `hql.toml` are
+  rewritten to name `.hql/config.toml`.
 
 ## Required implementation work
 
-1. Introduce `.hql/config.toml` as the HQL project marker.
+1. Introduce `.hql/config.toml` as the HQL project marker, carrying every
+   key of `hql.toml`, and retire `hql.toml`.
 2. Define HQL project discovery independently from HyperMarkdown discovery.
 3. Add optional `[hql] project = ...` configuration to `.hmd/config.toml`.
 4. Implement ancestor-based fallback discovery for HQL projects.
