@@ -1,0 +1,11 @@
+// status: valid-now
+// feature: `--project` names the project whose module root holds `shelf`; the module reads the file beside itself whatever directory `hql` starts in
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 0
+
+$ hql --project examples/projects/library run examples/projects/queries/module-source-dir.hql
+"shelf"
+$ hql --project examples/projects/library run examples/projects/queries/module-relative-path.hql
+["Dune", "Emma", "Middlemarch"]

@@ -1,0 +1,9 @@
+# Written by `hql package`: each package this level depends on, pinned to
+# one version and source. Commit it; `hql package install` reinstalls it.
+
+[[package]]
+name = "ml"
+version = "0.1.0"
+source = "registry"
+registry = "official"
+tag = "hql-ext-ml-v0.1.0"

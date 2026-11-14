@@ -1,0 +1,3 @@
+# A project that depends on a package by name. The version is in lock.toml.
+[packages]
+dependencies = ["ml"]

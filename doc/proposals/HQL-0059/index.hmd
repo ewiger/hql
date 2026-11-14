@@ -136,7 +136,8 @@ either: the project is the default level, the home the shared one, as
   [[package]]
   name = "ml"
   version = "0.1.0"
-  source = "official"
+  source = "registry"
+  registry = "official"
   tag = "hql-ext-ml-v0.1.0"
   ```
 

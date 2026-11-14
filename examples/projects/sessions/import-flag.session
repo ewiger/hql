@@ -1,0 +1,11 @@
+// status: valid-now
+// feature: `--import hmd` imports `hmd` into the run without a line of the program: the programs plain HQL refuses run over the vault `--vault` names
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 0
+
+$ hql --vault examples/projects/notes --import hmd run examples/projects/queries/invalid-cards-without-hmd.hql
+2
+$ hql --vault examples/projects/notes --import hmd run examples/projects/queries/invalid-reference-without-hmd.hql
+owl
