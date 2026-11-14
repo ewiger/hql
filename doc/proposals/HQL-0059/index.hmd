@@ -3,6 +3,12 @@
 **Status**: drafted
 **Created**: 2026-11-14
 
+## Companion notes
+
+- [`parts/01-config.md`](parts/01-config.hmd) — every key of
+  `.hql/config.toml` and of the user and system files, which levels take
+  it, and how layers combine.
+
 ## Context
 
 HyperMarkdown and HQL currently overlap in several places:
