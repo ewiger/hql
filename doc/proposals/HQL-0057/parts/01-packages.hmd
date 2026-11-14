@@ -105,7 +105,7 @@ packages:
   settled between packages.
 - `hql` fetches the registry from
   `https://raw.githubusercontent.com/ewiger/hql-extensions/main/hql-packages.yaml`
-  and caches it at `~/.hql/registry/hql-packages.yaml` with the time of
+  and caches it at `~/.hql/cache/registry/hql-packages.yaml` with the time of
   the fetch. A command that needs the registry uses the cache when it is
   less than one day old or the fetch fails; `hql package registry
   --refresh` fetches now.
@@ -115,10 +115,11 @@ packages:
 
 ### 3. An installed package
 
-A package is installed into the HQL home.
+A package is installed into a project, or with `--home` into the HQL home
+([[HQL-0059]]). Both levels have the same layout.
 
 ```text
-~/.hql/lib/
+.hql/packages/
 └── ml/
     ├── package.toml           what was built, from what, against what
     ├── modules/               the module root: a copy of the crate's
@@ -150,15 +151,20 @@ library = "libhql_ext_ml.dylib"
 built = "2026-11-13T10:02:41Z"
 ```
 
-- `~/.hql/lib/` is the one installation root; `$HQL_HOME` moves it with
-  the rest of the home ([chapter 13](../../../public/learn/13-working-with-hql.hmd)).
-  There is no per-workspace installation: a workspace that needs a package
-  built from source names it in `[packages] paths`.
+- There are two installation roots: `<project>/.hql/packages/`, the
+  default, and `~/.hql/packages/`, selected by `--home`; `$HQL_HOME` moves
+  the second with the rest of the home
+  ([chapter 13](../../../public/learn/13-working-with-hql.hmd)). A crate
+  on disk that is not installed is reached through `[packages] paths`.
+- Each level's `lock.toml` lists the packages installed there, each with
+  its name, version and pinned source. A project commits `lock.toml` and
+  not `packages/` or `cache/`; `hql package install` with no name installs
+  everything the level's `lock.toml` lists.
 - `modules/` is copied from the crate at build time, so the contracts an
   installed package binds against are the ones its library was built
   with, whatever the source later becomes.
 - `package.toml` is written by `hql package` and read by discovery and
-  `hql doctor`. A folder under `~/.hql/lib/` with no `package.toml`, or
+  `hql doctor`. A folder under a `packages/` root with no `package.toml`, or
   one whose `library` is missing, is reported and skipped.
 
 ### 4. Building and loading
@@ -176,12 +182,14 @@ A package is built by the user's `cargo` against the running `hql`.
   package` runs `cargo` with that version selected
   (`RUSTUP_TOOLCHAIN`), so a package is built with the compiler of the
   `hql` that installs it whatever the machine's default is.
-- The source is checked out under `~/.hql/src/<package>/`: a sparse
+- The source is checked out under `.hql/cache/src/<package>/` of the level
+  installed into: a sparse
   checkout of `hql-extensions` at the entry's tag for an official package,
   `cargo`'s own fetch for a known one, the path itself for a path
   package. `hql package` then runs `cargo build --release` on the crate's
   manifest against the running binary's `hql`, copies the library and
-  `modules/` into `~/.hql/lib/<package>/`, and writes `package.toml`.
+  `modules/` into `.hql/packages/<package>/` of that level, writes
+  `package.toml`, and records the package in that level's `lock.toml`.
 - The `hql` the crate compiles against is the running binary's. A
   released binary pins the crate's `hql` dependency through the lock
   file, `cargo update --package hql --precise 0.7.0`. A binary built from
@@ -240,9 +248,12 @@ paths = ["../hql-ext-ml"]            # crates on disk, used as if installed
 import = ["ml"]                      # loaded for every program, without an import
 ```
 
-- The execution context discovers packages from `~/.hql/lib/` and from
-  each `[packages] paths` entry, in the layers chapter 13 names; a path
-  entry is read relative to the file that declares it. A path entry is a
+- The execution context discovers packages from each `[packages] paths`
+  entry, the project's `.hql/packages/` and the home's `.hql/packages/`,
+  in that order; home packages are included in every run. A path entry in
+  a project's `.hql/config.toml` is read relative to the project root, one
+  in the user or system file relative to that file's directory
+  ([[HQL-0059]]). A path entry is a
   crate: `hql` builds it under `target/` of that crate on first use and
   whenever its sources are newer than the library, so a package author
   edits and runs without installing.
@@ -255,26 +266,30 @@ import = ["ml"]                      # loaded for every program, without an impo
   a module's declarations visible and loads nothing. `[extensions] import`
   names a package to import its modules for every unit of the run, as the
   prelude is; it names packages and builtin packages alike (issue 0049).
-- The same package discovered twice is one package: a `[packages] paths`
-  entry comes before an installed package of its name.
+- The same package discovered twice is one package, and the first place
+  wins: a `[packages] paths` entry comes before a project package of its
+  name, and a project package before a home package.
 - A program never names a package: `import ml` names the module, and
   which package provides it is the environment's business
   ([[02-imports|HQL-0024 part 2]]).
 
 ### 6. `hql package`
 
-One command with these actions:
+One command with these actions. `install`, `update`, `rebuild` and
+`remove` act on the project, and on the HQL home with `--home`; without a
+project, an action without `--home` is refused, naming `--home`.
 
 | Action | What it does |
 | --- | --- |
 | `install <name>[@<version>]` | resolve `name` in the registry, check its `hql` requirement, fetch, build and install; `@version` picks an older registry version |
+| `install` | install every package the level's `lock.toml` lists |
 | `install --path <dir>` | build the crate at `dir` and install it as a path package |
-| `list` | every installed package: name, version, kind, the `hql` it was built against, and whether it loads against this binary |
+| `list` | every installed package at both levels: name, level, version, kind, the `hql` it was built against, and whether it loads against this binary |
 | `info <name>` | one package: `package.toml` and the registry entry, with the modules it provides and their declarations' count |
 | `search <text>` | registry entries whose name, modules or description contain `text` |
 | `update [<name>]` | reinstall where the registry has a newer version that this `hql` admits; all installed packages when no name is given |
 | `rebuild [<name>]` | build again from the recorded source against this binary; what an `hql` or toolchain upgrade asks for |
-| `remove <name>` | delete `~/.hql/lib/<name>/` and `~/.hql/src/<name>/` |
+| `remove <name>` | delete `.hql/packages/<name>/` and `.hql/cache/src/<name>/` of the level, and its `lock.toml` entry |
 | `registry [--refresh]` | the registry in use: its origin, fetch time and entry count; `--refresh` fetches now |
 
 - Every action prints what it did and nothing it did not: `install`

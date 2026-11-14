@@ -33,8 +33,9 @@ a Cargo workspace whose root file `hql-packages.yaml` is the package
 registry. Known packages are crates outside that repository which the same
 file lists; a crate is added to the list by a pull request. Local packages
 are built from a path on the machine. `hql package` installs, lists, updates,
-rebuilds and removes packages into the HQL home, `~/.hql/lib/<package>/`,
-building each with the user's `cargo` against the running `hql`. A program
+rebuilds and removes packages into a project, `<project>/.hql/packages/<package>/`,
+or with `--home` into the HQL home, `~/.hql/packages/<package>/`
+([[HQL-0059]]), building each with the user's `cargo` against the running `hql`. A program
 reaches an installed package as it reaches a builtin one: `import ml` loads
 the extension that provides `ml`, and nothing in HQL source names a package.
 The first official package is `ml`.
@@ -94,15 +95,18 @@ The rules are in the companion notes. In short:
    `hql-extensions` lists every official and known package, each with its
    source and the `hql` versions it builds against
    ([[01-packages#2-the-registry|part 1, the registry]]).
-3. **A package installs into the HQL home.** `~/.hql/lib/<package>/` holds
-   `package.toml`, the `modules/` root with the contracts, and the built
-   library ([[01-packages#3-an-installed-package|part 1, an installed package]]).
+3. **A package installs into a project or the HQL home.**
+   `.hql/packages/<package>/` of either holds `package.toml`, the
+   `modules/` root with the contracts, and the built library; the project
+   is the default, `--home` selects the home, and each level's `lock.toml`
+   lists what it installed ([[01-packages#3-an-installed-package|part 1, an installed package]]).
 4. **A build is pinned to one `hql`.** `package.toml` records the `hql`
    version and the `rustc` the library was built with; a mismatch at load
    is refused, naming `hql package rebuild`
    ([[01-packages#4-building-and-loading|part 1, building and loading]]).
 5. **Discovery is configured; loading is by import.** The execution
-   context discovers packages in the HQL home and in `[packages] paths`;
+   context discovers packages in `[packages] paths`, the project and the
+   HQL home, in that order;
    an extension loads when a unit imports a module it provides, or when
    `[extensions] import` names it
    ([[01-packages#5-configuration|part 1, configuration]]).
@@ -132,7 +136,7 @@ authors; the rest of the crate's public surface is unchanged.
 - The registry file is fetched over HTTPS from the repository and cached;
   a cached copy is used when the fetch fails, and `hql package registry`
   shows which copy is in use and from when.
-- A library in `~/.hql/lib/` is loaded only when its `package.toml`
+- A library in a `packages/` folder is loaded only when its `package.toml`
   matches the running binary. A library placed there by hand without a
   matching record is reported by `hql doctor` and never loaded.
 
@@ -191,3 +195,7 @@ authors; the rest of the crate's public surface is unchanged.
   as carried out: the `hql` dependency pinned through the lock file or
   patched to a checkout, the compiler selected, the header the entry point
   returns, and every package loaded at start
+- 2026-11-14: installation locations follow [[HQL-0059]]: packages install
+  into `<project>/.hql/packages/` by default and into `~/.hql/packages/`
+  with `--home`, each level with its `cache/` and `lock.toml`; `~/.hql/lib/`
+  is gone. The code still installs into `~/.hql/lib/`

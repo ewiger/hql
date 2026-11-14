@@ -70,7 +70,8 @@ packages:
 2. If the index has the entry's name and version for the running target,
    and its `hql` and `rustc` equal the binary's, `install` downloads the
    archive, checks its `sha256` against the index, unpacks it into
-   `~/.hql/lib/<name>/`, and records the origin in `package.toml`:
+   `.hql/packages/<name>/` of the level installed into, and records the
+   origin in `package.toml`:
 
 ```toml
 [source]

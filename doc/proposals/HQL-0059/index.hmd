@@ -89,6 +89,45 @@ a `[modules] roots` entry. A path that moved from `hql.toml` to
 `.hql/config.toml` keeps its meaning. A relative path in the user or the
 system file resolves against the directory holding that file.
 
+#### Packages at two levels
+
+The HQL home and a project have the same layout, and packages install into
+either: the project is the default level, the home the shared one, as
+`npm install` and `npm install -g` divide them.
+
+```text
+~/.hql/                    <project>/.hql/
+├── config.toml            ├── config.toml
+├── packages/<name>/       ├── packages/<name>/
+├── cache/                 ├── cache/
+└── lock.toml              └── lock.toml
+```
+
+- `packages/<name>/` holds an installed package: `package.toml`, the
+  `modules/` root and the built library, as HQL-0057 lays it out. There is
+  no `~/.hql/lib/`.
+- `cache/` holds what installing at that level fetched: the source
+  checkouts under `cache/src/<name>/`. The registry is cached once, in the
+  home's `cache/registry/`.
+- `lock.toml` lists the packages installed at that level, each with its
+  name, version and pinned source (registry tag, crates.io version or
+  path). A project commits `lock.toml` and ignores `packages/` and
+  `cache/`, which are rebuilt from it.
+- `hql package install <name>` installs into the project; `--home`
+  installs into the HQL home. Without a project, `install` without
+  `--home` is refused, naming `--home`. `hql package install` with no name
+  installs every package the level's `lock.toml` lists. `update`,
+  `rebuild` and `remove` take `--home` the same way; `list` shows both
+  levels, naming each package's level.
+- A run discovers packages from the `[packages] paths` entries, the
+  project's `packages/` and the home's `packages/`, in that order. Home
+  packages are included in every run, with a project or without one. The
+  same package found at more than one place is one package, and the first
+  place wins; two different packages providing one module are both
+  refused, as HQL-0057 states.
+- A crate on disk that is not installed is reached only through
+  `[packages] paths`.
+
 ### 3. HyperMarkdown vaults may select an HQL project
 
 An HMD vault may optionally declare which HQL project should be used when executing HQL from that vault.
