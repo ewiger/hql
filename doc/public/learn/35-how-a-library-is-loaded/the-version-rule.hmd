@@ -85,11 +85,13 @@ whole time: a refused package is absent, and nothing else changes.
 | `states extension ABI …; this hql loads ABI 1` | the library is for another generation of `hql` | install a version of the package for this `hql` |
 | `exports no hql_extension_v1` | the crate does not write `hql::extension!`, or the file is not a package's library | add the macro; reinstall |
 | `provides … by its record and … by its extension` | `provides` in `Cargo.toml` and the modules in `hql::extension!` differ | make the two lists equal, in the same order |
-| `provides …, which … provides: a module has one provider` | two packages provide one module | remove one of them |
+| `packages … and … both provide …: a module has one provider, so neither is loaded` | two packages provide one module | remove one of them |
+| `provides …, which … provides: a module has one provider` | a package provides a module of `std` or `search` | rename the package's module |
 | `… is declared, and the extension … implements no such function` | a declaration in a contract has no entry in the module's table | add the function, or remove the declaration |
 | `requires hql …; this is hql …` | at install: the crate's `hql` range excludes the running version | a version of the crate for this `hql`, or a newer `hql` |
 | `needs cargo with rustc …, and none is on PATH` | at install: no Rust toolchain | install Rust with [rustup](https://rustup.rs) |
 
 Each is reported once, at install for the last two and otherwise when a
 program imports a module the package would have provided. `hql package
-list` marks a package whose build no longer fits.
+list` marks a package whose build no longer fits, and `hql doctor` lists
+every package of the environment as loaded or refused, with the reason.

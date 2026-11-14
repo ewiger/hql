@@ -62,9 +62,9 @@ whether one does, is a fact about the environment the program runs in.
 When `hql` starts it gathers the packages of the environment: the two
 builtin ones, the packages installed under the HQL home, and the crates a
 workspace lists ([[36-installing-packages|chapter 36]]). Each package
-states the modules it provides. A module has exactly one provider, so a
-package that provides a module another already provides is refused, and
-the first keeps it.
+states the modules it provides. A module has exactly one provider. Two
+packages that provide one module are both refused: the order in which
+packages are found picks no winner.
 
 `hql builtins` names the provider beside each module:
 

@@ -101,6 +101,9 @@ parts = d.split(test = 0.25f, seed = 7)
 [3, 1]
 ```
 
+A part is a dataset, and its `target` field is optional, since a dataset
+may be unlabelled. `parts.test.target.unwrap_or([])` reads it as a list.
+
 With a `seed` the split is pure: the same seed gives the same parts. Without
 one, `split` draws from the program's seed and is effectful, as `shuffle`
 is ([[29-random|chapter 29]]); `hql --seed 7` then repeats it.

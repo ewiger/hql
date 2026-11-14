@@ -289,6 +289,38 @@ fn a_contract_and_an_extension_that_disagree_refuse_the_package() {
 }
 
 #[test]
+fn a_module_two_packages_provide_has_no_provider() {
+    let home = home();
+    let twin = home.path().join("lib/twin");
+    copy_tree(&home.path().join("lib/hello"), &twin);
+    let record = std::fs::read_to_string(twin.join("package.toml")).unwrap();
+    std::fs::write(
+        twin.join("package.toml"),
+        record.replace("name = \"hello\"", "name = \"twin\""),
+    )
+    .unwrap();
+    let both = refused(home.path(), "import hello\nhello.greet(\"Ada\")");
+    assert!(
+        both.contains("both provide `hello`: a module has one provider, so neither is loaded"),
+        "{both}"
+    );
+    let doctor = hql(home.path()).arg("doctor").output().unwrap();
+    assert!(
+        stdout(&doctor).contains("package  refused packages `hello` and `twin` both provide"),
+        "{}",
+        stdout(&doctor)
+    );
+    // The same package found twice is one package.
+    std::fs::remove_dir_all(&twin).unwrap();
+    let healthy = hql(home.path()).arg("doctor").output().unwrap();
+    assert!(
+        stdout(&healthy).contains("package  ok      hello 0.1.0 (hello)"),
+        "{}",
+        stdout(&healthy)
+    );
+}
+
+#[test]
 fn a_file_that_is_no_package_library_is_refused() {
     let home = home();
     let directory = home.path().join("lib/hello");

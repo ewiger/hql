@@ -241,7 +241,45 @@ fn admit(directories: &[PathBuf]) -> Active {
         };
     };
     crate::types::program::install(builtin);
+    // What each directory states it provides, before any library is
+    // opened. The same package found twice is one package, the first
+    // found; a module two packages provide has no provider, and neither
+    // package is loaded: the order of discovery picks no winner.
+    let mut stated: Vec<(String, Vec<String>)> = Vec::new();
     for directory in directories {
+        if let Ok(installed) = Installed::read(directory)
+            && !stated.iter().any(|(name, _)| *name == installed.name)
+        {
+            stated.push((installed.name, installed.provides));
+        }
+    }
+    let rival = |package: &str, provides: &[String]| {
+        stated.iter().find_map(|(other, held)| {
+            (other != package)
+                .then(|| provides.iter().find(|module| held.contains(module)))
+                .flatten()
+                .map(|module| (other.clone(), module.clone()))
+        })
+    };
+    for directory in directories {
+        if let Ok(installed) = Installed::read(directory)
+            && !loaded
+                .iter()
+                .any(|held| held.installed.name == installed.name)
+            && !refused.iter().any(|held| held.name == installed.name)
+            && let Some((other, module)) = rival(&installed.name, &installed.provides)
+        {
+            refused.push(Refused {
+                reason: format!(
+                    "packages `{}` and `{other}` both provide `{module}`: a module has one \
+                     provider, so neither is loaded",
+                    installed.name
+                ),
+                name: installed.name,
+                provides: installed.provides,
+            });
+            continue;
+        }
         let candidate = match open(directory) {
             Ok(candidate) => candidate,
             Err(refusal) => {
@@ -258,6 +296,7 @@ fn admit(directories: &[PathBuf]) -> Active {
         if loaded
             .iter()
             .any(|held| held.installed.name == installed.name)
+            || refused.iter().any(|held| held.name == installed.name)
         {
             // The same package found twice: the first found is the one.
             continue;

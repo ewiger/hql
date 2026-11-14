@@ -265,10 +265,10 @@ enum PackageAction {
         name: String,
     },
     /// Build an installed package again from its source, after `hql` or
-    /// the compiler changed.
+    /// the compiler changed; every installed package where none is named.
     Rebuild {
         /// An installed package.
-        name: String,
+        name: Option<String>,
     },
     /// Remove an installed package.
     Remove {
@@ -765,14 +765,28 @@ fn package_action(
             Ok(0)
         }
         PackageAction::Rebuild { name } => {
-            let (_, installed) = held(name)?;
-            match &installed.source {
-                Source::Path(path) => install(path, out),
-                Source::Registry { .. } => Err(format!(
-                    "package `{name}` came from a registry, which this build of hql does not \
-                     read yet: install it again from its crate with `hql package install --path`"
-                )),
+            let names: Vec<String> = match name {
+                Some(name) => vec![name.clone()],
+                None => crate::package::installed(&home)
+                    .iter()
+                    .filter_map(|directory| Installed::read(directory).ok())
+                    .map(|installed| installed.name)
+                    .collect(),
+            };
+            for name in &names {
+                let (_, installed) = held(name)?;
+                match &installed.source {
+                    Source::Path(path) => install(path, out)?,
+                    Source::Registry { .. } => {
+                        return Err(format!(
+                            "package `{name}` came from a registry, which this build of hql \
+                             does not read yet: install it again from its crate with `hql \
+                             package install --path`"
+                        ));
+                    }
+                };
             }
+            Ok(0)
         }
         PackageAction::Remove { name } => {
             let (directory, installed) = held(name)?;
@@ -1164,7 +1178,29 @@ fn dispatch(
                 )
                 .map_err(|error| error.to_string())?;
             }
-            Ok(u8::from(checks.iter().any(|check| !check.ok)))
+            // The packages of the process: each one loaded, and each one
+            // found and refused with the reason the load gave.
+            let mut refused = false;
+            if let Some(active) = crate::package::active() {
+                for package in &active.loaded {
+                    writeln!(
+                        out,
+                        "{:<8} {:<7} {} {} ({})",
+                        "package",
+                        "ok",
+                        package.installed.name,
+                        package.installed.version,
+                        package.installed.provides.join(", ")
+                    )
+                    .map_err(|error| error.to_string())?;
+                }
+                for package in &active.refused {
+                    refused = true;
+                    writeln!(out, "{:<8} {:<7} {}", "package", "refused", package.reason)
+                        .map_err(|error| error.to_string())?;
+                }
+            }
+            Ok(u8::from(refused || checks.iter().any(|check| !check.ok)))
         }
         Command::Config { .. } => {
             writeln!(
