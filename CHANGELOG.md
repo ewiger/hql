@@ -31,7 +31,14 @@ The language continues to be in active development.
   every cell, and reads a vault's `[hql] project` from its
   `.hmd/config.toml`.
 - The semantic index and its `[semantics]` table live in the vault's
-  `.hmd/`, not the project's configuration.
+  `.hmd/`, not the project's configuration. `contrib/semantics` reads the
+  table from the vault's `.hmd/config.toml` and writes `.hmd/index.sqlite`
+  where the vault names no index; `--out` and `--index` are optional.
+- A package is active per run. An import of one of its modules in the
+  program or in a project module the program reaches activates it for
+  every unit of the run, `hmd` included. A project module starts with the
+  imports the program starts with: `std`'s prelude, each active package's
+  prelude, and `[modules] import` with `--import`.
 - A relative path resolves against the source directory of the unit naming
   it, a project module's own directory included, never the working
   directory.
@@ -59,6 +66,10 @@ The language continues to be in active development.
   `.hql/config.toml` names the crate of a package under development, built
   on first use. A program reaches a package's module with `import`, as it
   reaches a standard one, and `[modules] import` names a package too.
+- A package's prelude: `prelude.hql` at its module root, a list of imports
+  every unit of a run imports while the package is active. A prelude that
+  is no import list, or that imports a module that does not exist, refuses
+  the package.
 - `hql::ext`, the API a package's crate implements an extension against,
   with `hql::extension!` and `hql::native!`. A library is loaded through
   the symbol `hql_extension_v1` and held to the `hql` version, the

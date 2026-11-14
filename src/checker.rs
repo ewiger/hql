@@ -656,6 +656,10 @@ struct Checker<'a> {
     scope: HashMap<String, TypeRef>,
     /// Which extensions this program has imported.
     resolution: Resolution,
+    /// What every unit of the run starts with, before its own imports: the
+    /// effective prelude and the configured imports. A project module this
+    /// unit loads starts from it.
+    start: Resolution,
     /// What this program has declared.
     declarations: Declarations,
     checked: Checked,
@@ -1161,6 +1165,7 @@ impl<'a> Checker<'a> {
         Checker {
             vault,
             scope,
+            start: resolution.clone(),
             resolution,
             declarations: Declarations::default(),
             checked: Checked::default(),
@@ -3484,16 +3489,19 @@ impl<'a> Checker<'a> {
             loading: std::sync::Arc::clone(&self.loading),
             module_file: true,
             // A module is a closure: it sees no host binding and none of the
-            // program's, and only the standard prelude among implicit imports.
-            // A package's own prelude does not apply to its own modules, so a
-            // written module of the standard library names every import.
+            // program's. A project module starts as every unit of the run
+            // does, with the effective prelude and the configured imports
+            // (HQL-0024, part 3). A package's own prelude does not apply to
+            // its own modules, so a written module of the standard library
+            // names every import.
             ..Checker::new(
                 self.vault,
                 HashMap::new(),
-                Resolution::bare(
-                    self.resolution.environment(),
-                    self.vault.extensions.prelude && written.is_none(),
-                ),
+                if written.is_some() {
+                    Resolution::bare(self.resolution.environment(), false)
+                } else {
+                    self.start.clone()
+                },
             )
         };
         let checked = {

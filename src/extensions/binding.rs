@@ -1230,6 +1230,35 @@ impl Runtime {
                 )));
             }
         }
+        // The preludes of the active packages, each an import list of every
+        // unit. Two that bind one local name to two modules are an
+        // environment error naming both files.
+        let mut bound: Vec<(&str, &str, &str)> = Vec::new();
+        for prelude in &config.preludes {
+            let stated = |message: String| {
+                Diagnostic::name(0..0, format!("the prelude {}: {message}", prelude.file))
+            };
+            for module in &prelude.imports {
+                let local = module.rsplit('.').next().unwrap_or(module);
+                if let Some((_, file, held)) = bound
+                    .iter()
+                    .find(|(name, _, held)| *name == local && *held != module.as_str())
+                {
+                    return Err(stated(format!(
+                        "it imports `{module}` and the prelude {file} imports `{held}`: two \
+                         preludes bind the name `{local}`"
+                    )));
+                }
+                let found = resolution
+                    .import(module, None, &(0..0))
+                    .map_err(|failed| stated(failed.message()))?
+                    || resolution.is_runtime_module(module);
+                if !found {
+                    return Err(stated(format!("it imports `{module}`, which is no module")));
+                }
+                bound.push((local, &prelude.file, module));
+            }
+        }
         Ok(Self { resolution })
     }
 }

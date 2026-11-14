@@ -34,6 +34,9 @@ pub struct Loaded {
     pub installed: Installed,
     /// Its directory.
     pub directory: PathBuf,
+    /// The modules its `modules/prelude.hql` imports: what every unit of a
+    /// run imports while the package is active (HQL-0059).
+    pub prelude: Vec<String>,
 }
 
 /// A package the process found and did not load.
@@ -169,6 +172,13 @@ fn open(directory: &Path) -> Result<Candidate, Refused> {
         let source: &'static str = Box::leak(source.into_boxed_str());
         modules.push((name, source));
     }
+    let prelude = root.join("prelude.hql");
+    let prelude = match std::fs::read_to_string(&prelude) {
+        Ok(source) => crate::extensions::prelude_imports(&source)
+            .map_err(|reason| refuse(format!("{}: {reason}", prelude.display())))?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(refuse(format!("{}: {error}", prelude.display()))),
+    };
     let extension =
         load::open(&installed.name, &directory.join(&installed.library)).map_err(&refuse)?;
     if extension.id() != installed.name {
@@ -191,6 +201,7 @@ fn open(directory: &Path) -> Result<Candidate, Refused> {
         loaded: Loaded {
             installed,
             directory: directory.to_path_buf(),
+            prelude,
         },
         modules,
         extension,
@@ -328,11 +339,26 @@ fn admit(directories: &[PathBuf]) -> Active {
         let trial_graph: Graph = Box::leak(trial_graph.into_boxed_slice());
         let trial_extensions: ExtensionSet = Box::leak(trial_extensions.into_boxed_slice());
         TRIAL.set(Some((trial_graph, trial_extensions)));
-        let admitted = declare_types(&candidate.modules).and_then(|()| {
-            Cache::process()
-                .frozen(trial_graph, trial_extensions)
-                .map(|_| ())
-        });
+        let admitted = declare_types(&candidate.modules)
+            .and_then(|()| {
+                Cache::process()
+                    .frozen(trial_graph, trial_extensions)
+                    .map(|_| ())
+            })
+            .and_then(|()| {
+                // A prelude imports modules of the environment it joins.
+                match candidate
+                    .loaded
+                    .prelude
+                    .iter()
+                    .find(|module| !trial_graph.iter().any(|(held, _)| held == module))
+                {
+                    Some(module) => Err(format!(
+                        "its prelude.hql imports `{module}`, which is no module"
+                    )),
+                    None => Ok(()),
+                }
+            });
         match admitted {
             Ok(()) => {
                 graph = trial_graph;

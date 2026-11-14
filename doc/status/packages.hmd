@@ -16,7 +16,7 @@ per package, each with its `id`, `abi = 1` and `provides`.
 | Package | Extension | Modules | Prelude | Contracts |
 | --- | --- | --- | --- | --- |
 | `std` | `std`, internal | 32: 28 provided by the extension, 4 by the runtime (`doc`, `retrieval`, `knowledge`, `validators`) | yes, `lib/std/prelude.hql`, the implicit import list | [`lib/std/`](../../lib/std/README.md) |
-| `hmd` | `hmd`, internal | 5: `hmd.search.lexical` and `hmd.search.semantic` provided by the extension, `hmd`, `hmd.vault` and `hmd.search` by the runtime | yes, `lib/hmd/prelude.hql`, applied while `hmd` is imported | [`lib/hmd/`](../../lib/hmd/README.md) |
+| `hmd` | `hmd`, internal | 5: `hmd.search.lexical` and `hmd.search.semantic` provided by the extension, `hmd`, `hmd.vault` and `hmd.search` by the runtime | yes, `lib/hmd/prelude.hql`, applied while `hmd` is active | [`lib/hmd/`](../../lib/hmd/README.md) |
 
 The modules `std`'s extension provides: `core`, `collections`, `string`,
 `seq`, `math`, `stats`, `time`, `random`, `option`, `result`, `regex`,

@@ -186,6 +186,48 @@ fn the_vault_is_supplied_from_outside_and_its_absence_is_said_out_loud() {
 }
 
 #[test]
+fn a_project_module_that_imports_hmd_activates_it_for_the_run() {
+    let root = tempdir().unwrap();
+    std::fs::write(
+        project_config(root.path()),
+        "[modules]\nroots = [\"lib\"]\n",
+    )
+    .unwrap();
+    std::fs::write(root.path().join("one.md"), "# One\n").unwrap();
+    std::fs::create_dir(root.path().join("lib")).unwrap();
+    std::fs::write(
+        root.path().join("lib/notes.hql"),
+        "module notes\nimport hmd\nfn first() : Option<String> = @[[one]].name\n",
+    )
+    .unwrap();
+    // `plain` imports nothing of `hmd` and writes a document reference.
+    std::fs::write(
+        root.path().join("lib/plain.hql"),
+        "module plain\nfn first() : Option<String> = @[[one]].name\n",
+    )
+    .unwrap();
+    // The program writes no `import hmd`; `notes` does, so `hmd` is active
+    // for the run: `cards` is bound, and `plain` resolves its reference.
+    let output = hql_in(
+        root.path(),
+        &[
+            "eval",
+            "import notes\nimport plain\n[notes.first() == plain.first(), (cards | count) == 1]",
+        ],
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "[true, true]\n");
+    // Without `notes`, no unit of the run imports `hmd`.
+    let output = hql_in(root.path(), &["eval", "import plain\nplain.first()"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr(&output).contains("import hmd"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn without_the_flag_the_vault_is_the_nearest_marked_directory_above() {
     let root = tempdir().unwrap();
     std::fs::create_dir(root.path().join(".hmd")).unwrap();

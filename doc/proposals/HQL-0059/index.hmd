@@ -359,6 +359,16 @@ when one of its modules is imported: by a unit, by `[modules] import`, by
 `hmd` is always loaded, being builtin, but active only when imported; only
 `std`'s prelude applies to every run.
 
+Activation is per run, not per unit. The units of a run are its program and
+every project module the program reaches through imports. An import in any
+of them activates the package for all of them, and every unit starts with
+the same implicit imports: `std`'s prelude, the prelude of each active
+package, and `[modules] import` with `--import`. A project module stays a
+closure over its imports otherwise: no host binding reaches it, `vault` and
+`cards` included, while a document reference `@[[..]]` in it is checked
+once `hmd` is active. An installed package's prelude is
+`modules/prelude.hql` in its directory, and applies by the same rule.
+
 ```text
 lib/hmd/
 ├── prelude.hql      import hmd.vault, hmd.search, and the card modules
@@ -625,3 +635,9 @@ An HMD host may select an HQL project, but an HQL project never defines a HyperM
   Code extension's context, and HyperMarkdown's depth levels of the index,
   all in the HyperMarkdown repository. `Card`, `Doc`, `uplinks`,
   `downlinks` and `expand` stay in `std`
+- 2026-11-14: activation is per run: an import in a project module
+  activates a package for every unit, and every unit starts with the
+  effective prelude and the configured imports. An installed package's
+  `modules/prelude.hql` applies while the package is active.
+  `contrib/semantics` reads `[semantics]` from the vault's
+  `.hmd/config.toml`

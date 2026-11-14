@@ -791,6 +791,81 @@ pub struct Config {
     /// `.hql/config.toml`, resolved against the project root. Each is built on first use
     /// and loaded as an installed package is.
     pub package_paths: Vec<std::path::PathBuf>,
+    /// The preludes of the packages active in the run, `std`'s apart: what
+    /// [`Config::activated`] gathers, and no configuration file states.
+    pub preludes: Vec<Prelude>,
+}
+
+/// The prelude of an active package: the modules its `prelude.hql` imports
+/// into every unit of the run.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Prelude {
+    /// The file, as a diagnostic names it.
+    pub file: String,
+    /// The modules it imports, in the order written.
+    pub imports: Vec<String>,
+}
+
+/// The modules a package's `prelude.hql` imports. A prelude is an import
+/// list: a statement of another kind, or an import under an alias, is
+/// refused.
+///
+/// # Errors
+///
+/// Returns why the text is no import list.
+pub(crate) fn prelude_imports(source: &str) -> Result<Vec<String>, String> {
+    let program = crate::parser::parse(source).map_err(|error| error.message())?;
+    program
+        .statements
+        .iter()
+        .map(|statement| match statement {
+            crate::ast::Stmt::Import {
+                path, alias: None, ..
+            } => Ok(path.join(".")),
+            crate::ast::Stmt::Import { path, .. } => Err(format!(
+                "`import {}` is written with `as`: a prelude imports a module under its own \
+                 name",
+                path.join(".")
+            )),
+            _ => Err("a prelude holds imports and nothing else".to_owned()),
+        })
+        .collect()
+}
+
+/// The module every import of a run names: the program's, and those of
+/// each project module it reaches. A module that cannot be found, read or
+/// parsed contributes nothing here; checking reports it.
+fn run_imports(program: &crate::ast::Program, roots: &[std::path::PathBuf]) -> Vec<String> {
+    fn written(program: &crate::ast::Program) -> impl Iterator<Item = String> + '_ {
+        program.statements.iter().filter_map(|statement| {
+            if let crate::ast::Stmt::Import { path, .. } = statement {
+                Some(path.join("."))
+            } else {
+                None
+            }
+        })
+    }
+    let mut found: Vec<String> = Vec::new();
+    let mut pending: Vec<String> = written(program).collect();
+    while let Some(module) = pending.pop() {
+        if found.contains(&module) {
+            continue;
+        }
+        // A module of a package is no file under a root.
+        let project = !roots.is_empty()
+            && !crate::package::graph()
+                .iter()
+                .any(|(held, _)| *held == canonical(&module));
+        if project
+            && let Ok(Some(file)) = crate::modules::locate(roots, &module)
+            && let Ok(source) = std::fs::read_to_string(file)
+            && let Ok(unit) = crate::parser::parse(&source)
+        {
+            pending.extend(written(&unit));
+        }
+        found.push(module);
+    }
+    found
 }
 
 impl Default for Config {
@@ -800,6 +875,7 @@ impl Default for Config {
             prelude: true,
             module_roots: Vec::new(),
             package_paths: Vec::new(),
+            preludes: Vec::new(),
         }
     }
 }
@@ -849,28 +925,50 @@ impl Config {
         self.imports.iter().any(|import| is_hmd(import))
     }
 
-    /// The configuration a program runs under: this one, with `hmd` active
-    /// when the program imports a module of it, and then, unless preludes
-    /// are declined, with `hmd`'s prelude among the imports of every unit.
-    /// A package whose module a unit imports is active for the whole run,
-    /// as its prelude is part of the run's environment (HQL-0024, part 3).
+    /// The configuration a program runs under: this one, with the prelude
+    /// of every package active in the run, unless preludes are declined.
+    ///
+    /// A package is active when a unit of the run, the program or a project
+    /// module it reaches, or a configured import names one of its modules.
+    /// It is active for the whole run, and its prelude is imported by every
+    /// unit of the run: the effective prelude is the union per run
+    /// (HQL-0024, part 3). `hmd` is a package among them (HQL-0059).
     #[must_use]
     pub(crate) fn activated(&self, program: &crate::ast::Program) -> Self {
-        let imported = program.statements.iter().any(|statement| {
-            matches!(statement, crate::ast::Stmt::Import { path, .. } if is_hmd(&path.join(".")))
-        });
-        if !imported && !self.hmd_active() {
-            return self.clone();
-        }
+        let written = run_imports(program, &self.module_roots);
         let mut config = self.clone();
-        if !config.hmd_active() {
-            config.imports.push("hmd".to_owned());
+        config.preludes.clear();
+        if self.hmd_active() || written.iter().any(|module| is_hmd(module)) {
+            if !config.hmd_active() {
+                config.imports.push("hmd".to_owned());
+            }
+            if config.prelude {
+                config.preludes.push(Prelude {
+                    file: "lib/hmd/prelude.hql".to_owned(),
+                    imports: hmd_prelude().iter().map(|&name| name.to_owned()).collect(),
+                });
+            }
         }
-        if config.prelude {
-            for module in hmd_prelude() {
-                if !config.imports.iter().any(|held| held == module) {
-                    config.imports.push((*module).to_owned());
-                }
+        if !config.prelude {
+            return config;
+        }
+        let loaded = crate::package::active().map_or(&[][..], |active| &active.loaded);
+        for package in loaded {
+            let installed = &package.installed;
+            let active = installed
+                .provides
+                .iter()
+                .any(|module| written.contains(module) || self.imports.contains(module))
+                || self.imports.contains(&installed.name);
+            if active && !package.prelude.is_empty() {
+                config.preludes.push(Prelude {
+                    file: package
+                        .directory
+                        .join("modules/prelude.hql")
+                        .display()
+                        .to_string(),
+                    imports: package.prelude.clone(),
+                });
             }
         }
         config
@@ -1855,6 +1953,7 @@ mod tests {
             prelude: false,
             module_roots: Vec::new(),
             package_paths: Vec::new(),
+            preludes: Vec::new(),
         };
         let resolution = Resolution::new(&config).expect("the configuration resolves");
         assert!(resolution.step("lexical", &(0..1)).is_ok());
@@ -1890,6 +1989,7 @@ mod tests {
             prelude: true,
             module_roots: Vec::new(),
             package_paths: Vec::new(),
+            preludes: Vec::new(),
         };
         assert!(config.hmd_active());
         let empty = crate::ast::Program {
@@ -1924,6 +2024,7 @@ mod tests {
             prelude: true,
             module_roots: Vec::new(),
             package_paths: Vec::new(),
+            preludes: Vec::new(),
         };
         let failed = Resolution::new(&config).unwrap_err();
         assert!(

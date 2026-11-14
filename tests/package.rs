@@ -184,6 +184,105 @@ fn a_call_is_checked_against_the_declaration() {
 }
 
 #[test]
+fn the_prelude_of_a_package_applies_while_the_package_is_active() {
+    let home = home();
+    assert!(
+        home.path()
+            .join("packages/hello/modules/prelude.hql")
+            .is_file()
+    );
+    // The import binds `h` and activates the package; the package's prelude
+    // imports `hello` under its own name.
+    assert_eq!(
+        shown(home.path(), "import hello as h\nhello.greet(\"Ada\")"),
+        "\"Hello, Ada!\""
+    );
+    // Loaded and not active: no unit imports a module of the package.
+    let inactive = refused(home.path(), "hello.greet(\"Ada\")");
+    assert!(inactive.contains("`hello` is not bound"), "{inactive}");
+    // `prelude = false` withholds every prelude's imports.
+    std::fs::write(
+        home.path().join("config.toml"),
+        "[modules]\nprelude = false\n",
+    )
+    .unwrap();
+    let declined = refused(home.path(), "import hello as h\nhello.greet(\"Ada\")");
+    assert!(declined.contains("`hello` is not bound"), "{declined}");
+    assert_eq!(
+        shown(home.path(), "import hello as h\nh.greet(\"Ada\")"),
+        "\"Hello, Ada!\""
+    );
+}
+
+#[test]
+fn a_project_module_that_imports_a_package_activates_it_for_the_run() {
+    let home = home();
+    let project = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(project.path().join(".hql")).unwrap();
+    std::fs::create_dir_all(project.path().join("lib")).unwrap();
+    std::fs::write(
+        project.path().join(".hql/config.toml"),
+        "[modules]\nroots = [\"lib\"]\n",
+    )
+    .unwrap();
+    std::fs::write(
+        project.path().join("lib/greeter.hql"),
+        "module greeter\nimport hello as h\nfn hi(name: String) : String = h.greet(name)\n",
+    )
+    .unwrap();
+    // `plain` imports nothing of the package and reads its prelude's `hello`.
+    std::fs::write(
+        project.path().join("lib/plain.hql"),
+        "module plain\nfn hi(name: String) : String = hello.greet(name)\n",
+    )
+    .unwrap();
+    let run = |program: &str| {
+        hql(home.path())
+            .current_dir(project.path())
+            .args(["eval", program])
+            .output()
+            .unwrap()
+    };
+    // The program imports no module of the package; `greeter` does, so the
+    // package is active and its prelude reaches the program and `plain`.
+    let output = run(
+        "import greeter\nimport plain\n[greeter.hi(\"Ada\"), plain.hi(\"Bo\"), hello.greet(\"Cy\")]",
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        "[\"Hello, Ada!\", \"Hello, Bo!\", \"Hello, Cy!\"]"
+    );
+    // Without `greeter` nothing in the run imports the package.
+    let output = run("import plain\nplain.hi(\"Bo\")");
+    assert!(!output.status.success(), "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("`hello` is not bound"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_prelude_that_is_no_import_list_refuses_the_package() {
+    let home = home();
+    edit(home.path(), "modules/prelude.hql", |_| "x = 1\n".to_owned());
+    let failed = refused(home.path(), "import hello\nhello.greet(\"Ada\")");
+    assert!(
+        failed.contains("a prelude holds imports and nothing else"),
+        "{failed}"
+    );
+    edit(home.path(), "modules/prelude.hql", |_| {
+        "import hello.nowhere\n".to_owned()
+    });
+    let failed = refused(home.path(), "import hello\nhello.greet(\"Ada\")");
+    assert!(
+        failed.contains("prelude.hql imports `hello.nowhere`, which is no module"),
+        "{failed}"
+    );
+}
+
+#[test]
 fn a_panic_in_the_library_is_a_failure_of_the_call() {
     let home = home();
     let failed = refused(home.path(), "import hello\nhello.fail(\"boom\")");

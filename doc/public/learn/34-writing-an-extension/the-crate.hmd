@@ -75,3 +75,32 @@ becoming a directory:
 | --- | --- |
 | `hello` | `modules/hello/mod.hql` or `modules/hello.hql` |
 | `hello.words` | `modules/hello/words.hql` or `modules/hello/words/mod.hql` |
+
+## The package's prelude
+
+The module root may hold `prelude.hql`, the package's **prelude**: a file
+of `import` statements and nothing else, which is not a module and cannot
+be imported. `hello`'s is one line:
+
+```hql
+import hello
+```
+
+A package is **active** in a run once a unit of the run, the program or a
+project module it imports, imports one of the package's modules, or
+`[modules] import` or `--import` names one. While a package is active,
+every unit of the run imports the modules its prelude lists, each under its
+own name. A package that is installed and that no unit imports is loaded
+and not active, and its prelude imports nothing.
+
+```hql
+import hello as h
+hello.greet("Ada")      // `hello` is bound by the prelude, `h` by the import
+```
+
+A prelude names the modules a program of the package cannot do without. A
+module it does not name is imported where it is used. `prelude = false`
+under `[modules]` withholds every prelude's imports, `std`'s included. A
+`prelude.hql` holding another kind of statement, an import written with
+`as`, or an import of a module that does not exist refuses the package when
+it is loaded.
