@@ -159,7 +159,9 @@ built = "2026-11-13T10:02:41Z"
 - Each level's `lock.toml` lists the packages installed there, each with
   its name, version and pinned source. A project commits `lock.toml` and
   not `packages/` or `cache/`; `hql package install` with no name installs
-  everything the level's `lock.toml` lists.
+  everything the level's `lock.toml` lists. `lock.toml` is the one record
+  of a level's packages and their versions: configuration names no
+  installed package and pins no version.
 - `modules/` is copied from the crate at build time, so the contracts an
   installed package binds against are the ones its library was built
   with, whatever the source later becomes.

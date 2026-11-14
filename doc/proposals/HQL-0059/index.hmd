@@ -113,6 +113,11 @@ either: the project is the default level, the home the shared one, as
   name, version and pinned source (registry tag, crates.io version or
   path). A project commits `lock.toml` and ignores `packages/` and
   `cache/`, which are rebuilt from it.
+- `lock.toml` is the one record of which packages a level uses and at
+  which version. `config.toml` names no installed package and pins no
+  version; `install <name>@<version>` and `update` write `lock.toml`.
+  A `[packages] paths` entry is a crate on disk, rebuilt as it changes,
+  and is never pinned.
 - `hql package install <name>` installs into the project; `--home`
   installs into the HQL home. Without a project, `install` without
   `--home` is refused, naming `--home`. `hql package install` with no name
