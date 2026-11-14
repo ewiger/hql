@@ -109,19 +109,42 @@ either: the project is the default level, the home the shared one, as
 - `cache/` holds what installing at that level fetched: the source
   checkouts under `cache/src/<name>/`. The registry is cached once, in the
   home's `cache/registry/`.
-- `lock.toml` lists the packages installed at that level, each with its
-  name, version and pinned source (registry tag, crates.io version or
-  path). A project commits `lock.toml` and ignores `packages/` and
-  `cache/`, which are rebuilt from it.
-- `lock.toml` is the one record of which packages a level uses and at
-  which version. `config.toml` names no installed package and pins no
-  version; `install <name>@<version>` and `update` write `lock.toml`.
-  A `[packages] paths` entry is a crate on disk, rebuilt as it changes,
-  and is never pinned.
+- `lock.toml` pins each package dependency of that level to its version
+  and source (registry tag, crates.io version or path). A project commits
+  `config.toml` and `lock.toml` and ignores `packages/` and `cache/`,
+  which are rebuilt from the two.
+- Dependencies are declared at two grains. A unit's `import`s are its
+  module dependencies. A level's `config.toml` declares its package
+  dependencies by name, and its `lock.toml` pins each to one version and
+  source:
+
+  ```toml
+  # .hql/config.toml
+  [packages]
+  dependencies = ["ml"]          # names only; no version
+  paths = ["../hql-ext-geo"]     # crates on disk, never pinned
+  ```
+
+  ```toml
+  # .hql/lock.toml, written by hql package
+  [[package]]
+  name = "ml"
+  version = "0.1.0"
+  source = "official"
+  tag = "hql-ext-ml-v0.1.0"
+  ```
+
+- `config.toml` carries no version. `install <name>[@<version>]` adds the
+  name to `dependencies` and its pin to `lock.toml`; `update` moves a pin;
+  `remove` drops both. `install` with no name installs every declared
+  dependency at its pinned version, and pins a declared one `lock.toml`
+  lacks at the newest version the running `hql` admits.
+- A declared dependency that is not installed fails the run, naming
+  `hql package install`. A `[packages] paths` entry is a dependency too,
+  rebuilt as its sources change, and is never pinned.
 - `hql package install <name>` installs into the project; `--home`
   installs into the HQL home. Without a project, `install` without
-  `--home` is refused, naming `--home`. `hql package install` with no name
-  installs every package the level's `lock.toml` lists. `update`,
+  `--home` is refused, naming `--home`. `update`,
   `rebuild` and `remove` take `--home` the same way; `list` shows both
   levels, naming each package's level.
 - A run discovers packages from the `[packages] paths` entries, the

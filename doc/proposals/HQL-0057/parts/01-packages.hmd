@@ -156,12 +156,11 @@ built = "2026-11-13T10:02:41Z"
   the second with the rest of the home
   ([chapter 13](../../../public/learn/13-working-with-hql.hmd)). A crate
   on disk that is not installed is reached through `[packages] paths`.
-- Each level's `lock.toml` lists the packages installed there, each with
-  its name, version and pinned source. A project commits `lock.toml` and
-  not `packages/` or `cache/`; `hql package install` with no name installs
-  everything the level's `lock.toml` lists. `lock.toml` is the one record
-  of a level's packages and their versions: configuration names no
-  installed package and pins no version.
+- A level's `config.toml` declares its package dependencies by name in
+  `[packages] dependencies`, with no version, and its `lock.toml` pins
+  each to one version and source ([[HQL-0059]]). A project commits both
+  and not `packages/` or `cache/`; `hql package install` with no name
+  installs every declared dependency at its pinned version.
 - `modules/` is copied from the crate at build time, so the contracts an
   installed package binds against are the ones its library was built
   with, whatever the source later becomes.
@@ -244,7 +243,8 @@ Discovery is configured; loading is by import.
 
 ```toml
 [packages]
-paths = ["../hql-ext-ml"]            # crates on disk, used as if installed
+dependencies = ["ml"]                # installed packages, by name; lock.toml pins them
+paths = ["../hql-ext-geo"]           # crates on disk, used as if installed
 
 [extensions]
 import = ["ml"]                      # loaded for every program, without an import
@@ -284,7 +284,7 @@ project, an action without `--home` is refused, naming `--home`.
 | Action | What it does |
 | --- | --- |
 | `install <name>[@<version>]` | resolve `name` in the registry, check its `hql` requirement, fetch, build and install; `@version` picks an older registry version |
-| `install` | install every package the level's `lock.toml` lists |
+| `install` | install every dependency the level's `config.toml` declares, at the version its `lock.toml` pins |
 | `install --path <dir>` | build the crate at `dir` and install it as a path package |
 | `list` | every installed package at both levels: name, level, version, kind, the `hql` it was built against, and whether it loads against this binary |
 | `info <name>` | one package: `package.toml` and the registry entry, with the modules it provides and their declarations' count |
