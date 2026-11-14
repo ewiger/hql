@@ -185,3 +185,9 @@ authors; the rest of the crate's public surface is unchanged.
 - 2026-11-13: the `hql-extensions` repository committed; the builtin
   descriptors folded into `std` and `search` with `id`, `abi` and
   `provides` (issue 0049, deployment step 1 in part)
+- 2026-11-14: `hql::ext`, `src/package/` and `hql package install --path`,
+  `list`, `info`, `rebuild` and `remove`; `[packages] paths`; the `ml`
+  natives and examples (deployment steps 1 and 2). Part 1 states the build
+  as carried out: the `hql` dependency pinned through the lock file or
+  patched to a checkout, the compiler selected, the header the entry point
+  returns, and every package loaded at start

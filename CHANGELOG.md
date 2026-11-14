@@ -10,6 +10,25 @@ The language continues to be in active development.
 
 ### Added
 
+- Packages ([HQL-0057](doc/proposals/HQL-0057/index.hmd), issue 0078). A
+  package is a Cargo crate named `hql-ext-<name>` whose library is an
+  extension: the Rust functions behind the declarations of the modules it
+  provides. `hql package install --path <dir>` builds one with `cargo`
+  against the running `hql` and installs it under `~/.hql/lib/<name>/`;
+  `list`, `info`, `rebuild` and `remove` manage what is installed, and
+  `hql doctor` and `hql builtins` report it. `[packages] paths` in
+  `hql.toml` names the crate of a package under development, built on
+  first use. A program reaches a package's module with `import`, as it
+  reaches a standard one, and `[extensions] import` names a package too.
+- `hql::ext`, the API a package's crate implements an extension against,
+  with `hql::extension!` and `hql::native!`. A library is loaded through
+  the symbol `hql_extension_v1` and held to the `hql` version, the
+  compiler and the type sizes it was built with; one that differs is
+  refused with ``run `hql package rebuild <name>` ``.
+- The book's Part V, [Extending HQL](doc/public/learn/32-functions-and-declarations/index.hmd):
+  functions and declarations, packages and extensions, writing an
+  extension, how a library is loaded, installing packages, the registry
+  and publishing, and the `ml` package.
 - `parse_date`, `parse_datetime` and `parse_instant` take no pattern as
   well: `"1982-05-09".parse_date()` reads the ISO text that `to_date`
   reads, and the same for `DateTime` and `Instant`
@@ -19,6 +38,9 @@ The language continues to be in active development.
 
 ### Changed
 
+- `hql` is built with one exact compiler, pinned in `rust-toolchain.toml`,
+  and records it: a package is built with the compiler of the `hql` that
+  installs it.
 - The binary registers one extension per builtin package, `std` and
   `search`, each a descriptor with `id`, `abi` and `provides`, in place of
   one entry per Rust source module

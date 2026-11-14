@@ -26,6 +26,7 @@ fn dataset<T>(self: Collection<T>, features: List<T -> Float>, *, target: T -> F
 fn dataset<T>(self: Collection<T>, features: List<T -> Float>) : Dataset
 type Split = { train : Dataset, test : Dataset }
 fn split(self: Dataset, *, test: Float = 0.2, seed: Int) : Split
+effectful fn split(self: Dataset, *, test: Float = 0.2) : Split
 ```
 
 - `dataset` applies each function in `features` to each value, in order,
@@ -34,14 +35,20 @@ fn split(self: Dataset, *, test: Float = 0.2, seed: Int) : Split
   the checker sees it, as `sort(by)` and `group(by)` are written.
 - `Dataset(features)` MUST refuse rows of unequal length, naming the first
   that differs.
-- `split` takes the last `test` fraction after a shuffle seeded by `seed`;
-  with no `seed` it reads `random`'s seed, so a seeded program splits the
-  same way twice ([[04-random|HQL-0041 part 4]]).
+- `split` takes the last `test` fraction after a shuffle seeded by `seed`,
+  and is pure. The form without `seed` is effectful and draws from the
+  evaluation seed, as `shuffle` does, so a program run with `--seed`
+  splits the same way twice ([[04-random|HQL-0041 part 4]]).
+- A function written inside the `features` list states its parameter's
+  type, `(h: House) => h.area`: a lambda written as a value is typed
+  where it is written. `target` is an argument of its own and takes its
+  parameter's type from the collection.
+- Every number is a `Float`, written with the suffix `f`.
 
 ### 2. Models as values
 
 ```hql
-type Model : {Debug}
+abstract type Model
 type Linear : Model { coefficients : List<Float>, intercept : Float }
 type Logistic : Model { coefficients : List<Float>, intercept : Float }
 type KMeans : Model { centroids : List<List<Float>> }
@@ -94,16 +101,31 @@ fn confusion(predicted: List<Float>, actual: List<Float>, *, threshold: Float = 
 import ml
 import ml.metrics
 
-houses = source("houses.csv") | collect
-d = houses.dataset([h => h.area, h => h.rooms], target = h => h.price).split(seed = 7)
+type House { area : Float, rooms : Float, price : Float }
+
+houses = [
+    House(area = 50.0f, rooms = 2.0f, price = 200.0f),
+    House(area = 80.0f, rooms = 3.0f, price = 310.0f),
+    House(area = 120.0f, rooms = 4.0f, price = 450.0f),
+    House(area = 65.0f, rooms = 2.0f, price = 240.0f),
+    House(area = 95.0f, rooms = 3.0f, price = 360.0f),
+]
+d = houses.dataset([(h: House) => h.area, (h: House) => h.rooms], target = h => h.price).split(seed = 7)
 model = d.train.fit_linear()
-metrics.rmse(model.predict(d.test), d.test.target)
+metrics.rmse(model.predict(d.test), d.test.target.unwrap_or([]))
 ```
 
 ## Current state
 
-Nothing: the package does not exist, and the binary has no numeric
-collection beyond `stats` over one column.
+`crates/hql-ext-ml` in `hql-extensions` holds the contracts of `ml` and
+`ml.metrics`, the computations over plain Rust values in `src/core/`, and
+the natives in `src/natives/` binding one to the other: every declared
+name has its function, and the package installs with `hql package install
+--path` and loads. Its `examples/` are checked programs for a fit and a
+prediction per model, a dataset read from records and split, and a
+refusal, with an `hql.toml` that loads the package from the checkout. The
+crate is not on crates.io: its `hql = "0.7"` dependency resolves there
+once `hql` 0.7.0 is published.
 
 ## Work units
 

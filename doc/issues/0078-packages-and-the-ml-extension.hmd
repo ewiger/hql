@@ -22,15 +22,20 @@ on `feat/extensions-ml`.
 3. Done: issue 0049 as the prerequisite: two descriptors with `id`, `abi`
    and `provides`, visibility per module, `hql builtins` naming the package
    beside the module.
-4. `hql::ext`, the entry point, and a fixture package under
-   `tests/packages/hello/`.
-5. Discovery, `package.toml`, loading and the version check;
-   `hql package install --path`, `list`, `info`, `remove`, `rebuild`.
+4. Done: `hql::ext`, `hql::extension!` and `hql::native!`, the recorded
+   compiler, and the fixture package under `tests/packages/hello/`.
+5. Done: `src/package/`: `package.toml`, the `cargo` driver, loading with
+   the header check, activation with each package admitted on trial;
+   `[packages] paths`; `hql package install --path`, `list`, `info`,
+   `remove`, `rebuild`; `hql doctor` and `hql builtins` report packages.
 6. The registry fetch and cache; `install <name>`, `search`, `update`,
    `registry`.
-7. `ml`'s natives over `linfa`, and its examples.
-8. Chapter 13 on `[packages]` and `hql package`; the book's Part IV chapter
-   on declarations and extensions.
+7. Done: `ml`'s natives over `linfa`, and its examples, with the example
+   checker and the CI job in `hql-extensions`.
+8. Done: the book's Part V, *Extending HQL*, chapters 32 to 38; chapter 13
+   names the package layers.
+9. Release: `hql` 0.7.0 to crates.io, then `hql-ext-ml` 0.1.0, whose
+   `hql = "0.7"` dependency resolves there.
 
 ## Done when
 

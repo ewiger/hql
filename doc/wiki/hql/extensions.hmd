@@ -14,10 +14,13 @@ A registry of extensions is implemented; a module loader is not. An extension
 declares a name, a version and its steps, and each step supplies its
 evaluator, its own marking of whether it is pure, and, where no declaration
 states one, a structural `StepSpec` — so a capability is added without
-editing the core's checker or evaluator. Extensions
-are compiled into the binary and registered in one table. There is no dynamic
-loading and no plugin ABI: registration says what exists, and it is a host
-mechanism that never reaches HQL's surface.
+editing the core's checker or evaluator. The extensions of the builtin
+packages are compiled into the binary; the extension of an installed
+package is loaded from its library when `hql` starts, through the one
+symbol `hql_extension_v1`, and is held to the `hql` version and the compiler
+it was built with ([[HQL-0057]]). Both are registered in one set, which a
+process fixes before its first program is checked: registration says what
+exists, and it is a host mechanism that never reaches HQL's surface.
 
 An extension is the implementation unit of a package
 ([[hql/packages]] names the four units), and a package carries one, named as the package is: `std` implements the standard package's

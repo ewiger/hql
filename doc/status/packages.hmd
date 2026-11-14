@@ -34,11 +34,12 @@ crate lives elsewhere.
 
 | Package | Kind | Crate | Version | hql | Provides | State |
 | --- | --- | --- | --- | --- | --- | --- |
-| `ml` | official | `hql-ext-ml` | 0.1.0 | `>=0.7.0, <0.8.0` | `ml`, `ml.metrics` | contracts and a prelude under `modules/`; the library implements none of them |
+| `ml` | official | `hql-ext-ml` | 0.1.0 | `>=0.7.0, <0.8.0` | `ml`, `ml.metrics` | contracts under `modules/` and a library implementing every declaration; installs with `--path`; not on crates.io |
 
-There are no known packages. Nothing is installed anywhere: `hql` has no
-`package` command, no `[packages]` table, nothing under `~/.hql/lib/`, and
-no `hql::ext` API a crate can implement an extension against
-([[01-packages|HQL-0057 part 1]], "Current
-state"). No release publishes prebuilt libraries
+There are no known packages. `hql package install --path` builds and
+installs a package under `~/.hql/lib/`, and `[packages] paths` loads a
+crate from a workspace; the registry is not read, so nothing installs by
+name ([[01-packages|HQL-0057 part 1]], "Current state"). The fixture
+package `hello`, under `tests/packages/hello/`, is in no registry. No
+release publishes prebuilt libraries
 ([[03-prebuilt-libraries|part 3]]).
