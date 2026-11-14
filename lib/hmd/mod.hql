@@ -1,10 +1,12 @@
 // See doc/proposals/HQL-0059/index.hmd.
 
-/// HyperMarkdown in HQL: the builtin package `hmd`, beside `std`. Importing
-/// `hmd`, with `import hmd`, `--import hmd` or `[modules] import`, makes it
-/// active for the run: its prelude imports `hmd.vault` and `hmd.search`, the
-/// host binds `vault`, `cards` and `graph`, and a document reference
-/// `@[[..]]` resolves. Plain HQL has none of these.
+/// HyperMarkdown in HQL: the builtin package `hmd`, beside `std`. `hmd` is
+/// active in a run that has a vault, found at or above the program or named
+/// with `--vault`, and in a run that imports it, with `import hmd`,
+/// `--import hmd` or `[modules] import`. While it is active its prelude
+/// imports `hmd.vault` and `hmd.search`, the host binds `vault`, `cards` and
+/// `graph`, and a document reference `@[[..]]` resolves. A run with no vault
+/// and no import of `hmd` has none of these.
 module hmd
 
 import core

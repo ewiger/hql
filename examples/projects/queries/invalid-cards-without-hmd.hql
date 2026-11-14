@@ -1,5 +1,5 @@
 // status: invalid
-// feature: plain HQL binds no `cards`: the binding is HyperMarkdown's, bound once `hmd` is active
+// feature: a run with no vault and no import of `hmd` binds no `cards`: the binding is HyperMarkdown's, bound while `hmd` is active
 // implementation: implemented
 // environment: pure
 // phase: check

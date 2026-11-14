@@ -187,13 +187,14 @@ fn the_vault_is_supplied_from_outside_and_its_absence_is_said_out_loud() {
 
 #[test]
 fn a_project_module_that_imports_hmd_activates_it_for_the_run() {
+    // A project and no vault: nothing but an import activates `hmd`.
     let root = tempdir().unwrap();
+    std::fs::create_dir(root.path().join(".hql")).unwrap();
     std::fs::write(
-        project_config(root.path()),
+        root.path().join(".hql/config.toml"),
         "[modules]\nroots = [\"lib\"]\n",
     )
     .unwrap();
-    std::fs::write(root.path().join("one.md"), "# One\n").unwrap();
     std::fs::create_dir(root.path().join("lib")).unwrap();
     std::fs::write(
         root.path().join("lib/notes.hql"),
@@ -207,18 +208,40 @@ fn a_project_module_that_imports_hmd_activates_it_for_the_run() {
     )
     .unwrap();
     // The program writes no `import hmd`; `notes` does, so `hmd` is active
-    // for the run: `cards` is bound, and `plain` resolves its reference.
+    // for the run, and the reference in `plain` checks.
     let output = hql_in(
         root.path(),
         &[
             "eval",
-            "import notes\nimport plain\n[notes.first() == plain.first(), (cards | count) == 1]",
+            "import notes\nimport plain\nnotes.first() == plain.first()",
         ],
     );
     assert!(output.status.success(), "{}", stderr(&output));
-    assert_eq!(stdout(&output), "[true, true]\n");
+    assert_eq!(stdout(&output), "true\n");
     // Without `notes`, no unit of the run imports `hmd`.
     let output = hql_in(root.path(), &["eval", "import plain\nplain.first()"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr(&output).contains("import hmd"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_run_with_a_vault_has_hmd_active_and_a_bare_run_walks_to_none() {
+    let root = tempdir().unwrap();
+    std::fs::create_dir(root.path().join(".hmd")).unwrap();
+    std::fs::write(root.path().join("one.md"), "# One\n").unwrap();
+    // The vault found by the walk imports `hmd`: no import is written.
+    let output = hql_in(root.path(), &["eval", "cards | count"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "1\n");
+    let output = hql_in(root.path(), &["eval", "@[[one]].name"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "\"one\"\n");
+    // `--bare` walks to no vault, so nothing activates `hmd`.
+    let output = hql_in(root.path(), &["--bare", "eval", "cards | count"]);
     assert_eq!(output.status.code(), Some(1));
     assert!(
         stderr(&output).contains("import hmd"),

@@ -9,7 +9,9 @@ body.
 it walks [`lib/std/`](../std/README.md), so a file added here cannot be left
 out of the binary.
 
-Plain HQL has none of this. A run imports `hmd`, with `import hmd`,
+A run with no vault and no import of `hmd` has none of this. `hmd` is
+active in a run that has a vault, found at or above the program or named
+with `--vault`, and in a run that imports it, with `import hmd`,
 `--import hmd` or `[modules] import = ["hmd"]`, and then:
 
 - [`prelude.hql`](prelude.hql) applies to every unit of the run, importing

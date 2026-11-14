@@ -192,12 +192,11 @@ fn bare_suppresses_discovery_and_conflicts_with_a_named_project() {
     let bare = sandbox.run(&vault, &["--bare", "--import", "hmd", "cards | count"]);
     assert_eq!(bare.status.code(), Some(1));
     assert!(stderr(&bare).contains("needs a vault"), "{}", stderr(&bare));
-    assert_eq!(
-        ok(&sandbox.run(&vault, &["--import", "hmd", "cards | count"])),
-        "1\n"
-    );
-    // Without `hmd`, a vault's cards are not bound: plain HQL has none.
-    let plain = sandbox.run(&vault, &["cards | count"]);
+    // A run with a vault has `hmd` active: the cards are bound with no
+    // import.
+    assert_eq!(ok(&sandbox.run(&vault, &["cards | count"])), "1\n");
+    // A bare run walks to no vault and imports nothing: it has no cards.
+    let plain = sandbox.run(&vault, &["--bare", "cards | count"]);
     assert_eq!(plain.status.code(), Some(1));
     assert!(stderr(&plain).contains("import hmd"), "{}", stderr(&plain));
 

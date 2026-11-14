@@ -119,8 +119,8 @@ The [contexts](contexts/README.md) cases run in two projects whose
 program, or no prelude, from [HQL-0025](../doc/proposals/HQL-0025/index.hmd).
 
 The [projects](projects/README.md) cases tell a project from a vault:
-plain HQL refusing `cards` and `@[[..]]`, `import hmd` and `--import hmd`
-binding them, a module reading the file beside itself through its source
+a run with no vault refusing `cards` and `@[[..]]`, a vault and
+`import hmd` binding them, a module reading the file beside itself through its source
 directory, and a project whose declared package is not installed, from
 [HQL-0059](../doc/proposals/HQL-0059/index.hmd).
 

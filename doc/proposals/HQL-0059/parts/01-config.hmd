@@ -84,8 +84,8 @@ prelude = true                 # false withholds every prelude's imports
 - `import` names modules. Each is imported into every unit of the run as
   a line of a prelude is, under its final segment. Importing a module of a
   package activates that package, so its `prelude.hql` applies too:
-  `import = ["hmd"]` is how a project makes HyperMarkdown available to
-  every unit. `--import <module>` is the command-line layer of this key.
+  `import = ["hmd"]` is how a project with no vault makes HyperMarkdown
+  available to every unit; a run with a vault has `hmd` active already. `--import <module>` is the command-line layer of this key.
 - `prelude = false` keeps every prelude's imports, `std`'s and each active
   package's, out of the implicit list. The preludes still run.
 

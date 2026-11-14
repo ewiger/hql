@@ -205,6 +205,9 @@ Without an HMD host, `hql` resolves the project itself, by steps 2 and 3:
   a usage error.
 - There is no `--workspace`. `--vault <dir>` names the HMD vault the `hmd`
   module reads where no host supplies one, and never selects a project.
+  Without it the vault is the nearest directory holding `.hmd/` at or
+  above the program's source directory. A run with a vault, found or
+  named, has `hmd` active ("HMD is an imported capability" below).
 - A named context binds a project with the key `project`, read against
   the file that declares it.
 
@@ -358,7 +361,9 @@ A package is **loaded** when its library is in the process, and **active**
 when one of its modules is imported: by a unit, by `[modules] import`, by
 `--import`, or by the host. Only an active package's prelude applies.
 `hmd` is always loaded, being builtin, but active only when imported; only
-`std`'s prelude applies to every run.
+`std`'s prelude applies to every run. A run with a vault imports `hmd`: the
+CLI is the host of a vault it finds or is given, as `hql render` is the
+host of a document's.
 
 Activation is per run, not per unit. The units of a run are its program and
 every project module the program reaches through imports. An import in any
@@ -382,7 +387,7 @@ lib/hmd/
     └── semantic.hql
 ```
 
-### 7. HMD becomes an explicitly imported capability
+### 7. HMD is an imported capability
 
 At language level:
 
@@ -391,6 +396,13 @@ import hmd
 ```
 
 activates HyperMarkdown-specific functionality.
+
+A vault imports it too. A run whose vault the CLI found, at or above the
+program's source directory, or was given with `--vault`, has `hmd` imported
+into every unit, as a host's injection is: a program in a vault writes
+`cards` and `@[[..]]` with no import. A run with no vault has `hmd` only by
+`import hmd`, `--import hmd` or `[modules] import`. `--bare` runs no vault
+walk, so only `--vault` gives a bare run a vault.
 
 The HMD VS Code extension MAY inject this import when executing HQL from an HMD document.
 
@@ -403,7 +415,7 @@ hql run --import hmd file.hql
 
 `--import <module>` is the command-line layer of `[modules] import`
 ([part 1](parts/01-config.hmd)): the module is imported into every unit
-of the run, as a line of a prelude is. A project that always wants
+of the run, as a line of a prelude is. A project with no vault that wants
 HyperMarkdown states `import = ["hmd"]` under `[modules]`.
 
 The implementation MUST NOT modify the user's source text through string
@@ -575,9 +587,9 @@ message recognises an old form, which is simply unknown. What breaks:
 | `[semantics]` in HQL configuration | a table of the vault's `.hmd/config.toml` |
 | the index at `<vault>/.hql/index.sqlite` | in the vault's `.hmd/` |
 | `~/.hql/lib/`, `~/.hql/src/`, `~/.hql/registry/` | `~/.hql/packages/`, `~/.hql/cache/src/`, `~/.hql/cache/registry/` |
-| `cards`, `vault`, `knowledge`, `graph` bound in every run with a vault | bound once `hmd` is active |
+| `cards`, `vault`, `knowledge`, `graph` bound in every run with a vault | bound while `hmd` is active, which a vault makes it |
 | the builtin package `search`, modules `lexical` and `semantic` | `hmd.search.lexical`, `hmd.search.semantic` |
-| `@[[x]]` resolved without `hmd` | a check error without `hmd` |
+| `@[[x]]` resolved without `hmd` | a check error in a run with no vault and no import of `hmd` |
 
 A directory marked only by `hql.toml` that held documents loaded them as
 cards; it now needs `.hmd/` to be a vault and `.hql/config.toml` to be a
@@ -642,3 +654,6 @@ An HMD host may select an HQL project, but an HQL project never defines a HyperM
   `modules/prelude.hql` applies while the package is active.
   `contrib/semantics` reads `[semantics]` from the vault's
   `.hmd/config.toml`
+- 2026-11-15: a run with a vault, found by the walk or named with
+  `--vault`, has `hmd` active; the retired step names and the `[sources]`
+  refusal are removed

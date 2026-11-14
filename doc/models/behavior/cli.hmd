@@ -36,10 +36,10 @@ and a result of type `Unit` is written as nothing.
 
 | Option | Effect |
 | --- | --- |
-| `--vault <DIR>` | the HyperMarkdown vault `hmd` reads, a directory holding `.hmd/`; without it, the nearest such directory at or above the anchor. Selects no project |
+| `--vault <DIR>` | the HyperMarkdown vault `hmd` reads, a directory holding `.hmd/`; without it, the nearest such directory at or above the anchor. A run with a vault has `hmd` active. Selects no project |
 | `--project <DIR>` | the HQL project, a directory holding `.hql/config.toml`; without it, the nearest such directory at or above the anchor, skipping the HQL home's own directory |
 | `--bare` | no project and no discovery; user and system configuration still apply |
-| `--import <MODULE>` | a module imported into every unit, the command-line layer of `[modules] import`; `--import hmd` makes HyperMarkdown available |
+| `--import <MODULE>` | a module imported into every unit, the command-line layer of `[modules] import`; `--import hmd` makes HyperMarkdown available in a run with no vault |
 | `--envelope text\|json` | what the answer is wrapped in: the value alone on stdout, written in the `--to` format, or one JSON document with the type, the value and the run's diagnostics |
 | `--diagnostics-format text\|json` | the format diagnostics are delivered to stderr in: `DiagnosticText`, or one JSON document per diagnostic per line; see [reporting](reporting.hmd) |
 | `--to <format>` | the [presentation format](../../wiki/hql/presentation.hmd) a result is written in when the program did not format it: `hql` (the default), `text`, `markdown`, `hmd`, `json`, `yaml`, `csv`, `d2`, `mermaid`; `none` evaluates and writes no value |

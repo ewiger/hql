@@ -24,10 +24,11 @@ The language continues to be in active development.
 - HyperMarkdown is the builtin package `hmd`, beside `std`. `hmd.vault`
   holds the vault, and `hmd.search` with `hmd.search.lexical` and
   `hmd.search.semantic` replaces the `search` package and its modules
-  `lexical` and `semantic`. A run that imports `hmd`, by `import hmd`,
+  `lexical` and `semantic`. A run that has a vault, found at or above the
+  program or named with `--vault`, or that imports `hmd`, by `import hmd`,
   `--import hmd` or `[modules] import`, gets `hmd`'s prelude, the bindings
   `vault`, `cards` and `graph`, document references `@[[..]]` and vault
-  endpoints; plain HQL has none of them. `hql render` imports `hmd` into
+  endpoints; a run with no vault and no import of `hmd` has none of them. `hql render` imports `hmd` into
   every cell, and reads a vault's `[hql] project` from its
   `.hmd/config.toml`.
 - The semantic index and its `[semantics]` table live in the vault's

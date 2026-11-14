@@ -233,17 +233,21 @@ links between them form a graph.
 ["tutorial", 15]
 ```
 
-A vault is HyperMarkdown's, and so are `vault` and `cards`: plain HQL has
-neither. They are bound once a run imports `hmd`. The tutorial's project
-imports it for every program, in its `.hql/config.toml`:
+A vault is HyperMarkdown's, and so are `vault` and `cards`. They are bound
+while the package `hmd` is **active**, and a run that has a vault activates
+it: the vault found at or above the program, or the one `--vault` names. A
+program in a vault writes `cards` with no import.
+
+A run with no vault activates `hmd` by importing it: `import hmd` in the
+program, `--import hmd` on the command line, or `[modules] import` in the
+project's `.hql/config.toml`:
 
 ```toml
 [modules]
 import = ["hmd"]
 ```
 
-A program can import it itself, `import hmd`, and a run can, with
-`--import hmd`. Without it, `cards` names what is missing:
+With no vault and no import, `cards` names what is missing:
 
 <!-- run: novault -->
 ```hql
@@ -258,8 +262,8 @@ check error[unknown-name]: `cards` is HyperMarkdown's: write `import hmd`, or ru
   | ^^^^^
 ```
 
-With `hmd` and outside every vault, without `--vault`, there is no vault, and
-naming one says so:
+With `hmd` imported and no vault, `cards` has nothing to read, and the
+check says so:
 
 <!-- run: novault -->
 ```hql

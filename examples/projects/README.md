@@ -3,8 +3,9 @@
 The cases follow [HQL-0059](../../doc/proposals/HQL-0059/index.hmd). A
 **project** is a directory holding `.hql/config.toml`: it configures how a
 program runs. A **vault** is a directory holding `.hmd/`: its documents are
-cards. The two are found apart, and the builtin package `hmd` binds the
-vault only in a run that imports one of its modules.
+cards. The two are found apart. The builtin package `hmd` binds the vault
+while it is active: in a run that has a vault, and in a run that imports
+one of its modules.
 
 | Directory | What it is |
 | --- | --- |
@@ -12,15 +13,15 @@ vault only in a run that imports one of its modules.
 | [notes](notes/.hmd/config.toml) | a vault and no project: the cards `owl` and `heron` |
 | [pinned](pinned/.hql/config.toml) | a project that declares the package `ml` under `[packages] dependencies`, pinned in [`lock.toml`](pinned/.hql/lock.toml), and has not installed it |
 
-## Plain HQL and `hmd`
+## A run with no vault, and `hmd`
 
 | Case | What it shows | Result |
 | --- | --- | --- |
 | [cards without hmd](queries/invalid-cards-without-hmd.hql) | `cards` in a run where `hmd` is not active | a name error naming `import hmd` |
 | [reference without hmd](queries/invalid-reference-without-hmd.hql) | `@[[owl]]` in a run where `hmd` is not active | a name error naming `import hmd` |
 | [import hmd](queries/import-hmd.hql) | `import hmd` in the program, over the vault `notes` | `["heron", "owl"]` |
-| [plain refuses cards](sessions/plain-refuses-cards.session) | `--vault` names the vault and activates nothing | both programs refused |
-| [import flag](sessions/import-flag.session) | `--import hmd` on the command line, the programs unchanged | `2`, then `owl` |
+| [plain refuses cards](sessions/plain-refuses-cards.session) | both programs from the command line, with no vault | both refused |
+| [a vault activates hmd](sessions/a-vault-activates-hmd.session) | `--vault` names the vault, the programs unchanged | `2`, then `owl` |
 | [import without a vault](sessions/import-without-a-vault.session) | `--import hmd` with no vault | a name error naming `--vault` |
 
 ## The source directory of a module
@@ -47,8 +48,8 @@ From the repository root:
 
 ```sh
 cargo build --locked
-target/debug/hql --vault examples/projects/notes run examples/projects/queries/invalid-cards-without-hmd.hql               # refused
-target/debug/hql --vault examples/projects/notes --import hmd run examples/projects/queries/invalid-cards-without-hmd.hql  # 2
+target/debug/hql run examples/projects/queries/invalid-cards-without-hmd.hql                                 # refused
+target/debug/hql --vault examples/projects/notes run examples/projects/queries/invalid-cards-without-hmd.hql  # 2
 target/debug/hql --project examples/projects/library run examples/projects/queries/module-relative-path.hql
 target/debug/hql --project examples/projects/pinned run examples/projects/queries/invalid-package-not-installed.hql        # refused
 ```

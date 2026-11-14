@@ -1311,6 +1311,11 @@ impl ExecutionContext {
                 .map_err(|error| format!("{}: {error}", root.display()))?;
         }
         self.configure(&mut vault.extensions);
+        // A run with a vault, found by the walk or named, imports `hmd`: the
+        // vault is what `hmd` reads, so its presence activates the package.
+        if vault.is_present() {
+            vault.host();
+        }
         Ok(vault)
     }
 
