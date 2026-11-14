@@ -107,6 +107,12 @@ Resolution order:
 2. Nearest ancestor containing `.hql/config.toml`
 3. User-level/default HQL environment
 
+The HQL home (`$HQL_HOME`, else `~/.hql`) is never a project, though its
+`config.toml` has the marker's shape. The ancestor walk skips the directory
+whose `.hql/` is the HQL home: a walk that reaches it without finding a
+project ends with no project, and `~/.hql/config.toml` stays the user file,
+contributing the user layer as it does in every run.
+
 ### 4. HQL project discovery and HMD card resolution are independent
 
 The HQL project root must never participate in `[[...]]` resolution.
