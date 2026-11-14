@@ -288,7 +288,10 @@ fn newest(package: &Crate) -> Option<std::time::SystemTime> {
 ///
 /// Returns why the crate is no package or does not build.
 pub fn local(crate_dir: &Path) -> Result<PathBuf, String> {
-    let package = Crate::read(crate_dir)?;
+    let crate_dir = crate_dir
+        .canonicalize()
+        .map_err(|error| format!("{}: {error}", crate_dir.display()))?;
+    let package = Crate::read(&crate_dir)?;
     let destination = package
         .dir
         .join("target")

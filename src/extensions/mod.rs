@@ -227,6 +227,17 @@ pub trait EvalCx: Send {
     /// Whether the run asks for continuation: under `collect` a step may go
     /// on past an element its function failed on.
     fn collecting(&self) -> bool;
+    /// A function value applied to values: one an argument evaluated to,
+    /// such as an element of a list of functions.
+    fn call(
+        &mut self,
+        function: &Value,
+        values: Vec<Value>,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic>;
+    /// 64 bits drawn at the call from the evaluation seed, which `--seed`
+    /// fixes: what a step without a `seed` argument of its own draws from.
+    fn draw(&mut self, span: &Range<usize>) -> u64;
 }
 
 /// One name a pipeline may write.

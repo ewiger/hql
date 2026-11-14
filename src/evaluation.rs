@@ -2223,6 +2223,19 @@ impl EvalCx for Evaluator<'_> {
         self.apply(argument, values)
     }
 
+    fn call(
+        &mut self,
+        function: &Value,
+        values: Vec<Value>,
+        span: &Range<usize>,
+    ) -> Result<Value, Diagnostic> {
+        Evaluator::call(self, function, values, span)
+    }
+
+    fn draw(&mut self, span: &Range<usize>) -> u64 {
+        crate::extensions::random::draw_bits(span)
+    }
+
     fn compare_values(
         &mut self,
         left: &Value,
