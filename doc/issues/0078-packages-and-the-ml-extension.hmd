@@ -41,7 +41,7 @@ on `feat/extensions-ml`.
    name installs from the lock; a declared package that is not installed
    fails the run; a package's `modules/prelude.hql` applies while the
    package is active.
-10. `hql-extensions` follows HQL-0059: `crates/hql-ext-ml` (the Cargo
+10. Done: `hql-extensions` follows HQL-0059: `crates/hql-ext-ml` (the Cargo
     metadata and the README), the repository README,
     `scripts/check-examples.sh` and the CI workflow name `.hql/config.toml`
     and `--project` in place of `hql.toml` and `--workspace`.

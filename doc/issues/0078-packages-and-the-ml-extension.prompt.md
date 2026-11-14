@@ -49,8 +49,8 @@ to every unit (`Config::activated` in `src/extensions/mod.rs`). The
 configuration file is `.hql/config.toml`; no file named `hql.toml` is read,
 and there is no `--workspace` flag, only `--project`.
 
-Next is item 10, in `~/code/ai/hmd/hql-extensions`, where git needs the
-user's go-ahead, then item 11, the release.
+Item 10 is done and committed on `main` of
+`~/code/ai/hmd/hql-extensions`, not pushed. Next is item 11, the release.
 
 ## Work, in order
 
@@ -92,7 +92,7 @@ user's go-ahead, then item 11, the release.
    under Unreleased; HQL-0057's changelog and status as items land.
 9. Already done: packages at two levels, `[packages] dependencies`,
    `lock.toml` and a package's prelude (HQL-0059).
-10. `hql-extensions` follows HQL-0059: replace `hql.toml` and
+10. Already done: `hql-extensions` follows HQL-0059: replace `hql.toml` and
     `--workspace` with `.hql/config.toml` and `--project` in
     `crates/hql-ext-ml` (the Cargo metadata and the README), the
     repository README, `scripts/check-examples.sh` and
