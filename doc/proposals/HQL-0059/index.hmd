@@ -302,8 +302,10 @@ being builtin, but only `std`'s prelude applies to every run.
 
 ```text
 lib/hmd/
-├── prelude.hql      import hmd.search, and the card modules
-├── mod.hql          the module hmd: Card, cards, uplinks, downlinks
+├── prelude.hql      import hmd.vault, hmd.search, and the card modules
+├── mod.hql          the module hmd: Card, uplinks, downlinks
+├── vault/
+│   └── mod.hql      the module hmd.vault: Vault, vault, cards, graph, knowledge
 └── search/
     ├── mod.hql      the module hmd.search
     ├── lexical.hql
@@ -412,6 +414,29 @@ vault's namespace, so the vault owns it and HyperMarkdown keeps it current.
 - HQL reads the index only through the `hmd` module. Retrieval, `lexical`
   and `semantic`, is part of `hmd`; plain HQL has no retrieval over cards.
 
+### 11. The vault is HyperMarkdown's, in the `hmd` namespace
+
+Everything HQL knows about a vault moves into the `hmd` package, under the
+module `hmd.vault`; `std` keeps no vault logic.
+
+- `hmd.vault` is the former `vault` module of `lib/std/vault/`: the `Vault`
+  type, the host binding `vault`, and the bindings `cards`, `graph` and
+  `knowledge` HQL-0020 defines. `hmd`'s prelude imports it, so the names
+  read as before once `hmd` is loaded.
+- Only `.hmd/` marks a vault. A directory marked by `.hql/config.toml`
+  alone is a project with no vault: it loads no documents as cards, and
+  `vault` is unbound in it.
+- The endpoint kind `vault` of HQL-0012, documents under a directory read
+  as cards, is provided by `hmd`. A `[endpoint.<id>]` of that kind is
+  refused when `hmd` is not loaded, naming `import hmd`.
+- `vault.graph` and `vault.knowledge` are values of `std`'s `graph` and
+  `knowledge` types. Those modules stay in `std`: a graph and a knowledge
+  universe do not depend on HyperMarkdown, only the vault that builds them
+  from cards does.
+- Without a vault, from the host or from `--vault`, `vault` and the
+  bindings made from it are unbound, and the checker says a vault is
+  needed.
+
 ## Example topology
 
 ```text
@@ -488,6 +513,9 @@ research ─────┘
     into `.hmd/config.toml`; retire the builtin `search` package and move
     its `lexical` and `semantic` modules into the builtin `hmd` package; specify the depth levels of the index in
     HyperMarkdown.
+14. Move `lib/std/vault/` to `lib/hmd/vault/` as `hmd.vault`; stop loading
+    cards in a project with no `.hmd/`; provide the endpoint kind `vault`
+    from `hmd`.
 
 ## Invariant
 

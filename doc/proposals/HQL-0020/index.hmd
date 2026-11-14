@@ -1,6 +1,8 @@
 # HQL-0020: The vault and its namespace
 
 - **Status**: implemented in part
+- **Superseded in part by**: [[HQL-0059]] (the vault module is `hmd.vault`
+  of the builtin `hmd` package, not `std`'s; only `.hmd/` marks a vault)
 - **Created**: 2026-10-18
 - **Source**: [[0010-yield-and-bind|issue 0010]],
   [[HQL-0012]], [[card-type|card type]]
