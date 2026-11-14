@@ -1,7 +1,7 @@
 # 0078 — Packages: `hql-extensions`, `hql package`, and the `ml` extension
 
 Status: doing
-Related: [[HQL-0057]],
+Related: [[HQL-0057]], [[HQL-0059]],
 [[09-packages-and-extensions|HQL-0024 part 9]],
 [[0049-one-extension-per-package|0049]]
 
@@ -9,8 +9,9 @@ HQL-0024 part 9 named the package, the extension and the module and left
 how a package is installed and how its code reaches the process to a later
 record. HQL-0057 is that record: a package is a Cargo crate, the registry is
 `hql-packages.yaml` in the `hql-extensions` repository, `hql package`
-builds and installs into `~/.hql/lib/`, and `ml` is the first official
-package. This issue carries the record and the first package into code,
+builds and installs into the project's `.hql/packages/`, or with `--home`
+into the HQL home's `~/.hql/packages/` (HQL-0059), and `ml` is the first
+official package. This issue carries the record and the first package into code,
 on `feat/extensions-ml`.
 
 ## Work
@@ -34,12 +35,24 @@ on `feat/extensions-ml`.
    checker and the CI job in `hql-extensions`.
 8. Done: the book's Part V, *Extending HQL*, chapters 32 to 38; chapter 13
    names the package layers.
-9. Release: `hql` 0.7.0 to crates.io, then `hql-ext-ml` 0.1.0, whose
+9. Done: packages at two levels (HQL-0059): a project's `.hql/` and the
+   HQL home hold `packages/`, `cache/` and `lock.toml`; `[packages]
+   dependencies` declares by name and `lock.toml` pins; `install` with no
+   name installs from the lock; a declared package that is not installed
+   fails the run; a package's `modules/prelude.hql` applies while the
+   package is active.
+10. `hql-extensions` follows HQL-0059: `crates/hql-ext-ml` (the Cargo
+    metadata and the README), the repository README,
+    `scripts/check-examples.sh` and the CI workflow name `.hql/config.toml`
+    and `--project` in place of `hql.toml` and `--workspace`.
+11. Release: `hql` 0.7.0 to crates.io, then `hql-ext-ml` 0.1.0, whose
    `hql = "0.7"` dependency resolves there.
 
 ## Done when
 
-- `hql package install ml` on a machine with `cargo`, then `import ml` in
-  a program, fits and predicts as part 2's program does.
+- `hql package install ml` in a project on a machine with `cargo`, then
+  `import ml` in a program of that project, fits and predicts as part 2's
+  program does; `hql package install --home ml` does the same for every
+  run.
 - The fixture package proves the mechanism in `cargo test` without the
   network.

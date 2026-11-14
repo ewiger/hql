@@ -9,12 +9,14 @@ with a commit.
 
 Carry out [issue 0078](0078-packages-and-the-ml-extension.hmd): bring
 [HQL-0057](../proposals/HQL-0057/index.hmd) into code, so that `hql package
-install` builds a package with the user's `cargo` into `~/.hql/lib/`, a
-program's `import` loads it, and the first official package, `ml`, fits and
+install` builds a package with the user's `cargo` into the project's
+`.hql/packages/`, or with `--home` into `~/.hql/packages/`, a program's
+`import` reaches it, and the first official package, `ml`, fits and
 predicts.
 
-Read `doc/memory/` first, as `CLAUDE.md` requires, then `doc/stack.md`, the
-issue, HQL-0057 and both its parts, and HQL-0024 part 9 as you reach it.
+Read `doc/memory/` first, as `CLAUDE.md` requires, then `doc/stack.hmd`, the
+issue, HQL-0057 and both its parts, HQL-0059 with its part 1, and HQL-0024
+part 9 as you reach it.
 Ignore `.grem/**`.
 
 ## Where things are
@@ -32,31 +34,38 @@ Ignore `.grem/**`.
   HQL-0057 part 2. Keep them in step; `hql check <file>` on a contract must
   print `Step`.
 
-## State on 2026-11-13
+## State on 2026-11-15
 
-Done: HQL-0057 drafted (README, part 1 packages, part 2 `ml`); issue 0078
-on the board in `doing`; the `hql-extensions` scaffold committed as the
-first commit on its `main` (not on GitHub); issue 0049 closed in the
-archive: `src/extensions/mod.rs` registers `STD` and `SEARCH`, each an
-`Extension { id, abi, origin, provides }` whose `provides` is a list of
-`Provided { module, steps }`, so an implementation is keyed by module and
-declared name (`Extension::implementation`); `Resolution` binds modules,
-not extensions, and `[extensions] import` takes a package id too. Next is
-item 4.
+Done: items 1 to 9. `src/extensions/mod.rs` registers `STD` and `HMD`, each
+an `Extension { id, abi, origin, provides }` whose `provides` is a list of
+`Provided { module, steps }`; `Resolution` binds modules, not extensions,
+and `[modules] import` takes a package id too. `src/package/` reads and
+writes `package.toml` and `lock.toml`, builds with `cargo`, and loads each
+package on trial. A run discovers packages from `[packages] paths`, the
+project's `.hql/packages/` and the home's `~/.hql/packages/`, in that
+order (`src/cli.rs`, `src/context.rs`). A package is active per run once a
+unit imports one of its modules, and its `modules/prelude.hql` then applies
+to every unit (`Config::activated` in `src/extensions/mod.rs`). The
+configuration file is `.hql/config.toml`; no file named `hql.toml` is read,
+and there is no `--workspace` flag, only `--project`.
+
+Next is item 10, in `~/code/ai/hmd/hql-extensions`, where git needs the
+user's go-ahead, then item 11, the release.
 
 ## Work, in order
 
 1. Already done: HQL-0057 drafted.
 2. Already done: the `hql-extensions` scaffold committed.
 3. Already done: issue 0049.
-4. `hql::ext`: a public module exporting what a crate implements against
+4. Already done: `hql::ext`: a public module exporting what a crate implements against
    (`Extension`, `Operation`, `Value`, `EvalCx`, `TypedArg`, the helpers
    `declared`/`effectful`) and the macro `hql::extension!` that writes the
    `hql_extension_v1` entry point. A fixture package under
    `tests/packages/hello/` with one module `hello` and one function,
    built in `tests/package.rs`.
-5. Discovery and loading: `package.toml` read and written
-   (`src/package/`), discovery from `~/.hql/lib/` and `[packages] paths`
+5. Already done: discovery and loading: `package.toml` read and written
+   (`src/package/`), discovery from `[packages] paths`, the project's
+   `.hql/packages/` and the home's `~/.hql/packages/`
    (`src/context.rs`), loading with `libloading`, the version and
    toolchain check with the exact refusal text of part 1 section 4, and
    two packages providing one module refused. `hql package install
@@ -68,19 +77,27 @@ item 4.
    the check; and keep the source build of `install` in one function that
    fetches, builds and installs, so a prebuilt-first path can later sit in
    front of it without restructuring.
-6. The registry: fetch and cache of `hql-packages.yaml`, `install <name>`,
+6. Already done: the registry: fetch and cache of `hql-packages.yaml`, `install <name>`,
    `search`, `update`, `registry [--refresh]`. The fetch must be
    mockable so `cargo test` stays offline.
-7. `ml`: natives over `linfa-linear`, `linfa-logistic` and
+7. Already done: `ml`: natives over `linfa-linear`, `linfa-logistic` and
    `linfa-clustering` in `crates/hql-ext-ml/src/`, the crate depending on
    `hql` by path during development; promote `examples/linear.hql` and add
    one example per model, the metrics, and each refusal part 2 names.
-8. Docs: chapter 13 gains `[packages]` and `hql package`; a chapter on
+8. Already done: docs: chapter 13 gains `[packages]` and `hql package`; a chapter on
    declarations and extensions at the end of the book's Part IV
    (title "32. Declarations and extensions: how the standard library is
    built"), written for a user who reads `lib/std/` or writes a package,
    with "Design only" admonitions on what is not shipped; `CHANGELOG.md`
    under Unreleased; HQL-0057's changelog and status as items land.
+9. Already done: packages at two levels, `[packages] dependencies`,
+   `lock.toml` and a package's prelude (HQL-0059).
+10. `hql-extensions` follows HQL-0059: replace `hql.toml` and
+    `--workspace` with `.hql/config.toml` and `--project` in
+    `crates/hql-ext-ml` (the Cargo metadata and the README), the
+    repository README, `scripts/check-examples.sh` and
+    `.github/workflows/ci.yml`. Ask before any git command there.
+11. Release: `hql` 0.7.0 to crates.io, then `hql-ext-ml` 0.1.0.
 
 ## How to work
 
