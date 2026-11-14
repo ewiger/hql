@@ -708,9 +708,9 @@ struct Checker<'a> {
     trait_bounds: Vec<Bounded>,
     /// Each generic function's trait bounds, checked at every call.
     trait_bounded: HashMap<String, Vec<Bounded>>,
-    /// The workspace modules this unit imported, each under its local name.
-    modules: Vec<(String, std::sync::Arc<crate::modules::WorkspaceModule>)>,
-    /// Every workspace module loaded for the program, by canonical name,
+    /// The project modules this unit imported, each under its local name.
+    modules: Vec<(String, std::sync::Arc<crate::modules::ProjectModule>)>,
+    /// Every project module loaded for the program, by canonical name,
     /// shared with the checkers of the modules it loads.
     module_cache: ModuleCache,
     /// The modules being loaded, outermost first, for the cycle diagnostic.
@@ -769,7 +769,7 @@ type Variables = Vec<(String, TypeRef)>;
 type Parameter = (TypeRef, Option<TypeRef>);
 
 type ModuleCache = std::sync::Arc<
-    std::sync::Mutex<HashMap<String, std::sync::Arc<crate::modules::WorkspaceModule>>>,
+    std::sync::Mutex<HashMap<String, std::sync::Arc<crate::modules::ProjectModule>>>,
 >;
 
 /// A trait's contract: its type parameters and its functions, with `Self`
@@ -2837,7 +2837,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// Whether a name is a workspace module imported here and not a binding.
+    /// Whether a name is a project module imported here and not a binding.
     fn is_module(&self, name: &str) -> bool {
         !self.scope.contains_key(name) && self.modules.iter().any(|(held, _)| held == name)
     }
@@ -3023,7 +3023,7 @@ impl<'a> Checker<'a> {
             .iter()
             .filter(|argument| argument.name.is_none())
             .count();
-        // `geo.area(c)`: a function of a workspace module, applied.
+        // `geo.area(c)`: a function of a project module, applied.
         if let Kind::Ident(module) = &receiver.kind
             && self.is_module(module)
         {
@@ -3287,7 +3287,7 @@ impl<'a> Checker<'a> {
         Ok(())
     }
 
-    /// `import a.b [as c]` of a workspace module: load it once, and bind its
+    /// `import a.b [as c]` of a project module: load it once, and bind its
     /// functions, traits and implementations under the local name.
     fn import_module(
         &mut self,
@@ -3374,12 +3374,12 @@ impl<'a> Checker<'a> {
         Ok(())
     }
 
-    /// Find, parse and check a workspace module, once per program.
+    /// Find, parse and check a project module, once per program.
     fn load_module(
         &mut self,
         name: &str,
         span: &Range<usize>,
-    ) -> Result<std::sync::Arc<crate::modules::WorkspaceModule>, Diagnostic> {
+    ) -> Result<std::sync::Arc<crate::modules::ProjectModule>, Diagnostic> {
         if let Some(module) = self
             .module_cache
             .lock()
@@ -3594,7 +3594,7 @@ impl<'a> Checker<'a> {
             .filter(|(name, _)| !core.contains_key(*name) && !private.contains(name.as_str()))
             .map(|(name, info)| (name.clone(), info.clone()))
             .collect();
-        let module = std::sync::Arc::new(crate::modules::WorkspaceModule {
+        let module = std::sync::Arc::new(crate::modules::ProjectModule {
             name: name.to_owned(),
             receiver: checker.receiver.clone(),
             functions,

@@ -97,7 +97,7 @@ hql package install --path hello
 ```
 
 ```text
-installed hello 0.1.0 (hello) in /home/ada/.hql/lib/hello
+installed hello 0.1.0 (hello) in /home/ada/.hql/packages/hello
 ```
 
 The command runs `cargo build --release` on the crate, copies the library

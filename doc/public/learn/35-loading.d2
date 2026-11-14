@@ -10,7 +10,7 @@ install: "install: hql package install" {
     shape: page
   }
   cargo: "cargo build --release\nagainst the running hql,\nwith its compiler"
-  home: "~/.hql/lib/hello/\npackage.toml\nmodules/\nlibhql_ext_hello.dylib" {
+  home: ".hql/packages/hello/\npackage.toml\nmodules/\nlibhql_ext_hello.dylib" {
     shape: cylinder
   }
   crate -> cargo

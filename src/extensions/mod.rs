@@ -783,7 +783,7 @@ pub struct Config {
     pub imports: Vec<String>,
     /// Whether the prelude's modules arrive without being asked for.
     pub prelude: bool,
-    /// The module roots workspace modules are discovered under: `[modules]
+    /// The module roots project modules are discovered under: `[modules]
     /// roots` in `.hql/config.toml`, resolved against the project root, and `--modules` on
     /// the command line.
     pub module_roots: Vec<std::path::PathBuf>,

@@ -93,7 +93,8 @@ hql package install ml
 | `hql package update [<name>]` | install the version the registry now pins, where the installed one differs |
 | `hql package registry [--refresh]` | where the registry is read from, when it was fetched, and how many packages it lists |
 
-The source is kept under `~/.hql/src/<name>/`, which is what `rebuild`
+The source is kept under `.hql/cache/src/<name>/` of the project or the HQL
+home it was installed into, which is what `rebuild`
 builds again. For an official package it is a checkout of the repository at
 the entry's tag, holding that one crate; fetching it needs `git`.
 

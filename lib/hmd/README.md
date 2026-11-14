@@ -1,23 +1,35 @@
-# `lib/search/` — the search package
+# `lib/hmd/` — the hmd package
 
-The builtin package for ranking a vault's cards against a query, written as
-HQL contracts its internal extension, `search`, implements.
+HyperMarkdown in HQL: the builtin package `hmd`, beside `std`
+([HQL-0059](../../doc/proposals/HQL-0059/index.hmd)). Its contracts are HQL
+files its internal extension, `hmd`, implements where they declare without a
+body.
 
-**Status: parsed and checked.** `hql check lib/search/lexical/mod.hql` prints
-`Step`, and `tests/declarations.rs` walks this folder as it walks
-[`lib/std/`](../std/README.md), so a file added here cannot be left out of the
-binary.
+**Status: parsed and checked.** `tests/declarations.rs` walks this folder as
+it walks [`lib/std/`](../std/README.md), so a file added here cannot be left
+out of the binary.
 
-The package holds one folder per module, the module's declarations in its
-`mod.hql`, and no prelude: each module is imported where it is used.
+Plain HQL has none of this. A run imports `hmd`, with `import hmd`,
+`--import hmd` or `[modules] import = ["hmd"]`, and then:
 
-| Module | Declares | Ranks by |
+- [`prelude.hql`](prelude.hql) applies to every unit of the run, importing
+  `hmd.vault`, `hmd.search`, `hmd.search.lexical` and `hmd.search.semantic`;
+- the host binds `vault`, and the program module binds `cards` and `graph`
+  over it;
+- a document reference, `@[[name]]`, resolves against the vault.
+
+`hql render` and `hql::vault::load` are hosts: they import `hmd` themselves.
+
+| Module | Declares | |
 | --- | --- | --- |
-| [`lexical`](lexical/mod.hql) | `lexical<T : Doc>(self: Collection<T>, query: String) : Ranking<Card>` | the words a card shares with the query, a hashed bag of words compared by cosine |
-| [`semantic`](semantic/mod.hql) | `semantic<T : Doc>(self: Collection<T>, query: String) : Ranking<Card>` | vectors a language model made ahead of time, read from the configured index |
+| [`hmd`](mod.hql) | nothing yet | the package's root |
+| [`hmd.vault`](vault/mod.hql) | `Vault` | the vault a program reads |
+| [`hmd.search`](search/mod.hql) | nothing yet | retrieval over a vault's cards |
+| [`hmd.search.lexical`](search/lexical/mod.hql) | `lexical<T : Doc>(self: Collection<T>, query: String) : Ranking<Card>` | the words a card shares with the query, a hashed bag of words compared by cosine |
+| [`hmd.search.semantic`](search/semantic/mod.hql) | `semantic<T : Doc>(self: Collection<T>, query: String) : Ranking<Card>` | vectors a language model made ahead of time, read from the index the vault's `.hmd/config.toml` names |
 
-Both import `core`, `doc` and `retrieval` from the standard package, which
-declares `Ranking` and `Hit`
+The retrievals import `core`, `doc` and `retrieval` from the standard
+package, which declares `Card`, `Doc`, `Ranking` and `Hit`
 ([semantic search](../../doc/wiki/hql/semantic-search.hmd),
 [HQL-0002](../../doc/proposals/HQL-0002/index.hmd)).
 
@@ -26,5 +38,5 @@ import hmd
 cards | lexical("night hunting birds") | take(3)
 ```
 
-A diagnostic about one of these modules names it by package, `search/lexical`,
-as it names `std/core`.
+A diagnostic about one of these modules names it by package,
+`hmd/search.lexical`, as it names `std/core`.

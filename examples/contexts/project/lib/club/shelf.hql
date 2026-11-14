@@ -1,4 +1,4 @@
-/// The reading club's shelf: a module of the workspace, found under the
+/// The reading club's shelf: a module of the project, found under the
 /// module root its `.hql/config.toml` names.
 module club.shelf
 

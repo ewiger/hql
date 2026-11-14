@@ -9,7 +9,7 @@ the functions a module declares without a body are implemented by an
 | Term | What it is | Example |
 | --- | --- | --- |
 | module | a named unit of declarations, one `mod.hql` or one file under a module root; what `import` names | `regex`, `io.net`, `ml.metrics` |
-| package | the unit that is distributed and installed: a module root holding one or more modules, with the extension that implements them | `std`, `search`, `ml` |
+| package | the unit that is distributed and installed: a module root holding one or more modules, with the extension that implements them | `std`, `hmd`, `ml` |
 | extension | the native code of a package: the implementations of the declarations its modules write without a body | `std`, `ml` |
 | library | the compiled file an installed package's extension is loaded from | `libhql_ext_ml.dylib` |
 
@@ -31,7 +31,7 @@ with it and its extension is compiled into it. There are two.
 | Package | Modules | How a program gets them |
 | --- | --- | --- |
 | `std`, the standard package | `core`, `string`, `seq`, `math`, `io`, `regex`, `time` and the rest | the prelude for many, `import` for the others |
-| `search` | `lexical`, `semantic` | `import lexical`, `import semantic` |
+| `hmd`, HyperMarkdown | `hmd`, `hmd.vault`, `hmd.search`, `hmd.search.lexical`, `hmd.search.semantic` | `import hmd`, whose prelude imports the rest |
 
 "The standard library" is another name for the `std` package, and
 [[learn#part-iv-the-standard-library|Part IV]] is its guide. `hql builtins` names the package beside
@@ -56,7 +56,8 @@ import ml
 Dataset([[1.0f], [2.0f], [3.0f]], target = [3.0f, 5.0f, 7.0f]).fit_linear()
 ```
 
-`hql package install` puts the package under `~/.hql/lib/ml/`: its modules,
+`hql package install` puts the package under the project's
+`.hql/packages/ml/`, or with `--home` under `~/.hql/packages/ml/`: its modules,
 the library, and a record of the `hql` version it was built for. A library
 loads only into the `hql` version it was built for, so after an upgrade
 `hql package rebuild` builds it again.

@@ -2,7 +2,7 @@
 // feature: a module found under the module root the project's .hql/config.toml names, imported by its dotted name
 // implementation: implemented
 // environment: knowledge-v1
-// vault: contexts/workspace
+// vault: contexts/project
 // expected-type: List<String>
 // expected: ["Dune", "Middlemarch"]
 

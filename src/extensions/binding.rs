@@ -1212,7 +1212,7 @@ impl Runtime {
                 )
             };
             // A project's import list names builtin modules, or packages,
-            // which import every module they provide; a workspace module is
+            // which import every module they provide; a project module is
             // imported where it is used.
             // A module the runtime implements, `hmd` or `hmd.vault`, binds no
             // operation: importing it is what activates its package, which

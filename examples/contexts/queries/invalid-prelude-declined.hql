@@ -1,5 +1,5 @@
 // status: invalid
-// feature: a workspace that declines the prelude has no string operations until the program imports string
+// feature: a project that declines the prelude has no string operations until the program imports string
 // implementation: implemented
 // environment: knowledge-v1
 // vault: contexts/strict

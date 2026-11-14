@@ -268,7 +268,7 @@ pub struct Closure {
     pub(crate) captured: std::collections::HashMap<String, Value>,
     pub(crate) ty: TypeRef,
     /// The source directory of the unit that wrote the function, when it is
-    /// a workspace module's: a call resolves relative paths against it.
+    /// a project module's: a call resolves relative paths against it.
     pub(crate) source: Option<std::sync::Arc<std::path::PathBuf>>,
 }
 

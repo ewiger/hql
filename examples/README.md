@@ -40,7 +40,7 @@ The [windows](windows/README.md) cases rank and compare rows within their
 partition with `over`, and order ties with `then`, from
 [HQL-0050](../doc/proposals/HQL-0050/index.hmd).
 
-The [packages](packages/README.md) workspace lists the crate of the `hello`
+The [packages](packages/README.md) project lists the crate of the `hello`
 package under `[packages] paths`, so a program there imports a module whose
 functions are loaded from a library. The book's part on extending HQL runs
 in it, from [HQL-0057](../doc/proposals/HQL-0057/index.hmd).
@@ -114,7 +114,7 @@ The [env](env/README.md) cases read invocation arguments and environment
 variables with `io.env`, each defaulted where it is absent, from
 [HQL-0041](../doc/proposals/HQL-0041/parts/05-env.hmd) part 5.
 
-The [contexts](contexts/README.md) cases run in two workspaces whose
+The [contexts](contexts/README.md) cases run in two projects whose
 `.hql/config.toml` gives a program a module root, an extension imported for every
 program, or no prelude, from [HQL-0025](../doc/proposals/HQL-0025/index.hmd).
 

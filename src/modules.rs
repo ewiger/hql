@@ -1,4 +1,4 @@
-//! Workspace modules: HQL files under a module root, named by their position.
+//! Project modules: HQL files under a module root, named by their position.
 //!
 //! A module root is a namespace boundary, not a module. Under it `foo.hql`
 //! and `foo/mod.hql` are the module `foo`, and `foo/bar.hql` is `foo.bar`; a
@@ -123,10 +123,10 @@ pub(crate) fn declared(
     }
 }
 
-/// A workspace module once checked: what it exports, and the program that
+/// A project module once checked: what it exports, and the program that
 /// evaluates to its functions.
 #[derive(Debug)]
-pub(crate) struct WorkspaceModule {
+pub(crate) struct ProjectModule {
     /// The canonical name, `mighty.geometry`.
     pub name: String,
     /// The receiver pattern of a `module a.b for T` file.
@@ -150,7 +150,7 @@ pub(crate) struct WorkspaceModule {
     pub impls: Vec<crate::checker::ImplInfo>,
 }
 
-/// One exported function of a workspace module, with what the checker needs
+/// One exported function of a project module, with what the checker needs
 /// to apply it from another unit.
 #[derive(Debug, Clone)]
 pub(crate) struct ModuleFunction {

@@ -163,7 +163,7 @@ env = ["SHOP_*"]
 
 A variable outside the grant reads as `none`. A withheld variable and an
 unset one are indistinguishable, so a program cannot tell which names exist
-beyond its grant. In that workspace, with `SHOP_REGION` set:
+beyond its grant. In that project, with `SHOP_REGION` set:
 
 ```text
 $ cat region.hql

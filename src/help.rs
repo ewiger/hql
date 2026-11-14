@@ -230,7 +230,7 @@ pub fn library() -> &'static [Module] {
 /// The modules under some module roots, each named by its position: `a.hql`
 /// and `a/mod.hql` are `a`, `a/b.hql` is `a.b`.
 #[must_use]
-pub fn workspace(roots: &[PathBuf]) -> Vec<Module> {
+pub fn project(roots: &[PathBuf]) -> Vec<Module> {
     fn visit(root: &Path, directory: &Path, found: &mut Vec<Module>) {
         let Ok(entries) = std::fs::read_dir(directory) else {
             return;
@@ -524,7 +524,7 @@ pub fn scope(program: Option<Module>, roots: &[PathBuf]) -> Vec<Module> {
     program
         .into_iter()
         .chain(library().iter().cloned())
-        .chain(workspace(roots))
+        .chain(project(roots))
         .collect()
 }
 

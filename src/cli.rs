@@ -647,7 +647,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     }
     let context = crate::context::ExecutionContext::construct(&request(cli), &environment)
         .map_err(|error| error.to_string())?;
-    // What `io.env` reads: the arguments, and the variables the workspace
+    // What `io.env` reads: the arguments, and the variables the project
     // grants; `hql render` grants none, by its host policy.
     let grant = context
         .env_grant()
@@ -707,7 +707,7 @@ fn undeclared(levels: &[PathBuf]) -> Result<(), String> {
 }
 
 /// What the command line states about the execution context: the anchor of
-/// the program file a command reads, and the workspace options.
+/// the program file a command reads, and the project options.
 fn request(cli: &Cli) -> crate::context::Request {
     let file = match &cli.command {
         Command::Run { file }
@@ -1173,7 +1173,7 @@ fn config_action(
     }
 }
 
-/// A setting the context's configuration layers state, below the workspace
+/// A setting the context's configuration layers state, below the project
 /// and the environment.
 fn configured(
     context: &crate::context::ExecutionContext,

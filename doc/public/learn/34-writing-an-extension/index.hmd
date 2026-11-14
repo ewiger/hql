@@ -58,7 +58,7 @@ hello.greet("Ada")
 "Hello, Ada!"
 ```
 
-While a package is being written, a workspace names its crate instead, and
+While a package is being written, a project names its crate instead, and
 `hql` rebuilds it whenever its source is newer than the last build
 ([[36-installing-packages#a-package-under-development|chapter 36]]). The
 programs of this chapter run that way.

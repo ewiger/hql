@@ -2,7 +2,7 @@
 // implementation: implemented
 // environment: pure
 // modules: mighty-types/lib
-// feature: Importing a workspace module under an alias
+// feature: Importing a project module under an alias
 // expected-type: List<Float>
 // expected: [3.0, 12.0, 4.0]
 

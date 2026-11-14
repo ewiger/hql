@@ -23,12 +23,12 @@ pub(crate) struct Program {
     /// The lattice the program was checked under: the built-in types and the
     /// ones it declared, which evaluation reads its values against.
     pub lattice: std::sync::Arc<crate::types::program::Lattice>,
-    /// The workspace modules the program imported, in import order, each
+    /// The project modules the program imported, in import order, each
     /// evaluated before the program for the functions it binds.
     pub modules: Vec<LoadedModule>,
 }
 
-/// A workspace module bound into a program under a local name.
+/// A project module bound into a program under a local name.
 #[derive(Debug, Clone)]
 pub(crate) struct LoadedModule {
     pub local: String,
@@ -847,16 +847,16 @@ pub(crate) struct Checked {
     /// Each contract with rules, by the span of its declaration: the names a
     /// rule's body reads its fields by, in the order a check binds them.
     pub contracts: HashMap<Range<usize>, Vec<RuleParameter>>,
-    /// Each reference to a workspace module's function, `geo.area`, by the
+    /// Each reference to a project module's function, `geo.area`, by the
     /// name it is bound under.
     pub module_refs: HashMap<Range<usize>, String>,
     /// Each function bound under another name than it is declared with: a
     /// program's constructor, one name per form, by its declaration's span.
     pub bound_names: HashMap<Range<usize>, String>,
-    /// Each receiver call of a workspace module's function, `"hi".shout()`,
+    /// Each receiver call of a project module's function, `"hi".shout()`,
     /// by the name it is bound under and its type.
     pub module_calls: HashMap<Range<usize>, (String, TypeRef)>,
-    /// The workspace modules imported, in order.
+    /// The project modules imported, in order.
     pub modules: Vec<LoadedModule>,
     /// What checking found worth saying that does not make the program wrong.
     pub warnings: Vec<crate::diagnostics::Diagnostic>,

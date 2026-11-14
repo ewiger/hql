@@ -43,8 +43,9 @@ the one that is true now.
 A field a program reads on a built-in record — `h.score` on a `Hit`, `c.kind`
 on a `Card`, `g.nodes` on a `Graph` — has the type its declaration in `lib/std/`
 gives, looked up on the record and then on its parents. The library holds
-no binding: `lib/std/vault/mod.hql` declares `Vault`, and `cards = vault.cards` is a
-binding of the program module, run before every program over a vault, so
+no binding: `lib/hmd/vault/mod.hql`, the module `hmd.vault` of the builtin
+`hmd` package, declares `Vault`, and `cards = vault.cards` is a binding of the
+program module, run before every program over a vault that imports `hmd`, so
 `cards` is an ordinary binding and no special case. A module never sees it
 ([[HQL-0028]]).
 

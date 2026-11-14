@@ -6,11 +6,13 @@ tags: [hql, extensions, retrieval, embeddings]
 `semantic` ranks a corpus against a query by the meaning a language model found
 in both. The model is not in this binary and will not be: an index is built
 ahead of time by [`contrib/semantics/`](../../../../contrib/semantics/README.md),
-and this module reads it. It is a module of the builtin `search` package,
-implemented by its internal extension, `search`.
+and this module reads it. It is the module `hmd.search.semantic` of the
+builtin `hmd` package, implemented by its internal extension, `hmd`
+([[HQL-0059]]); the index lives in the vault's `.hmd/` and is configured in
+the vault's `.hmd/config.toml`.
 
 ```hql
-import semantic
+import hmd
 
 cards
 | semantic("night hunting birds")
@@ -25,7 +27,8 @@ spellings are all it has.
 
 ## The index
 
-A vault names its index, and the path resolves inside the vault root:
+A vault names its index in its `.hmd/config.toml`, and the path resolves
+inside the vault root:
 
 ```toml
 [semantics]

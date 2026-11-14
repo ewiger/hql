@@ -41,7 +41,7 @@ check error[unknown-name]: no module named `hello` under examples/tutorial/lib
 In the tutorial vault nothing provides `hello`: no package does, and the
 vault's module root, `examples/tutorial/lib`, holds no such file. The
 import is refused.
-The program is the same in a workspace where a package does provide it:
+The program is the same in a project where a package does provide it:
 
 <!-- run: --project examples/packages -->
 ```hql
@@ -60,8 +60,9 @@ whether one does, is a fact about the environment the program runs in.
 ## A module has one provider
 
 When `hql` starts it gathers the packages of the environment: the two
-builtin ones, the packages installed under the HQL home, and the crates a
-workspace lists ([[36-installing-packages|chapter 36]]). Each package
+builtin ones, the crates a project lists, the packages installed in the
+project and those installed in the HQL home, in that order
+([[36-installing-packages|chapter 36]]). Each package
 states the modules it provides. A module has exactly one provider. Two
 packages that provide one module are both refused: the order in which
 packages are found picks no winner.
@@ -97,7 +98,7 @@ package the module root is a directory of `.hql` files and the extension
 is a library beside it:
 
 ```text
-~/.hql/lib/hello/
+~/.hql/packages/hello/
 ├── package.toml              what was built, from what, against which hql
 ├── modules/
 │   └── hello/mod.hql         the contract of module `hello`

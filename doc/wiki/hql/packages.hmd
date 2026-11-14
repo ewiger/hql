@@ -17,7 +17,7 @@ identities") and
 | Term | What it is | Example |
 | --- | --- | --- |
 | module | the canonical HQL name, a contract of declarations in one `mod.hql`, bound to one provider | `io.net`, `ml.metrics` |
-| package | the distribution unit: a module root holding one or more modules, with the extension that implements them | `std`, `search`, `ml` |
+| package | the distribution unit: a module root holding one or more modules, with the extension that implements them | `std`, `hmd`, `ml` |
 | extension | the implementation unit: a descriptor, `id`, `abi` and `provides`, and the implementations of the external declarations of the modules it provides | `std`, `ml` |
 | crate | the Cargo form of an installable package's source, named `hql-ext-<package>` | `hql-ext-ml` |
 | library | the shared object an external extension is built into and loaded from | `libhql_ext_ml.dylib` |
@@ -35,10 +35,12 @@ A package is **builtin** or **installable**, by how it reaches the binary.
 - A **builtin** package lives under `lib/` of the hql repository. Its
   contracts are bundled with the binary and its extension is compiled into
   it, so its extension is **internal**. There are two: `std`, the standard
-  package, and `search`.
+  package, and `hmd`, HyperMarkdown in HQL ([[HQL-0059]]).
 - An **installable** package is a crate built into a library and installed
-  under `~/.hql/lib/<package>/`, or named by a workspace's
-  `[packages] paths`. Its extension is **external**: it reaches the process
+  into a project's `.hql/packages/<package>/`, or with `--home` into the
+  HQL home's `~/.hql/packages/<package>/`, or named by a project's
+  `[packages] paths`. A level's `config.toml` declares the packages it
+  depends on by name, and its `lock.toml` pins each to a version. Its extension is **external**: it reaches the process
   by loading that library.
 
 An installable package is **official** when its crate lives under `crates/`
@@ -52,8 +54,8 @@ A package carries one extension, named as the package is. An installable
 package owns the top-level module namespace of its name: `ml` provides `ml`
 and `ml.metrics` and nothing outside `ml`, and its name is neither a builtin
 package's nor a builtin module's. A builtin package is not held to its
-name: `std` provides `core`, `string`, `io` and the rest, and `search`
-provides `lexical` and `semantic`.
+name: `std` provides `core`, `string`, `io` and the rest, and `hmd`
+provides `hmd`, `hmd.vault` and `hmd.search` with its two retrievals.
 
 ## Three registries
 

@@ -15,12 +15,13 @@ and the messages `hql` writes when a program is wrong.
 | `hql render <file>` | build a document from its cells ([chapter 24](24-documents.hmd)) |
 | `hql builtins` | list every step, by the provider that implements it, with its signature |
 | `hql config` | the settings in force, and where each came from |
-| `hql context [file]` | the execution context: the mode, the workspace, the configuration files and module roots, and where each came from |
+| `hql context [file]` | the execution context: the mode, the project, the vault, the configuration files and module roots, and where each came from |
 | `hql doctor` | check the semantic-search chain and name the first missing part |
 
 `--vault <dir>` names the vault, `--to <format>` the output format, and
 `--envelope json` wraps the answer for another program. `--project <dir>`,
-`--bare` and `--context <name>` set the execution context, below.
+`--bare`, `--import <module>` and `--context <name>` set the execution
+context, below.
 
 ## The REPL
 
@@ -68,12 +69,12 @@ collections (std 0.6.0, always available)
 ```
 
 A function of a module that the program has not imported is listed too, so
-the import it needs can be looked up. `import lexical` makes a module visible;
-`lexical.lexical(…)` names a function with its module, when two visible modules
+the import it needs can be looked up. `import stats` makes a module visible;
+`stats.mean(…)` names a function with its module, when two visible modules
 declare one name and the input does not tell them apart. The modules of
 `lib/std/prelude.hql`, `string`, `seq`, `math`, `option`, `result`, `graph`,
-`format` and `io` among them, are visible in every program unless the vault's
-`.hql/config.toml` says `prelude = false`.
+`format` and `io` among them, are visible in every program unless the
+project's `.hql/config.toml` says `prelude = false` under `[modules]`.
 
 ## Diagnostics
 
@@ -140,49 +141,51 @@ result, writes to a logger: the [[09-io/logging|logging page]] of chapter 9.
 
 ## The execution context
 
-Every invocation runs in an **execution context**: a mode, a workspace or
-none, and the configuration gathered for it. The same program text checks
-and evaluates the same way in every mode; the context determines the
-documents, module roots and settings it is given.
+Every invocation runs in an **execution context**: a project or none, a vault
+or none, and the configuration gathered for it. The same program text checks
+and evaluates the same way in every context; the context determines the
+module roots, packages, endpoints and settings it is given, and, where a run
+imports `hmd`, the documents it reads as cards.
 
-### Modes and workspace discovery
+### Projects and vaults
 
-The **anchor** is the directory discovery starts from: the directory of the
-program's file for `hql run`, `check`, `plan`, `boundary` and `context <file>`, and the
-working directory for an expression or standard input. `hql` walks from the
-anchor upward and stops at the first directory holding `.hmd/` or
-`.hql/config.toml`; that directory is the **workspace**. The mode follows from what
-it holds:
+A **project** is HQL's: a directory holding `.hql/config.toml`, which
+configures the programs run in it. A **vault** is HyperMarkdown's: a
+directory holding `.hmd/`, whose documents are cards. The two are found
+apart, and one directory may be both.
 
-| Mode | Workspace | Vault |
-| --- | --- | --- |
-| `bare` | none | none |
-| `workspace` | the directory holding `.hql/config.toml` | none |
-| `vault` | the directory holding `.hmd/`, with or without `.hql/config.toml` | the workspace |
+The **anchor** is the directory discovery starts from: the source directory
+of the program, the directory of its file for `hql run`, `check`, `plan`,
+`boundary` and `context <file>`, and the working directory for an expression
+or standard input. `hql` walks from the anchor upward to the nearest
+directory holding `.hql/config.toml`, the project, and separately to the
+nearest holding `.hmd/`, the vault. The walk for a project skips the
+directory whose `.hql/` is the HQL home, so `~/.hql/config.toml` is never a
+project. The mode is `project` where a project was found, and `bare` where
+none was.
 
-The walk stops at the nearest boundary: a `.hql/config.toml` inside a vault is a
-workspace of its own, and the outer vault's configuration does not reach it.
 The working directory is not consulted when a file is the anchor, so a
-program finds its workspace wherever `hql` is run from. A workspace marked by
-`.hql/config.toml` alone still loads its documents as cards.
+program finds its project wherever `hql` is run from. A relative path in a
+program resolves against its source directory too, never against the working
+directory ([[09-io/files-and-folders|the files and folders page]] of chapter 9).
 
-`--project <dir>` (or `--vault <dir>`) names the workspace and replaces the
-walk; the directory must hold `.hmd/` or `.hql/config.toml`. `--bare` runs with no
-workspace whatever the filesystem holds, and an operation that needs a vault
-fails with `needs a vault` rather than reading the working directory as one.
-`--bare` with `--project` is a usage error. `hql render` discovers a
-workspace for each document from that document's directory, and under
-`--bare` renders none.
+`--project <dir>` names the project and replaces its walk; the directory must
+hold `.hql/config.toml`. `--vault <dir>` names the vault the `hmd` package
+reads, and the directory must hold `.hmd/`; where no project is named, the
+project is the nearest at or above the vault. `--bare` runs with no project
+and no discovery at all, and `--bare` with `--project` is a usage error.
+`hql render` finds the vault of each document from that document's
+directory, and under `--bare` renders none.
 
 `hql context` writes the context, each part with the layer it came from:
 
 ```text
 $ cd ~/tmp
 $ hql context ../notes/scripts/report.hql
-mode:      vault
+mode:      project
 context:   work (user configuration)
-workspace: /home/ada/notes (discovered from the anchor)
-vault:     /home/ada/notes
+project:   /home/ada/notes (discovered from the anchor)
+vault:     /home/ada/notes (discovered from the anchor)
 anchor:    /home/ada/notes/scripts
 cwd:       /home/ada/tmp
 hql-home:  /home/ada/.hql (the default)
@@ -190,18 +193,18 @@ prelude:   on (the default)
 config:
   /etc/hql/config.toml (system configuration, absent)
   /home/ada/.hql/config.toml (user configuration)
-  /home/ada/notes/.hql/config.toml (the project's .hql/config.toml, absent)
+  /home/ada/notes/.hql/config.toml (the project's .hql/config.toml)
 module roots:
   /home/ada/.hql/lib (user configuration)
 imports:
-  none
+  hmd (the project's .hql/config.toml)
 ```
 
 `--envelope json` writes the same as one JSON document.
 
 ### Configuration layers
 
-Bare means no workspace, not no configuration. These layers contribute in
+Bare means no project, not no configuration. These layers contribute in
 every mode, each read in turn:
 
 | Layer | Where |
@@ -210,34 +213,33 @@ every mode, each read in turn:
 | user | `config.toml` in the **HQL home**, `~/.hql/`; `$HQL_HOME` names another directory |
 | named context | the selected `[context.<name>]` table of the system or user file |
 | HQL home modules | `~/.hql/modules/`, a module root when it exists |
-| HQL home packages | `~/.hql/lib/`, the packages `hql package` installed ([[36-installing-packages|chapter 36]]) |
-| workspace | the project's `.hql/config.toml` |
+| project | the project's `.hql/config.toml` |
 | `$HQL_PATH` | further module roots, separated as `$PATH` is |
-| command line | `--modules <dir>` |
+| command line | `--modules <dir>` and `--import <module>` |
 
-The system and user files take the keys a project's `.hql/config.toml` takes:
-`[modules] roots`, `[modules] import` and `prelude`, `[report] mode` and
-`level`, and `[execution] backend`. A relative path is read against the
-directory of the file that declares it, never the working directory. A
-system or user file that does not parse fails every run, naming the file.
+The system and user files take the keys a project's `.hql/config.toml`
+takes: `[modules] roots`, `import` and `prelude`, `[packages] dependencies`
+and `paths`, `[report] mode` and `level`, and `[execution] backend`. A
+relative path in a project's file is read against the project root, the
+directory holding `.hql/`; in the system or user file, against the directory
+holding that file. A configuration file that does not parse, or that states a
+key its layer does not take, fails every run, naming the file and the key.
 
-Module roots and extension imports gather across the layers, each once. A
-gathered root is a place to look, not a priority: a module that two roots
-provide is still an error. `prelude` is the last layer's that states it. The
-HQL home is the user's environment, not a workspace, and never a vault.
+Module roots and imports gather across the layers, each once. A gathered root
+is a place to look, not a priority: a module that two roots provide is still
+an error. `prelude` is the last layer's that states it. The HQL home is the
+user's environment, not a project, and never a vault.
 
-A workspace's `.hql/config.toml` takes one more key, `[packages] paths`: the crates
-of packages under development, each built on first use and loaded before
-the installed ones
-([[36-installing-packages#a-package-under-development|chapter 36]]).
+Packages come from the project and from the HQL home, in that order, each
+holding its own `packages/` ([[36-installing-packages|chapter 36]]).
 
 ### Named contexts
 
 A **named context** is a `[context.<name>]` table of the system or user file:
-settings grouped under a name and reused across workspaces. It takes the
-keys above, and `workspace`, which binds a workspace, read against the
-directory of the declaring file. A user file's definition of a name replaces
-the system file's; a project's `.hql/config.toml` defines no context.
+settings grouped under a name and reused across projects. It takes the keys
+above, and `project`, which binds a project, read against the directory of
+the declaring file. A user file's definition of a name replaces the system
+file's; a project's `.hql/config.toml` defines no context.
 
 ```toml
 current-context = "work"
@@ -249,30 +251,30 @@ roots = ["lib"]
 level = "info"
 
 [context.archive]
-workspace = "../archive"
+project = "../archive"
 ```
 
 One context is selected: `--context <name>`, else `$HQL_CONTEXT`, else
 `current-context`, else a context named `default` when one is defined. A
 selected name that no file defines fails every run, naming the layer that
-selected it. A context that binds a workspace replaces the walk; a context
-without one leaves discovery as it is. A context selected by `--context` or
-`$HQL_CONTEXT` that binds a workspace, together with `--bare` or a
-`--project` naming another directory, is an error; under a context selected
-by `current-context`, the command line wins.
+selected it. A context that binds a project replaces the walk for one; a
+context without one leaves discovery as it is. A context selected by
+`--context` or `$HQL_CONTEXT` that binds a project, together with `--bare` or
+a `--project` naming another directory, is an error; under a context
+selected by `current-context`, the command line wins.
 
 `hql config` lists and changes the selection; `use-context` writes
 `current-context` into the user file and keeps every other line of it:
 
 ```text
 $ hql config get-contexts
-CURRENT  NAME     WORKSPACE          DEFINED IN
+CURRENT  NAME     PROJECT            DEFINED IN
          archive  /home/ada/archive  /home/ada/.hql/config.toml
 *        work     -                  /home/ada/.hql/config.toml
 $ hql --context archive context
-mode:      vault
+mode:      project
 context:   archive (--context)
-workspace: /home/ada/archive (context `archive`)
+project:   /home/ada/archive (context `archive`)
 …
 $ hql --context nope eval 1
 hql: no context is named `nope`, which --context selects; the defined contexts are `archive`, `work`
@@ -286,7 +288,7 @@ file.
 
 ## Settings
 
-The report mode and level come from the command line, then the vault's
+The report mode and level come from the command line, then the project's
 `.hql/config.toml`, then the environment (`$HQL_REPORT`, `$HQL_REPORT_LEVEL`), then the
 selected context, the user file and the system file, then the defaults. The
 backend follows the same order with `--backend`, `[execution] backend` and

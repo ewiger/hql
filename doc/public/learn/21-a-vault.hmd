@@ -7,8 +7,8 @@ meaning, and the agents that read them.
 
 ## A vault is a folder
 
-A **vault** is a directory of Markdown and HyperMarkDown documents. The tutorial
-vault looks like this:
+A **vault** is a directory of Markdown and HyperMarkDown documents, marked as
+one by an `.hmd/` directory at its root. The tutorial vault looks like this:
 
 ```text
 examples/tutorial/
@@ -29,8 +29,14 @@ examples/tutorial/
 ├── club.hmd
 ├── frankenstein-inspires-dune.hmd
 ├── librarian.hmd
+├── .hmd/config.toml
 └── .hql/config.toml
 ```
+
+`.hmd/` makes the directory a vault. `.hql/config.toml` makes it an HQL
+project too, which configures the programs run in it; the two are separate,
+and a vault need not be a project
+([[13-working-with-hql#projects-and-vaults|chapter 13]]).
 
 Each document is a **card**. A card has a header of metadata and a body
 someone wrote:
@@ -51,10 +57,12 @@ metadata:
 A novel by [[frank-herbert]]. A desert planet, a spice, and a family that inherits both.
 ```
 
-A program run inside a vault runs against it: `hql` takes the nearest
-directory at or above the program's file that holds `.hmd/` or `.hql/config.toml`,
-or at or above the working directory for an expression or standard input.
-`--vault <directory>` names one instead, and `--bare` runs with none:
+A program run inside a vault reads it: `hql` takes the nearest directory at
+or above the program's file that holds `.hmd/`, or at or above the working
+directory for an expression or standard input. `--vault <directory>` names
+one instead, and `--bare` runs with none. The cards are read through the
+builtin package `hmd`, which the tutorial's project imports for every
+program ("The vault itself" below):
 
 ```sh
 hql --vault examples/tutorial eval 'cards | size'

@@ -65,12 +65,25 @@ check error[type-mismatch]: the end of a file holds nothing yet; follow what is 
 
 ## Where a relative path resolves
 
-A relative path resolves against the directory of the source unit that names
-it: the document for `hql render`, the program file for `hql run`, and the
-working directory for `hql eval` and the REPL. A document or program reads the
-same file wherever it is run from. The programs in this chapter run from the
-repository root, so `examples/io/sightings.jsonl` is the file in the
+A relative path resolves against the **source directory** of the unit that
+names it: the document for `hql render`, the program file for `hql run`, the
+module's own directory for a function of a module, and the working directory
+for `hql eval` and the REPL, which have no file. A document, program or
+module reads the same file wherever it is run from or called from. The
+programs in this chapter run from the repository root, so
+`examples/io/sightings.jsonl` is the file in the
 [I/O examples](https://github.com/ewiger/hql/tree/main/examples/io).
+
+The **working directory**, the directory `hql` was started in, resolves no
+path in HQL source. `io.fs` reads both, as `Path` values a program composes
+paths from explicitly:
+
+<!-- run: skip -->
+```hql
+import io.fs
+fs.source_dir().join("data/users.csv")     // beside this file
+fs.working_dir().join("out.csv")           // where hql was started
+```
 
 A path with a scheme is a type error naming the network endpoint, since a URL
 is not a file:

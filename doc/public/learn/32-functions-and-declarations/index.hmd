@@ -75,7 +75,7 @@ implements `area`.
 | | A function | A declaration |
 | --- | --- | --- |
 | Written in | HQL | HQL for the signature, Rust for the result |
-| Lives in | a program or a module of a workspace | a module of a package |
+| Lives in | a program or a module of a project | a module of a package |
 | Needs | nothing beyond `hql` | a Rust toolchain to build the package |
 | Reaches | what HQL expresses | anything a Rust crate does |
 | Changes take effect | on the next run | after the package is rebuilt |

@@ -151,7 +151,7 @@ pub fn path(module: &str) -> String {
 
 /// The modules of the standard library written in HQL rather than declared
 /// for an extension: a program imports one by name, `import validators`,
-/// and it is loaded as a workspace module is, its bodies run.
+/// and it is loaded as a project module is, its bodies run.
 pub const WRITTEN: &[(&str, &str)] =
     &[("validators", include_str!("../lib/std/validators/mod.hql"))];
 

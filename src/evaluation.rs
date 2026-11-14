@@ -156,7 +156,7 @@ struct Evaluator<'a> {
     /// How much continuation the run asks for: under `collect` a step may
     /// go on past an element its function failed on.
     mode: Mode,
-    /// The source directory of the workspace module being evaluated, which
+    /// The source directory of the project module being evaluated, which
     /// the closures it makes keep; `None` in the program unit, whose
     /// directory is the host's.
     source: Option<Arc<std::path::PathBuf>>,
@@ -271,7 +271,7 @@ impl Evaluator<'_> {
         Ok(last)
     }
 
-    /// Evaluate each workspace module the program imported, in its own scope,
+    /// Evaluate each project module the program imported, in its own scope,
     /// and bind its functions here under `local.name`. A module's own imports
     /// are loaded into its scope first; its implementations join the
     /// program's. A module is a closure, so its scope starts empty: no host

@@ -7,7 +7,7 @@ Semantic search orders a corpus against a query and hands back a prefix. It is
 the **read path of AI memory** over a [[hql/knowledge|knowledge]] base.
 
 ```hql
-import lexical
+import hmd
 
 cards
 | lexical("bearer token authorization")
@@ -16,8 +16,9 @@ cards
 | Graph
 ```
 
-A retrieval is written out because it is a module of the `search` package rather
-than the core's business — see [[hql/extensions]].
+A retrieval is written out because it is HyperMarkdown's, a module of the
+builtin `hmd` package, rather than the core's business — see
+[[hql/extensions]] and [[HQL-0059]].
 
 It has a vocabulary of its own but mints no node type and no edge type, so it is
 not a peer domain in the sense [[type-system]] uses: nothing in it is anyone's
@@ -130,13 +131,13 @@ rather than scoring quietly.
 
 ## What is built
 
-Two retrievals, each a module of the `search` package and each honestly named. [[lexical]] matches
+Two retrievals, each a module of the `hmd` package and each honestly named. [[lexical]] matches
 shared spellings with `hql.hashbag.v1`, a hashed bag of words compared by
 cosine, offline, deterministic and exact, reporting `approximate: false`. It
 models no meaning and its name no longer claims to.
 
 [[semantic]] scores against vectors a language model computed ahead of time,
-stored in an SQLite index a vault names in `.hql/config.toml`. The model stays out of
+stored in an SQLite index a vault names in its `.hmd/config.toml`. The model stays out of
 this binary, so the index carries the queries too and a query it does not hold
 is a failure naming the command that would add one. Scoring is exact brute force
 over stored vectors, so `approximate` is `false` here as well; an approximate

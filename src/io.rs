@@ -676,7 +676,7 @@ pub fn close_diagnostics() -> Vec<crate::diagnostics::Diagnostic> {
 }
 
 thread_local! {
-    /// The source directories of the workspace modules whose code is
+    /// The source directories of the project modules whose code is
     /// running, innermost last: a module's function resolves relative paths
     /// against its own directory, wherever it is called from (HQL-0059).
     static SOURCES: RefCell<Vec<PathBuf>> = const { RefCell::new(Vec::new()) };

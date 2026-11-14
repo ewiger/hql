@@ -12,7 +12,7 @@ it by name;
 `io` and `io.logging` declare their operations beside their types.
 `validators` is the one module written in HQL, its implementations bodies a
 program runs: it is loaded when a program writes `import validators`, as a
-workspace module is, and declares the standard validator traits
+project module is, and declares the standard validator traits
 ([HQL-0034](../../doc/proposals/HQL-0034/index.hmd)).
 
 Checking a declaration is not evaluating one. A declaration yields `Step` and

@@ -2,7 +2,7 @@
 // feature: an extension the project's .hql/config.toml imports is in scope for every program it runs, with no import line
 // implementation: implemented
 // environment: knowledge-v1
-// vault: contexts/workspace
+// vault: contexts/project
 // expected-type: Option<Float>
 // expected: 3.0
 

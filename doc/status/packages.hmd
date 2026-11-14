@@ -15,8 +15,8 @@ per package, each with its `id`, `abi = 1` and `provides`.
 
 | Package | Extension | Modules | Prelude | Contracts |
 | --- | --- | --- | --- | --- |
-| `std` | `std`, internal | 33: 28 provided by the extension, 5 by the runtime (`doc`, `retrieval`, `knowledge`, `vault`, `validators`) | yes, `lib/std/prelude.hql`, the implicit import list | [`lib/std/`](../../lib/std/README.md) |
-| `search` | `search`, internal | 2, `lexical` and `semantic`, both provided by the extension | no; each module is imported where it is used | [`lib/search/`](../../lib/search/README.md) |
+| `std` | `std`, internal | 32: 28 provided by the extension, 4 by the runtime (`doc`, `retrieval`, `knowledge`, `validators`) | yes, `lib/std/prelude.hql`, the implicit import list | [`lib/std/`](../../lib/std/README.md) |
+| `hmd` | `hmd`, internal | 5: `hmd.search.lexical` and `hmd.search.semantic` provided by the extension, `hmd`, `hmd.vault` and `hmd.search` by the runtime | yes, `lib/hmd/prelude.hql`, applied while `hmd` is imported | [`lib/hmd/`](../../lib/hmd/README.md) |
 
 The modules `std`'s extension provides: `core`, `collections`, `string`,
 `seq`, `math`, `stats`, `time`, `random`, `option`, `result`, `regex`,
@@ -37,8 +37,9 @@ crate lives elsewhere.
 | `ml` | official | `hql-ext-ml` | 0.1.0 | `>=0.7.0, <0.8.0` | `ml`, `ml.metrics` | contracts under `modules/` and a library implementing every declaration; installs with `--path`; not on crates.io |
 
 There are no known packages. `hql package install --path` builds and
-installs a package under `~/.hql/lib/`, and `[packages] paths` loads a
-crate from a workspace. `hql package install <name>` reads the registry
+installs a package into a project's `.hql/packages/`, or with `--home` into
+`~/.hql/packages/`, declaring it in that level's `config.toml` and pinning it
+in its `lock.toml`; `[packages] paths` loads a crate from a project. `hql package install <name>` reads the registry
 and installs an entry at its pin; `ml` installs by name once its tag,
 `hql-ext-ml-v0.1.0`, exists ([[01-packages|HQL-0057 part 1]], "Current
 state"). The fixture
