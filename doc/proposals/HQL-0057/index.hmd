@@ -27,7 +27,7 @@ A package is a Cargo crate that builds an HQL extension: a Rust library
 exporting one descriptor and the implementations of the external
 declarations of the modules it provides, beside those modules' contracts.
 Packages come from four places. The two builtin packages, `std` and
-`search`, are compiled into the binary. Official packages are the crates of
+`hmd` ([[HQL-0059]]), are compiled into the binary. Official packages are the crates of
 the [`hql-extensions`](https://github.com/ewiger/hql-extensions) repository,
 a Cargo workspace whose root file `hql-packages.yaml` is the package
 registry. Known packages are crates outside that repository which the same
@@ -199,3 +199,6 @@ authors; the rest of the crate's public surface is unchanged.
   into `<project>/.hql/packages/` by default and into `~/.hql/packages/`
   with `--home`, each level with its `cache/` and `lock.toml`; `~/.hql/lib/`
   is gone. The code still installs into `~/.hql/lib/`
+- 2026-11-14: the builtin packages are `std` and `hmd` ([[HQL-0059]]);
+  `search` is retired and its `lexical` and `semantic` modules join `hmd`.
+  The code still registers `std` and `search`

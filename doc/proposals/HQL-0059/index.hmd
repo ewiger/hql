@@ -271,13 +271,13 @@ The HQL project root has no role in resolving this reference.
 
 ### 6. HyperMarkdown support moves out of the global HQL prelude
 
-HMD-specific functionality should be moved into an internal HQL extension or module:
+HMD-specific functionality moves into `hmd`, an internal package compiled
+into the binary next to `std`. `std` and `hmd` are the two builtin
+packages; the builtin `search` package is retired, and its modules join
+`hmd`. Being builtin, `hmd` is never installed, declared in
+`[packages] dependencies` or pinned in `lock.toml`.
 
-```text
-hmd
-```
-
-This module may provide:
+`hmd` provides:
 
 - `Card`
 - `cards`
@@ -286,8 +286,8 @@ This module may provide:
 - `downlinks`
 - HMD namespace operations
 - HMD document traversal
-- retrieval over a vault's cards: the `lexical` and `semantic` modules of
-  the builtin `search` package
+- retrieval over a vault's cards: the `lexical` and `semantic` modules,
+  formerly the builtin `search` package
 - other HyperMarkdown-specific functionality
 
 Plain HQL should not automatically expose these concepts.
@@ -467,8 +467,8 @@ research ─────┘
 11. Delegate all card and wikilink resolution to HyperMarkdown.
 12. Add tests proving that HQL project discovery and HMD document resolution are orthogonal.
 13. Move the semantic index into the vault's `.hmd/` and its configuration
-    into `.hmd/config.toml`; move the `search` package's `lexical` and
-    `semantic` modules into `hmd`; specify the depth levels of the index in
+    into `.hmd/config.toml`; retire the builtin `search` package and move
+    its `lexical` and `semantic` modules into the builtin `hmd` package; specify the depth levels of the index in
     HyperMarkdown.
 
 ## Invariant
