@@ -13,10 +13,13 @@ The language continues to be in active development.
 - Packages ([HQL-0057](doc/proposals/HQL-0057/index.hmd), issue 0078). A
   package is a Cargo crate named `hql-ext-<name>` whose library is an
   extension: the Rust functions behind the declarations of the modules it
-  provides. `hql package install --path <dir>` builds one with `cargo`
-  against the running `hql` and installs it under `~/.hql/lib/<name>/`;
-  `list`, `info`, `rebuild` and `remove` manage what is installed, and
-  `hql doctor` and `hql builtins` report it. `[packages] paths` in
+  provides. `hql package install <name>` builds one the registry of
+  [hql-extensions](https://github.com/ewiger/hql-extensions) lists, and
+  `install --path <dir>` one on this machine, with `cargo` against the
+  running `hql`, and installs it under `~/.hql/lib/<name>/`; `list`,
+  `info`, `search`, `update`, `rebuild`, `remove` and `registry` manage
+  what is installed and what the registry offers, and `hql doctor` and
+  `hql builtins` report it. `[packages] paths` in
   `hql.toml` names the crate of a package under development, built on
   first use. A program reaches a package's module with `import`, as it
   reaches a standard one, and `[extensions] import` names a package too.

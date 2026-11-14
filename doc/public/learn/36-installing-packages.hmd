@@ -9,13 +9,15 @@ concern packages.
 
 | Command | What it does |
 | --- | --- |
+| `hql package install <name>` | build a package the registry lists and install it ([[37-the-registry-and-publishing#installing-by-name|chapter 37]]) |
 | `hql package install --path <dir>` | build the package of a crate on this machine and install it |
 | `hql package list` | the installed packages, with the modules each provides |
 | `hql package info <name>` | what an installed package records about itself |
 | `hql package rebuild [<name>]` | build an installed package again from its source; every installed package where none is named |
 | `hql package remove <name>` | remove an installed package |
 
-Installing needs `cargo` on the `PATH`
+This chapter installs from a directory, which needs no network and no
+registry. Installing needs `cargo` on the `PATH`
 ([rustup](https://rustup.rs) installs it). Listing, describing and
 removing need nothing but `hql`.
 

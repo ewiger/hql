@@ -109,6 +109,9 @@ packages:
   the fetch. A command that needs the registry uses the cache when it is
   less than one day old or the fetch fails; `hql package registry
   --refresh` fetches now.
+- `$HQL_REGISTRY` names another registry, a URL or a file, and
+  `$HQL_REGISTRY_REPOSITORY` another repository of official packages, a
+  URL or a directory: a mirror, or the fixture of a test.
 
 ### 3. An installed package
 
@@ -297,8 +300,11 @@ One command with these actions:
   report packages.
 - `[extensions] import` names builtin modules, a builtin package or an
   installed package, which imports every module it provides.
-- The registry is not read: `install <name>`, `search`, `update` and
-  `registry` are to come, with `~/.hql/src/` and `~/.hql/registry/`.
+- `src/package/registry.rs` reads the registry, with its cache under
+  `~/.hql/registry/`, and fetches an entry's source into `~/.hql/src/`:
+  `install <name>[@<version>]`, `search`, `update` and `registry`. The
+  fetch of a known package from crates.io has run against no published
+  package yet.
 
 ## Work units
 

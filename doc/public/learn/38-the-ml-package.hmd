@@ -9,6 +9,12 @@ when the book is built; the same programs are the package's examples, which
 its own repository runs.
 
 ```sh
+hql package install ml
+```
+
+From a checkout of the package's repository it installs by path:
+
+```sh
 git clone https://github.com/ewiger/hql-extensions
 hql package install --path hql-extensions/crates/hql-ext-ml
 ```

@@ -46,7 +46,7 @@ starts, so that a program imports the package's modules as it imports a
 standard one:
 
 ```sh
-hql package install --path hql-extensions/crates/hql-ext-ml
+hql package install ml
 ```
 
 <!-- run: skip -->
@@ -75,9 +75,9 @@ A package is
   kept in that repository admits it by name;
 - a **path** package when it is installed from a directory.
 
-`hql package list` shows what is installed. Installing by name from the
-registry, `hql package install ml`, is design and not in the current
-release.
+`hql package install ml` installs an official or a known package by its
+name, `hql package install --path <dir>` a path package, and
+`hql package list` shows what is installed.
 
 [[learn#part-v-extending-hql|Part V]] is the whole of this subject: how a
 declaration without a body is implemented

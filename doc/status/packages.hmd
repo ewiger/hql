@@ -38,8 +38,10 @@ crate lives elsewhere.
 
 There are no known packages. `hql package install --path` builds and
 installs a package under `~/.hql/lib/`, and `[packages] paths` loads a
-crate from a workspace; the registry is not read, so nothing installs by
-name ([[01-packages|HQL-0057 part 1]], "Current state"). The fixture
+crate from a workspace. `hql package install <name>` reads the registry
+and installs an entry at its pin; `ml` installs by name once its tag,
+`hql-ext-ml-v0.1.0`, exists ([[01-packages|HQL-0057 part 1]], "Current
+state"). The fixture
 package `hello`, under `tests/packages/hello/`, is in no registry. No
 release publishes prebuilt libraries
 ([[03-prebuilt-libraries|part 3]]).

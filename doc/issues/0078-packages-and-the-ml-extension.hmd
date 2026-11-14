@@ -28,8 +28,8 @@ on `feat/extensions-ml`.
    the header check, activation with each package admitted on trial;
    `[packages] paths`; `hql package install --path`, `list`, `info`,
    `remove`, `rebuild`; `hql doctor` and `hql builtins` report packages.
-6. The registry fetch and cache; `install <name>`, `search`, `update`,
-   `registry`.
+6. Done: the registry fetch and cache; `install <name>`, `search`,
+   `update`, `registry`, tested against a repository on the machine.
 7. Done: `ml`'s natives over `linfa`, and its examples, with the example
    checker and the CI job in `hql-extensions`.
 8. Done: the book's Part V, *Extending HQL*, chapters 32 to 38; chapter 13
