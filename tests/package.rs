@@ -397,3 +397,127 @@ fn installing_needs_cargo_and_a_package_crate() {
         stderr(&no_package)
     );
 }
+
+/// A repository of official packages on this machine: the fixture as a
+/// crate under `crates/`, the registry at the root, and the tag an
+/// official entry pins.
+fn repository(requirement: &str) -> tempfile::TempDir {
+    let repository = tempfile::tempdir().unwrap();
+    let krate = repository.path().join("crates/hql-ext-hello");
+    std::fs::create_dir_all(&krate).unwrap();
+    for part in ["Cargo.toml", "src", "modules"] {
+        let (from, to) = (fixture().join(part), krate.join(part));
+        if from.is_dir() {
+            copy_tree(&from, &to);
+        } else {
+            std::fs::copy(from, to).unwrap();
+        }
+    }
+    std::fs::write(
+        repository.path().join("hql-packages.yaml"),
+        format!(
+            "registry: 1\npackages:\n  - name: hello\n    crate: hql-ext-hello\n    kind: \
+             official\n    version: 0.1.0\n    hql: \"{requirement}\"\n    provides: \
+             [hello]\n    description: Greetings, as the fixture of the package tests\n"
+        ),
+    )
+    .unwrap();
+    let git = |arguments: &[&str]| {
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(repository.path())
+            .args(["-c", "user.name=hql", "-c", "user.email=hql@example.org"])
+            .args(arguments)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", stderr(&output));
+    };
+    git(&["init", "--quiet", "--initial-branch", "main"]);
+    git(&["add", "."]);
+    git(&["commit", "--quiet", "--message", "the hello package"]);
+    git(&["tag", "hql-ext-hello-v0.1.0"]);
+    repository
+}
+
+/// `hql package` under a home, reading a repository's registry.
+fn registered(home: &Path, repository: &Path, arguments: &[&str]) -> Output {
+    hql(home)
+        .env("HQL_REGISTRY", repository.join("hql-packages.yaml"))
+        .env("HQL_REGISTRY_REPOSITORY", repository)
+        .arg("package")
+        .args(arguments)
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn a_package_the_registry_lists_installs_by_name() {
+    let repository = repository(">=0.7.0, <0.8.0");
+    let home = tempfile::tempdir().unwrap();
+    let found = registered(home.path(), repository.path(), &["search", "greet"]);
+    assert_eq!(
+        stdout(&found),
+        "hello 0.1.0 (official, hello)\n  Greetings, as the fixture of the package tests"
+    );
+    let listed = registered(home.path(), repository.path(), &["registry"]);
+    assert!(
+        stdout(&listed).ends_with("packages: 1"),
+        "{}",
+        stdout(&listed)
+    );
+    assert!(home.path().join("registry/hql-packages.yaml").is_file());
+    let absent = registered(home.path(), repository.path(), &["install", "absent"]);
+    assert!(
+        stderr(&absent).contains("the registry lists no package `absent`"),
+        "{}",
+        stderr(&absent)
+    );
+    let installed = registered(home.path(), repository.path(), &["install", "hello"]);
+    assert!(installed.status.success(), "{}", stderr(&installed));
+    assert!(
+        stdout(&installed).starts_with("installed hello 0.1.0 (hello) in "),
+        "{}",
+        stdout(&installed)
+    );
+    // The source is the tag's, kept under the home for a rebuild.
+    assert!(
+        home.path()
+            .join("src/hello/crates/hql-ext-hello/Cargo.toml")
+            .is_file()
+    );
+    let info = registered(home.path(), repository.path(), &["info", "hello"]);
+    assert!(
+        stdout(&info).contains("source: hql-ext-hello-v0.1.0 of "),
+        "{}",
+        stdout(&info)
+    );
+    assert_eq!(
+        shown(home.path(), "import hello\nhello.greet(\"Ada\")"),
+        "\"Hello, Ada!\""
+    );
+    let current = registered(home.path(), repository.path(), &["update"]);
+    assert_eq!(stdout(&current), "hello 0.1.0 is the registry's version");
+    let rebuilt = registered(home.path(), repository.path(), &["rebuild", "hello"]);
+    assert!(rebuilt.status.success(), "{}", stderr(&rebuilt));
+    let removed = registered(home.path(), repository.path(), &["remove", "hello"]);
+    assert_eq!(stdout(&removed), "removed hello 0.1.0");
+    assert!(!home.path().join("src/hello").exists());
+}
+
+#[test]
+fn an_entry_that_excludes_this_hql_is_refused_before_anything_is_fetched() {
+    let repository = repository(">=9.0.0");
+    let home = tempfile::tempdir().unwrap();
+    let refused = registered(home.path(), repository.path(), &["install", "hello"]);
+    assert!(!refused.status.success());
+    assert!(
+        stderr(&refused).contains(concat!(
+            "package `hello` requires hql >=9.0.0; this is hql ",
+            env!("CARGO_PKG_VERSION")
+        )),
+        "{}",
+        stderr(&refused)
+    );
+    assert!(!home.path().join("src").exists());
+    assert!(!home.path().join("lib").exists());
+}

@@ -251,11 +251,36 @@ enum Command {
 /// What `hql package` does with the packages installed under the HQL home.
 #[derive(Debug, Subcommand)]
 enum PackageAction {
-    /// Build a package with `cargo` against this `hql` and install it.
+    /// Build a package with `cargo` against this `hql` and install it: one
+    /// the registry lists, by name, or a crate on this machine, by `--path`.
     Install {
+        /// A package of the registry, `ml`, or `ml@0.1.0` for a version
+        /// other than the one the registry pins.
+        #[arg(required_unless_present = "path", conflicts_with = "path")]
+        name: Option<String>,
         /// The crate of the package, on this machine.
         #[arg(long, value_name = "DIR")]
-        path: PathBuf,
+        path: Option<PathBuf>,
+    },
+    /// List the registry's packages whose name, modules or description
+    /// hold a text.
+    Search {
+        /// The text.
+        text: String,
+    },
+    /// Install the version the registry pins, where an installed package
+    /// came from the registry at another; every such package where none is
+    /// named.
+    Update {
+        /// An installed package.
+        name: Option<String>,
+    },
+    /// Print the registry in use: where it is read from, when it was
+    /// fetched and how many packages it lists.
+    Registry {
+        /// Fetch the registry now, whatever the cache holds.
+        #[arg(long)]
+        refresh: bool,
     },
     /// List the installed packages, with the modules each provides.
     List,
@@ -664,20 +689,17 @@ fn package_action(
     out: &mut impl Write,
 ) -> Result<u8, String> {
     use crate::package::manifest::{Crate, Installed, Source};
+    use crate::package::registry;
     let home = crate::context::HqlHome::of(environment)
         .ok_or("no HQL home is known: set $HQL_HOME or $HOME")?
         .path;
     let written = |error: io::Error| error.to_string();
     // Build a crate into the home and load the result, so that what is
     // reported installed is what a program can import.
-    let install = |crate_dir: &Path, out: &mut dyn Write| -> Result<u8, String> {
+    let install = |crate_dir: &Path, source: Source, out: &mut dyn Write| -> Result<u8, String> {
         let package = Crate::read(crate_dir)?;
         let destination = crate::package::directory(&home, &package.package);
-        let installed = crate::package::build::install(
-            crate_dir,
-            &destination,
-            Source::Path(crate_dir.to_path_buf()),
-        )?;
+        let installed = crate::package::build::install(crate_dir, &destination, source)?;
         let active = crate::package::activate(std::slice::from_ref(&destination));
         if let Some(refused) = active
             .refused
@@ -697,6 +719,15 @@ fn package_action(
         .map_err(written)?;
         Ok(0)
     };
+    // Resolve a name in the registry, check that it admits this hql before
+    // anything is fetched, fetch its source into the home and install it.
+    let by_name = |name: &str, version: Option<&str>, out: &mut dyn Write| -> Result<u8, String> {
+        let loaded = registry::load(&home, false)?;
+        let entry = loaded.entry(name)?;
+        entry.admits(crate::ext::HQL)?;
+        let (crate_dir, source) = registry::fetch_source(&home, &loaded, entry, version)?;
+        install(&crate_dir, source, out)
+    };
     let held = |name: &str| -> Result<(PathBuf, Installed), String> {
         let directory = crate::package::directory(&home, name);
         if !directory.is_dir() {
@@ -708,11 +739,83 @@ fn package_action(
         Ok((directory, installed))
     };
     match action {
-        PackageAction::Install { path } => {
+        PackageAction::Install {
+            path: Some(path), ..
+        } => {
             let crate_dir = path
                 .canonicalize()
                 .map_err(|error| format!("{}: {error}", path.display()))?;
-            install(&crate_dir, out)
+            install(&crate_dir, Source::Path(crate_dir.clone()), out)
+        }
+        PackageAction::Install { name, path: None } => {
+            let written = name.as_deref().unwrap_or_default();
+            let (name, version) = match written.split_once('@') {
+                Some((name, version)) => (name, Some(version)),
+                None => (written, None),
+            };
+            by_name(name, version, out)
+        }
+        PackageAction::Search { text } => {
+            let registry = registry::load(&home, false)?;
+            for entry in registry.search(text) {
+                writeln!(
+                    out,
+                    "{} {} ({}, {})\n  {}",
+                    entry.name,
+                    entry.pinned(),
+                    entry.kind(),
+                    entry.provides.join(", "),
+                    entry.description
+                )
+                .map_err(written)?;
+            }
+            Ok(0)
+        }
+        PackageAction::Update { name } => {
+            let loaded = registry::load(&home, false)?;
+            let names: Vec<String> = match name {
+                Some(name) => vec![name.clone()],
+                None => crate::package::installed(&home)
+                    .iter()
+                    .filter_map(|directory| Installed::read(directory).ok())
+                    .filter(|installed| matches!(installed.source, Source::Registry { .. }))
+                    .map(|installed| installed.name)
+                    .collect(),
+            };
+            for name in &names {
+                let (_, installed) = held(name)?;
+                if matches!(installed.source, Source::Path(_)) {
+                    return Err(format!(
+                        "package `{name}` was installed from a path, which the registry does \
+                         not version: `hql package rebuild {name}` builds it again"
+                    ));
+                }
+                let entry = loaded.entry(name)?;
+                if installed.version == entry.pinned() && installed.stale().is_none() {
+                    writeln!(
+                        out,
+                        "{name} {} is the registry's version",
+                        installed.version
+                    )
+                    .map_err(written)?;
+                } else {
+                    by_name(name, None, out)?;
+                }
+            }
+            Ok(0)
+        }
+        PackageAction::Registry { refresh } => {
+            let loaded = registry::load(&home, *refresh)?;
+            let fetched = jiff::Timestamp::try_from(loaded.fetched)
+                .map_or_else(|_| "an unknown time".to_owned(), |time| time.to_string());
+            writeln!(
+                out,
+                "registry: {}\nfetched: {fetched}\npackages: {}",
+                loaded.origin,
+                loaded.entries.len()
+            )
+            .map_err(written)?;
+            Ok(0)
         }
         PackageAction::List => {
             for directory in crate::package::installed(&home) {
@@ -775,16 +878,15 @@ fn package_action(
             };
             for name in &names {
                 let (_, installed) = held(name)?;
-                match &installed.source {
-                    Source::Path(path) => install(path, out)?,
+                // The source it was built from: the crate on this machine,
+                // or the one fetched into the home when it was installed.
+                let crate_dir = match &installed.source {
+                    Source::Path(path) => path.clone(),
                     Source::Registry { .. } => {
-                        return Err(format!(
-                            "package `{name}` came from a registry, which this build of hql \
-                             does not read yet: install it again from its crate with `hql \
-                             package install --path`"
-                        ));
+                        registry::crate_directory(&home, name, &installed.krate)
                     }
                 };
+                install(&crate_dir, installed.source.clone(), out)?;
             }
             Ok(0)
         }
@@ -792,6 +894,11 @@ fn package_action(
             let (directory, installed) = held(name)?;
             std::fs::remove_dir_all(&directory)
                 .map_err(|error| format!("{}: {error}", directory.display()))?;
+            let source = registry::source_directory(&home, name);
+            if source.is_dir() {
+                std::fs::remove_dir_all(&source)
+                    .map_err(|error| format!("{}: {error}", source.display()))?;
+            }
             writeln!(out, "removed {} {}", installed.name, installed.version).map_err(written)?;
             Ok(0)
         }

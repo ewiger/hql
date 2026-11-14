@@ -13,6 +13,7 @@
 pub mod build;
 mod load;
 pub mod manifest;
+pub mod registry;
 
 use crate::extensions::Extension;
 use crate::extensions::binding::{Cache, ExtensionSet, Graph};
