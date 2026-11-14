@@ -105,7 +105,10 @@ Resolution order:
 
 1. Explicit `hql.project` from `.hmd/config.toml`
 2. Nearest ancestor containing `.hql/config.toml`
-3. User-level/default HQL environment
+3. No project: the run has no project layer
+
+Resolution selects only the project layer. The system file and the user
+file contribute their layers in every run, with a project or without one.
 
 The HQL home (`$HQL_HOME`, else `~/.hql`) is never a project, though its
 `config.toml` has the marker's shape. The ancestor walk skips the directory
