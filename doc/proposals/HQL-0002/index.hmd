@@ -1,6 +1,9 @@
 # HQL-0002: Semantic retrieval over a precomputed embedding index
 
 **Status**: implemented
+**Superseded in part by**: [[HQL-0059]] (the index lives in the vault's
+`.hmd/`, is configured in `.hmd/config.toml`, and is HyperMarkdown's;
+retrieval is part of the `hmd` module)
 **Created**: 2026-09-18
 **Source**: [[requirements/semantic-search|semantic-search requirements]]
 

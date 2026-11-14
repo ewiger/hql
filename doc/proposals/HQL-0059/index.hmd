@@ -77,8 +77,10 @@ An HQL project is not a vault and does not contain document namespace semantics.
 
 `.hql/config.toml` takes every key `hql.toml` held: `[extensions]`,
 `[modules]`, `[packages]`, `[endpoint.<id>]`, `[execution]`, `[report]`,
-`[semantics]`, `[keyvault.<id>]`, `env`, `prelude` and the renderer tables,
-with the meanings the proposals defining them give. `hql.toml` is not a
+`[keyvault.<id>]`, `env`, `prelude` and the renderer tables, with the
+meanings the proposals defining them give. `[semantics]` is not among
+them: the semantic index is HyperMarkdown's, as "The semantic index is
+HyperMarkdown's" below states. `hql.toml` is not a
 configuration file and not a marker: HQL reads no file of that name, and a
 directory holding one is neither a project nor a workspace boundary.
 
@@ -284,6 +286,8 @@ This module may provide:
 - `downlinks`
 - HMD namespace operations
 - HMD document traversal
+- retrieval over a vault's cards: the `lexical` and `semantic` modules of
+  the builtin `search` package
 - other HyperMarkdown-specific functionality
 
 Plain HQL should not automatically expose these concepts.
@@ -374,6 +378,22 @@ This prevents divergence between:
 - HQL execution
 - future HyperMarkdown integrations
 
+### 10. The semantic index is HyperMarkdown's
+
+A semantic index is built from a vault's cards and is valid only for that
+vault's namespace, so the vault owns it and HyperMarkdown keeps it current.
+
+- The index lives in the vault's `.hmd/`, one per vault. No `.hql/`
+  directory, project or home, holds an index.
+- Its configuration, the embedder and the index path, is a table of
+  `.hmd/config.toml`. HQL configuration has no `[semantics]` table.
+- HyperMarkdown builds and refreshes the index. It covers every level of
+  detail HyperMarkdown defines for a card: summaries at the coarser depths
+  and the card itself at the finest. The depth levels, their summaries and
+  when they are recomputed are specified by HyperMarkdown, not here.
+- HQL reads the index only through the `hmd` module. Retrieval, `lexical`
+  and `semantic`, is part of `hmd`; plain HQL has no retrieval over cards.
+
 ## Example topology
 
 ```text
@@ -446,6 +466,10 @@ research ─────┘
 10. Update the HMD VS Code extension to inject `hmd` and pass document context.
 11. Delegate all card and wikilink resolution to HyperMarkdown.
 12. Add tests proving that HQL project discovery and HMD document resolution are orthogonal.
+13. Move the semantic index into the vault's `.hmd/` and its configuration
+    into `.hmd/config.toml`; move the `search` package's `lexical` and
+    `semantic` modules into `hmd`; specify the depth levels of the index in
+    HyperMarkdown.
 
 ## Invariant
 
