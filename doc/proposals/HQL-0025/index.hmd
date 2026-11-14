@@ -1,6 +1,9 @@
 # HQL-0025: Execution contexts and running modes
 
 **Status**: implemented in part
+**Superseded in part by**: [[HQL-0059]] (decisions 2 to 5: `.hql/config.toml`
+marks a project and `.hmd/` marks only a vault; `hql.toml` is retired;
+"workspace" is "project", `--workspace` is `--project`)
 **Created**: 2026-10-22
 
 ## Scope

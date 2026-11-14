@@ -4,6 +4,9 @@
   73, 59 to 61 of the Decision section, and 73 to 74
 - **Depends on**: [[01-modules|modules]], [[09-packages-and-extensions|packages]]
 - **Needed by**: nothing else in this proposal; it bounds all of it
+- **Superseded in part by**: [[HQL-0059]] (a vault is never a workspace
+  or project; HyperMarkdown's bindings come from the builtin package
+  `hmd`, active only when imported)
 
 ## Scope
 

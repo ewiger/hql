@@ -95,18 +95,19 @@ import option
 ```
 
 The effective prelude of an invocation is the union of `lib/std/prelude.hql` and
-the `prelude.hql` of every loaded extension, whether the host activated it or
-a source unit imported one of its modules. Two preludes that bind one local
+the `prelude.hql` of every active package: one whose module the host, a source
+unit, `[modules] import` or `--import` imported. A package whose library is
+loaded but none of whose modules is imported contributes no prelude
+([[HQL-0059]]). Two preludes that bind one local
 name are an environment error naming both files, as two imports of one name
 are in a source unit ([[02-imports|imports]]). Changing a prelude is
 editing its file; the standard prelude is versioned by being part of `lib/std/`,
 which is bundled with the binary. There is no separate prelude version and no
 edition mechanism.
 
-`prelude = false` in `hql.toml` keeps every prelude's imports out of the
-implicit list, so every module is imported explicitly. The preludes still run
-when their extensions load; the model has no extension that is loaded but not
-constructed.
+`prelude = false` under `[modules]` in `.hql/config.toml` keeps every
+prelude's imports out of the implicit list, so every module is imported
+explicitly. The preludes of active packages still run.
 
 ### Layout
 
