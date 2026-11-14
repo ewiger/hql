@@ -1,0 +1,98 @@
+# The entry point
+
+A library exports one symbol, `hql_extension_v1`. `hql` loads the file,
+looks that name up, and calls it. Everything else about the package is
+reached from what the call returns.
+
+## The symbol
+
+`hql::extension!` writes the function. The line in a package's crate
+
+```rust
+hql::extension!(ext::extension("hello", env!("CARGO_PKG_VERSION"), &[…]));
+```
+
+expands to:
+
+```rust
+#[unsafe(no_mangle)]
+pub extern "C" fn hql_extension_v1() -> hql::ext::Header {
+    static EXTENSION: hql::ext::Extension = /* the extension written above */;
+    hql::ext::Header::of(&EXTENSION)
+}
+```
+
+| Part | What it does |
+| --- | --- |
+| `#[unsafe(no_mangle)]` | keeps the name exactly `hql_extension_v1` in the library, so it can be looked up; Rust otherwise rewrites function names |
+| `extern "C"` | fixes how the function is called to the platform's C convention, which does not vary between compilers |
+| `static EXTENSION` | the extension lives in the library for as long as the library is loaded |
+| `-> Header` | the function returns a small fixed-layout value, described next |
+
+The `v1` in the name is the version of this arrangement. A future `hql`
+that changed it would look for another name and would not mistake an old
+library for a new one.
+
+## The header
+
+The header is what the function returns. It is declared `#[repr(C)]`, so
+its layout is fixed and does not depend on the compiler:
+
+| Field | Holds |
+| --- | --- |
+| `abi` | `1`, the version of the arrangement |
+| `hql` | the version of the `hql` crate the library was compiled against |
+| `rustc` | the version of the compiler that compiled it |
+| `layout` | the sizes of the types the two copies exchange, as the library's copy has them |
+| `extension` | a pointer to the extension |
+
+The first four fields describe the library's copy of `hql`. They are
+plain numbers and text, readable whatever the library was built with. The
+fifth points at a Rust value whose layout the first four vouch for. `hql`
+reads the first four, compares them with its own, and follows the pointer
+only when they are equal.
+
+The values are those of the library's own copy of the `hql` crate,
+recorded when that copy was compiled. They are not written by the
+package's author and cannot be set wrongly by hand.
+
+## The steps of loading
+
+At start, for each installed package, in order:
+
+1. **Read `package.toml`.** It records the `hql` version and the compiler
+   the package was built with. Where either differs from the running
+   `hql`, the package is refused here, before its library is touched.
+2. **Read the contracts.** Each module `package.toml` lists is read from
+   the module root.
+3. **Open the library.** The operating system maps the file into the
+   process.
+4. **Look up `hql_extension_v1`** and call it.
+5. **Compare the header** with the running `hql`: `abi`, `hql`, `rustc`,
+   `layout`. Where any differs, the library is closed again and the
+   package refused.
+6. **Read the extension.** Its name is the package's, and the modules it
+   states are the ones `package.toml` lists, in the same order.
+7. **Enter the types** the contracts declare into the type system.
+8. **Bind**: pair every declaration with the function of its name, as for
+   `std` ([[32-functions-and-declarations/how-std-is-built#binding|binding]]).
+
+A package that fails any step is **refused**. It provides no module, and
+every other package and the whole standard library are as they were. The
+refusal is kept, and is the reason given when a program imports one of the
+package's modules.
+
+Steps 1 and 5 check the same two facts twice, once from the record and
+once from the library itself. The record is a file anyone can edit or copy
+from another machine; the header is compiled in.
+
+## After loading
+
+The extension holds, for each module, a table of names and function
+pointers into the library. Binding stores those pointers beside the
+declarations. When a program calls `hello.greet("Ada")`, the evaluator
+finds the declaration the checker resolved, takes its pointer, and calls
+it. The function runs in the library and returns a `Value` to the
+evaluator in the binary.
+
+No step of a call knows the function is not `std`'s.

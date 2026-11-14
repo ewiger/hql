@@ -1,4 +1,4 @@
-//! The `graph` extension: traversal. The projection from cards to a graph is
+//! The `graph` module's operations, in `std`: traversal. The projection from cards to a graph is
 //! the `Graph` constructor, whose evaluation lives here beside traversal.
 //!
 //! Drawing a graph is not the core's business. The layering is core → graph →

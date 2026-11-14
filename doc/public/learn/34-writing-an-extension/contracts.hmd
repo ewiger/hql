@@ -1,0 +1,107 @@
+# The contract
+
+The contract is the HQL half of the package: the file a program is checked
+against. This is `modules/hello/mod.hql`, whole:
+
+````text
+/// Greetings, provided by the `hello` package.
+module hello
+
+import core
+
+/// A greeting and the number of characters in it.
+type Greeting { text : String, length : Int }
+
+/// The greeting of a name: `Greeting("Ada")` holds `Hello, Ada!`.
+/// `punctuation` replaces the `!`.
+fn Greeting(name: String, *, punctuation: String = "!") : Greeting
+
+/// The text greeting a name: `greet("Ada")` is `Hello, Ada!`.
+fn greet(name: String) : String
+
+/// `self` in capitals: `"hi".shout()` is `HI`.
+fn shout(self: String) : String
+
+/// The text of a greeting in capitals.
+fn shout(self: Greeting) : String
+
+/// The sum of `weight` over the elements of `self`.
+fn total<T>(self: List<T>, weight: T -> Int) : Int
+
+/// A function that panics, which the call reports as a failure.
+fn fail(message: String) : String
+````
+
+## The head of the file
+
+A contract opens with `module` and the module's name, which is the name
+`provides` lists and the path of the file under the module root. A file
+whose `module` line names another module is refused.
+
+`import core` makes the types of the language's core visible: `String`,
+`Int`, `List`. A contract is a module like any other, a closure over its
+own imports ([[05-modules/names|chapter 5]]), so it imports every module
+whose types it writes. The prelude does not apply inside a package.
+
+## Types
+
+`type Greeting { text : String, length : Int }` declares a record type.
+A type a contract declares belongs to the language once the package is
+loaded: a program that imports `hello` reads `g.text`, and the checker
+knows it is a `String`.
+
+<!-- run: --workspace examples/packages -->
+```hql
+import hello
+
+Greeting("Ada")
+```
+
+```text
+Greeting(text = "Hello, Ada!", length = 11)
+```
+
+## A constructor
+
+`fn Greeting(…) : Greeting` is a declaration named as its type is: a
+**constructor**. A record type without one is constructed by naming every
+field. With one, a call of the type's name reaches the package's function,
+which computes the fields: here `length` is counted, never passed.
+
+## Declarations
+
+The remaining lines are declarations
+([[32-functions-and-declarations/declarations|chapter 32]]):
+
+- `greet` takes one `String` and has no receiver, so it is called
+  `hello.greet("Ada")`.
+- `shout` has two forms, on a `String` and on a `Greeting`, both receiver
+  calls: `"hi".shout()`.
+- `total` is generic over the element type and takes a function,
+  `T -> Int`.
+- `Greeting` takes `punctuation` by name only, after `*`, with a default.
+
+<!-- run: --workspace examples/packages -->
+```hql
+import hello
+
+["hi".shout(), Greeting("Ada").shout()]
+```
+
+```text
+["HI", "HELLO, ADA!"]
+```
+
+## Doc strings
+
+A `///` paragraph directly above a declaration is its doc string. It is
+the text `hql help` prints, so it is written for the caller: what the
+function gives, with one example. Forms of one name written in one
+paragraph share a doc string.
+
+## What the contract does not say
+
+The contract states no implementation, and the Rust states no types. A
+change to a signature is a change to this file alone, as long as the Rust
+function still reads the values the new signature admits. A change to what
+a function computes leaves this file untouched.

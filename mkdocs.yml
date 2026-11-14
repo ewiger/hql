@@ -121,6 +121,7 @@ nav:
                   - Receiver modules: learn/05-modules/receiver-modules.md
                   - Visibility: learn/05-modules/visibility.md
                   - How names resolve: learn/05-modules/names.md
+                  - Modules and packages: learn/05-modules/packages.md
               - 6. SQL-like Queries: learn/06-sql-like-queries.md
               - 7. Streams that do not end: learn/07-streams.md
               - 8. Writing results out: learn/08-output.md
@@ -199,6 +200,27 @@ nav:
               - 29. Random values: learn/29-random.md
               - 30. Digests and encodings: learn/30-digests-and-encodings.md
               - 31. Keys and cryptography: learn/31-cryptography.md
+          - "Part V: Extending HQL":
+              - 32. Functions and declarations:
+                  - learn/32-functions-and-declarations.md
+                  - Declarations: learn/32-functions-and-declarations/declarations.md
+                  - How the standard library is built: learn/32-functions-and-declarations/how-std-is-built.md
+              - 33. Packages and extensions: learn/33-packages-and-extensions.md
+              - 34. Writing an extension:
+                  - learn/34-writing-an-extension.md
+                  - The crate: learn/34-writing-an-extension/the-crate.md
+                  - The contract: learn/34-writing-an-extension/contracts.md
+                  - Natives: learn/34-writing-an-extension/natives.md
+                  - Values and errors: learn/34-writing-an-extension/values-and-errors.md
+                  - Functions and the context: learn/34-writing-an-extension/lambdas-and-context.md
+              - 35. How a library is loaded:
+                  - learn/35-how-a-library-is-loaded.md
+                  - Static and dynamic libraries: learn/35-how-a-library-is-loaded/static-and-dynamic.md
+                  - The entry point: learn/35-how-a-library-is-loaded/the-entry-point.md
+                  - The version rule: learn/35-how-a-library-is-loaded/the-version-rule.md
+              - 36. Installing packages: learn/36-installing-packages.md
+              - 37. The registry and publishing: learn/37-the-registry-and-publishing.md
+              - 38. The ml package: learn/38-the-ml-package.md
       - Examples: examples.md
   # A section per package, a page per module; a function, type or trait is
   # reached from its module's page. `cargo test` fails when this

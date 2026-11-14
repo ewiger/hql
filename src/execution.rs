@@ -7,7 +7,7 @@ use crate::types::TypeRef;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
-pub(crate) type Arg = ast::Arg<Expr>;
+pub type Arg = ast::Arg<Expr>;
 
 #[derive(Debug)]
 pub(crate) struct Program {
@@ -161,10 +161,10 @@ pub(crate) enum BlockStmt {
 }
 
 #[derive(Debug)]
-pub(crate) struct Expr {
-    pub kind: Kind,
-    pub ty: TypeRef,
-    pub span: Range<usize>,
+pub struct Expr {
+    pub(crate) kind: Kind,
+    pub(crate) ty: TypeRef,
+    pub(crate) span: Range<usize>,
 }
 
 #[derive(Debug)]
@@ -2064,7 +2064,9 @@ mod tests {
             panic!("a step");
         };
         let environment = crate::extensions::binding::Environment::get().unwrap();
-        let sort = environment.of(crate::extensions::CORE.step("sort").unwrap());
+        let sort = environment.of(crate::extensions::STD
+            .implementation("collections", "sort")
+            .unwrap());
         assert_eq!(*declaration, Some(sort[0]));
     }
 

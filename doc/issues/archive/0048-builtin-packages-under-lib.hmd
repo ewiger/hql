@@ -3,7 +3,7 @@
 Status: done
 Related: [`lib/std/`](../../../lib/std/README.md),
 [[03-standard-library|HQL-0024 part 3]],
-[[packages]],
+[[status/packages|packages]],
 [[0046-renovate-std|issue 0046]]
 
 The binary carries builtin packages, and `std` is one of them. Each builtin

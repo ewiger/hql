@@ -160,11 +160,11 @@ The registry grows in three stages, each usable on its own.
    `search`. Each step is registered against a
    declaration identity in `lib/std/`. The registry is builtin-only; binding runs
    against the `lib/std/` contracts and replaces the test that compares `lib/std/` with
-   the Rust lattice. Nothing is loaded. *Done in part:* every builtin
-   extension carries `provides`, and binding cross-checks the external
-   contracts of `lib/std/` against it by name, arity and result type once per
-   process ([[extensions]]); `id` and `abi`
-   and the folding wait for the second stage.
+   the Rust lattice. Nothing is loaded. *Done:* `std` and `search` carry
+   `id`, `abi` and `provides`, implementations are keyed by module and
+   declared name, and binding cross-checks the external contracts of
+   `lib/` against them once per process
+   ([[extensions]], issue 0049).
 2. **Configuration selects.** The execution context builds the registry from
    the builtin table and configuration: which compiled-in extensions are
    active, what the prelude is. `hql.toml`'s `[extensions]` keys are re-read

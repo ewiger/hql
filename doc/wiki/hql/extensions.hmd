@@ -14,24 +14,28 @@ A registry of extensions is implemented; a module loader is not. An extension
 declares a name, a version and its steps, and each step supplies its
 evaluator, its own marking of whether it is pure, and, where no declaration
 states one, a structural `StepSpec` — so a capability is added without
-editing the core's checker or evaluator. Extensions
-are compiled into the binary and registered in one table. There is no dynamic
-loading and no plugin ABI: registration says what exists, and it is a host
-mechanism that never reaches HQL's surface.
+editing the core's checker or evaluator. The extensions of the builtin
+packages are compiled into the binary; the extension of an installed
+package is loaded from its library when `hql` starts, through the one
+symbol `hql_extension_v1`, and is held to the `hql` version and the compiler
+it was built with ([[HQL-0057]]). Both are registered in one set, which a
+process fixes before its first program is checked: registration says what
+exists, and it is a host mechanism that never reaches HQL's surface.
 
-An extension is the implementation unit of a package, and a package carries
-one, named as the package is: `std` implements the standard package's
+An extension is the implementation unit of a package
+([[hql/packages]] names the four units), and a package carries one, named as the package is: `std` implements the standard package's
 modules, `search` the modules `lexical` and `semantic`. A package carries a
 second extension only when parts of it are enabled or loaded independently;
 how the Rust code is split into source modules is never a reason for one. An
 extension is **internal** when it is built in, its package under `lib/` and
 its code compiled into the binary, and **external** when an installed
 package, typically a Cargo crate, supplies it. Both extensions today are
-internal ([[packages]]). The table in
-`src/extensions/` still registers one entry per Rust source module, and
-`import` binds one of those entries;
-[[0049-one-extension-per-package|issue 0049]] folds them into
-`std` and `search`.
+internal ([[status/packages|packages]]). Each is a descriptor,
+`id`, `abi = 1` and `provides`, beside implementations keyed by module and
+declared name; the Rust source modules of `src/extensions/` contribute their
+step tables to one descriptor. `import` binds a module, never an extension:
+visibility, the imported set of a unit and the "write `import …`"
+diagnostic all name the module whose declaration a step satisfies.
 
 The signature declares generic parameters and bounds, input and result types,
 argument names and arity, and lambda or type arguments. The checker and

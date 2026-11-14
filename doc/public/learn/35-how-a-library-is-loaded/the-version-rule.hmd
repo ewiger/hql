@@ -1,0 +1,97 @@
+# The version rule
+
+A package's library fits exactly one build of `hql`: the same version of
+the `hql` crate, compiled by the same version of the Rust compiler, with
+the same versions of the crates `hql` depends on. This page is why, how
+`hql package` arranges it, and what is reported when it does not hold.
+
+## Rust has no stable layout
+
+When the library returns a `Value`, it hands the binary an address in
+memory. The binary reads the bytes at that address as a `Value`: which
+variant, where its fields are, how long its string is.
+
+Where each field sits is the type's **layout**. C fixes layouts by rule,
+which is why a C library built years ago still loads. Rust does not: the
+compiler is free to order and pack the fields of a type as it sees fit,
+and a newer compiler may choose differently. The layout also changes when
+the type does, when a field is added to `Value` in a new `hql`, and when a
+type inside it changes, in a new version of a crate `hql` depends on.
+
+So two compilations agree on a layout only when they are compilations of
+the same source by the same compiler:
+
+| Must be equal | Because |
+| --- | --- |
+| the version of the `hql` crate | `Value`, `Diagnostic` and the context are defined there |
+| the version of `rustc` | the compiler decides the layout |
+| the versions of `hql`'s dependencies | `Value` holds their types: a decimal, a timestamp, a JSON tree |
+
+Where they differ, nothing reports an error. The binary reads bytes that
+mean something else, and the result is a wrong value or a crash somewhere
+unrelated. The checks of this chapter exist so that the question is
+answered before any such value is read.
+
+## How a build is made to fit
+
+`hql package install` does not ask the package which `hql` it wants. It
+builds the package against the `hql` that is running:
+
+| Fact | How it is fixed |
+| --- | --- |
+| the `hql` version | the crate's dependency is pinned to exactly the running version; `hql = "0.7"` in the crate only says which versions the source accepts |
+| the compiler | `cargo` is run with the compiler version the running `hql` records |
+| the dependencies | a crate without a lock file of its own starts from the one the running `hql` was built with |
+
+The running `hql` records its own version, its compiler and its target
+when it is built. `hql package info` prints them for a package:
+
+```text
+built: 2026-11-14T10:02:11Z against hql 0.7.0 with rustc 1.98.1 (48a229cea 2026-09-01) for aarch64-apple-darwin
+```
+
+This is also why a package is built on your machine. A library built
+elsewhere fits only if that machine used the same `hql` release and the
+same compiler, which is the condition a prebuilt library has to meet
+([[37-the-registry-and-publishing#prebuilt-libraries|chapter 37]]).
+
+## After an upgrade
+
+A new `hql` is a new build, so the installed libraries no longer fit it.
+They are refused, and say what to do:
+
+```text
+check error[unknown-name]: no module named `hello`: package `hello` was built against hql 0.7.0 with rustc 1.98.1 (48a229cea 2026-09-01); this is hql 0.7.1 with rustc 1.98.1 (48a229cea 2026-09-01): run `hql package rebuild hello`
+ --> <expression>:1:1
+  |
+1 | import hello
+  | ^^^^^^^^^^^^
+```
+
+```sh
+hql package rebuild hello
+```
+
+The rebuild is the install again, from the same source, against the new
+`hql`. A program that imports no module of the package is unaffected the
+whole time: a refused package is absent, and nothing else changes.
+
+## Every refusal
+
+| The message says | The cause | What to do |
+| --- | --- | --- |
+| `was built against hql … with rustc …; this is hql …` | `hql` or its compiler changed since the build | `hql package rebuild <name>` |
+| `was built with other versions or features of the crates hql depends on` | the versions match and a dependency was compiled differently, usually because the crate enables a feature of a crate it shares with `hql` | rebuild; if it persists, remove the feature from the crate |
+| `states extension ABI …; this hql loads ABI 1` | the library is for another generation of `hql` | install a version of the package for this `hql` |
+| `exports no hql_extension_v1` | the crate does not write `hql::extension!`, or the file is not a package's library | add the macro; reinstall |
+| `provides … by its record and … by its extension` | `provides` in `Cargo.toml` and the modules in `hql::extension!` differ | make the two lists equal, in the same order |
+| `packages … and … both provide …: a module has one provider, so neither is loaded` | two packages provide one module | remove one of them |
+| `provides …, which … provides: a module has one provider` | a package provides a module of `std` or `search` | rename the package's module |
+| `… is declared, and the extension … implements no such function` | a declaration in a contract has no entry in the module's table | add the function, or remove the declaration |
+| `requires hql …; this is hql …` | at install: the crate's `hql` range excludes the running version | a version of the crate for this `hql`, or a newer `hql` |
+| `needs cargo with rustc …, and none is on PATH` | at install: no Rust toolchain | install Rust with [rustup](https://rustup.rs) |
+
+Each is reported once, at install for the last two and otherwise when a
+program imports a module the package would have provided. `hql package
+list` marks a package whose build no longer fits, and `hql doctor` lists
+every package of the environment as loaded or refused, with the reason.

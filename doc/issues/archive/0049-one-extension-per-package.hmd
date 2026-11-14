@@ -1,7 +1,7 @@
 # 0049 — One extension per package: fold the descriptors into `std` and `search`
 
-Status: todo
-Related: [[packages]],
+Status: done
+Related: [[status/packages|packages]],
 [[01-modules|HQL-0024, modules]],
 [[09-packages-and-extensions|HQL-0024, packages and extensions]],
 [[0048-builtin-packages-under-lib|issue 0048]]
@@ -29,7 +29,7 @@ what is always visible, in the prelude or imported.
    `io.logging`.
 2. Two descriptors. `STD` and `SEARCH` replace the twenty-nine statics; their
    `provides` lists are the two rows of the Extensions table in
-   [[packages]]. The Rust source modules
+   [[status/packages|packages]]. The Rust source modules
    (`string.rs`, `seq.rs`, …) stay as they are and contribute their step
    tables to one descriptor; `lexical`'s metadata contribution moves to
    `SEARCH`.

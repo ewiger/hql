@@ -116,8 +116,14 @@ const fn concat<const N: usize>(
 pub fn path(module: &str) -> String {
     let package = if SEARCH.iter().any(|(name, _)| *name == module) {
         "search"
-    } else {
+    } else if STD.iter().any(|(name, _)| *name == module) {
         "std"
+    } else {
+        // A loaded package's module, named by its package.
+        crate::package::extensions()
+            .iter()
+            .find(|extension| extension.modules().any(|held| held == module))
+            .map_or("std", |extension| extension.id())
     };
     format!("{package}/{module}")
 }

@@ -5,7 +5,7 @@ a number and ends with a web of vaults, and every chapter builds on the ones
 before it. Every program in it prints what the book shows. Chapter 18 and
 chapters 25 to 27 describe APIs and object stores, the `ai` module and the
 direction beyond one vault, which are design and not in the current
-release, as do the marked sections of chapters 14, 15 and 19. Chapter 14's
+release, as do the marked sections of chapters 14, 15, 19 and 37. Chapter 14's
 companion on planning separates the local backend from future execution
 strategies. The programs of chapters 16, 17, 19 and 20 that reach a
 server are checked in the book and run in the
@@ -19,7 +19,7 @@ and streams that do not end; over a vault of Markdown documents, their links
 and their meaning; and through the context, prompts and runs of a language
 model.
 
-The book is in four parts. **The language** is the steps, the values they
+The book is in five parts. **The language** is the steps, the values they
 pass and the types that join them, from the first expression to the type
 system and the boundary where data from outside becomes typed. **Data flows**
 is the pipeline those steps form: what `|` does, when a program is checked,
@@ -29,6 +29,9 @@ documents that compute themselves, agents whose runs are values, documents
 that run them, and the web they point at. **The standard library** is the
 modules a program imports for work that is neither a type nor I/O:
 statistics, random values, digests and encodings, and cryptography.
+**Extending HQL** is how that library is made and how to add to it: a
+function declared in HQL and implemented in Rust, the package that carries
+it, the library `hql` loads it from, and the registry that names packages.
 
 ## Following along
 
@@ -68,7 +71,8 @@ git clone https://github.com/ewiger/hql-demo && cd hql-demo
    two body forms `= expr` and `{ … }`, generic functions, aliases, and
    partial application.
 5. [[05-modules|Modules]] — modules of your own, imports, receiver
-   modules, public and private declarations, and how a name resolves.
+   modules, public and private declarations, how a name resolves, and the
+   packages modules come in.
 6. [[06-sql-like-queries|SQL-like Queries]] — where, order by, group by and the
    aggregates.
 7. [[07-streams|Streams that do not end]] — generators, laziness, and
@@ -149,3 +153,26 @@ git clone https://github.com/ewiger/hql-demo && cd hql-demo
 31. [[31-cryptography|Keys and cryptography]] — keys and their formats,
     secrets that print redacted, signatures, MACs and password hashes, and
     the encryption and key vault that are design.
+
+## Part V: Extending HQL
+
+32. [[32-functions-and-declarations|Functions and declarations]] — a
+    function with a body in HQL, a declaration whose body is Rust, and how
+    the standard library is built from the second.
+33. [[33-packages-and-extensions|Packages and extensions]] — an `import`
+    followed from the module it names to the package, the extension and
+    the file that runs.
+34. [[34-writing-an-extension|Writing an extension]] — a package from an
+    empty directory: the crate, the contract, the Rust functions, values,
+    errors, and functions passed in.
+35. [[35-how-a-library-is-loaded|How a library is loaded]] — static and
+    dynamic libraries, the one symbol `hql` calls, and why a library fits
+    one `hql` and one compiler.
+36. [[36-installing-packages|Installing packages]] — `hql package`, what
+    an installed package is, a package under development, and the
+    settings of `hql.toml`.
+37. [[37-the-registry-and-publishing|The registry and publishing]] —
+    official and known packages, version ranges and exact versions, and
+    publishing a crate.
+38. [[38-the-ml-package|The ml package]] — datasets, models as values,
+    prediction and metrics, from the first official package.

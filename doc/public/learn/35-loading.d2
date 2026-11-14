@@ -1,0 +1,47 @@
+# Installing a package and loading it.
+# Rendered to 35-loading.svg with `d2 --layout elk 35-loading.d2 35-loading.svg`.
+
+direction: down
+
+install: "install: hql package install" {
+  direction: right
+  style.fill: "#eef6ee"
+  crate: "the crate\nCargo.toml · modules/ · src/" {
+    shape: page
+  }
+  cargo: "cargo build --release\nagainst the running hql,\nwith its compiler"
+  home: "~/.hql/lib/hello/\npackage.toml\nmodules/\nlibhql_ext_hello.dylib" {
+    shape: cylinder
+  }
+  crate -> cargo
+  cargo -> home: "library, module root,\nrecord of the build"
+}
+
+start: "start: every run of hql" {
+  direction: down
+  style.fill: "#f6efe6"
+  record: "1. read package.toml\nsame hql, same compiler?"
+  open: "2. open the library\ncall hql_extension_v1"
+  header: "3. compare the header\nabi · hql · rustc · layout"
+  bind: "4. enter the contract's types,\nbind each declaration\nto its function"
+  record -> open
+  open -> header
+  header -> bind
+}
+
+refused: "refused\nthe package provides no module;\nthe reason is kept for the import" {
+  shape: oval
+}
+
+program: "a program\nimport hello\nhello.greet(\"Ada\")" {
+  shape: page
+}
+
+call: "the library's function\ncalled through a pointer"
+
+install.home -> start.record
+start.record -> refused: "differs"
+start.header -> refused: "differs"
+start.bind -> refused: "a declaration\nwithout a function"
+start.bind -> program: "bound"
+program -> call

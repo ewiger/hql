@@ -1,4 +1,4 @@
-//! The `semantic` extension: ranking against vectors a language model made.
+//! The `semantic` module's operation, in `search`: ranking against vectors a language model made.
 //!
 //! The model is not in this binary and never will be. `contrib/semantics/`
 //! embeds a vault ahead of time into an SQLite index, and this module reads it.

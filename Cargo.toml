@@ -1,6 +1,6 @@
 [package]
 name = "hql"
-version = "0.6.0"
+version = "0.7.0"
 description = "HQL — Hyper Query Language: a typed functional language for structured knowledge"
 license = "MIT"
 edition = "2024"
@@ -54,6 +54,7 @@ getrandom = { version = "0.4", features = ["sys_rng"] }
 hmac = "0.13"
 jiff = { version = "0.2.43", features = ["tzdb-bundle-always"] }
 jiff-tzdb = "0.1.9"
+libloading = "0.8"
 md-5 = "0.11"
 num-integer = "0.1.47"
 p256 = { version = "0.14", features = ["ecdsa", "pkcs8", "pem"] }
@@ -69,6 +70,7 @@ rsa = { version = "0.10", features = ["pkcs1v15"] }
 rskafka = { version = "0.6", default-features = false, features = ["compression-gzip", "compression-snappy"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 rustyline = { version = "19.0.0", default-features = false, features = ["with-file-history"] }
+semver = "1"
 serde = "1.0.229"
 serde_json = { version = "1.0.151", features = ["arbitrary_precision"] }
 serde_yaml_ng = "0.10.0"

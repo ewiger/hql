@@ -1,4 +1,4 @@
-//! The `io` extension: endpoints read by `source` and `tap`, and written by
+//! The `io` module's operations, in `std`: endpoints read by `source` and `tap`, and written by
 //! `target` and `sink`.
 //!
 //! An endpoint says where values are and a format type how its bytes are

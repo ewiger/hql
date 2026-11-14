@@ -362,13 +362,13 @@ impl TypeAnn {
 }
 
 #[derive(Debug)]
-pub(crate) struct Expr {
-    pub kind: Kind,
-    pub span: Range<usize>,
+pub struct Expr {
+    pub(crate) kind: Kind,
+    pub(crate) span: Range<usize>,
 }
 
 #[derive(Debug)]
-pub(crate) struct Arg<E = Expr> {
+pub struct Arg<E = Expr> {
     /// `Some` for a named argument, `depth = 1`.
     pub name: Option<String>,
     pub value: E,

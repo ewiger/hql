@@ -10,7 +10,7 @@
 //! run's diagnostic channel (HQL-0045). The diagnostics come back beside the
 //! value rather than instead of it, so a caller can walk them afterwards.
 
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 
 mod ast;
 mod checker;
@@ -27,6 +27,7 @@ mod mutation;
 pub mod naming;
 mod nats;
 mod net;
+pub mod package;
 mod parser;
 mod postgres;
 mod spark;
@@ -44,6 +45,7 @@ pub mod diagnostics;
 pub mod docs;
 pub mod document;
 pub mod endpoints;
+pub mod ext;
 pub mod extensions;
 pub mod graph;
 pub mod help;

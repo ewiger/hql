@@ -1,0 +1,155 @@
+# 33. Packages and extensions
+
+A program names modules and nothing else. This chapter follows one
+`import` from the module it names down to the file on disk that runs, and
+names each unit on the way. [[05-modules/packages|Modules and packages]]
+introduced the four terms; here they are put to work on a package that is
+not part of `hql`.
+
+## Four units, one path
+
+![An import resolves to a module, the module to the package that provides it, and the package to its contract and its extension, which is compiled into hql for a builtin package and loaded from a library for an installed one.](33-resolution.svg)
+
+| Unit | What it is | For `import hello` |
+| --- | --- | --- |
+| module | a named file of declarations; what `import` names | `hello` |
+| package | what is installed: a module root and the extension implementing it | `hello` |
+| extension | the Rust functions behind a package's declarations | the `hello` extension |
+| library | the compiled file an installed extension is loaded from | `libhql_ext_hello.dylib` |
+
+The package of this chapter is `hello`, a small package kept in the `hql`
+repository under
+[`tests/packages/hello/`](https://github.com/ewiger/hql/tree/main/tests/packages/hello).
+[[34-writing-an-extension|Chapter 34]] writes it from an empty directory.
+
+## An import names a module
+
+```hql
+import hello
+
+hello.greet("Ada")
+```
+
+```text
+check error[unknown-name]: no module named `hello` under examples/tutorial/lib
+ --> <expression>:1:1
+  |
+1 | import hello
+  | ^^^^^^^^^^^^
+```
+
+In the tutorial vault nothing provides `hello`: no package does, and the
+vault's module root, `examples/tutorial/lib`, holds no such file. The
+import is refused.
+The program is the same in a workspace where a package does provide it:
+
+<!-- run: --workspace examples/packages -->
+```hql
+import hello
+
+hello.greet("Ada")
+```
+
+```text
+"Hello, Ada!"
+```
+
+Neither program names a package. Which package provides `hello`, and
+whether one does, is a fact about the environment the program runs in.
+
+## A module has one provider
+
+When `hql` starts it gathers the packages of the environment: the two
+builtin ones, the packages installed under the HQL home, and the crates a
+workspace lists ([[36-installing-packages|chapter 36]]). Each package
+states the modules it provides. A module has exactly one provider. Two
+packages that provide one module are both refused: the order in which
+packages are found picks no winner.
+
+`hql builtins` names the provider beside each module:
+
+```sh
+hql --workspace examples/packages builtins
+```
+
+```text
+math (std 0.7.0, prelude)
+…
+hello (hello 0.1.0, imported where it is used)
+  greet
+    String | greet() -> String
+    pure, barrier
+```
+
+`math` comes from the package `std` at the version of `hql` itself.
+`hello` comes from the package `hello` at the version of its own crate.
+
+## A package is a contract and an extension
+
+A package holds two things, as `std` does
+([[32-functions-and-declarations/how-std-is-built|chapter 32]]):
+
+- a **module root**, a directory of contracts, one per module it provides;
+- an **extension**, one Rust function per name those contracts declare.
+
+For a builtin package both are inside the `hql` binary. For an installed
+package the module root is a directory of `.hql` files and the extension
+is a library beside it:
+
+```text
+~/.hql/lib/hello/
+├── package.toml              what was built, from what, against which hql
+├── modules/
+│   └── hello/mod.hql         the contract of module `hello`
+└── libhql_ext_hello.dylib    the extension, as a library
+```
+
+The library is `.dylib` on macOS, `.so` on Linux and `.dll` on Windows.
+
+## What an import does
+
+`import hello` makes the declarations of the module `hello` visible to the
+program, under the name `hello`. By the time a program is checked the
+package is already bound: its contract was read, its library was loaded,
+and each declaration was paired with its function. The import is a matter
+of names. That is why a call to a function of a package is checked as any
+call is:
+
+<!-- run: --workspace examples/packages -->
+```hql
+import hello
+
+hello.greet(3)
+```
+
+```text
+check error[type-mismatch]: `greet` needs String, not Int
+ --> <expression>:3:1
+  |
+3 | hello.greet(3)
+  | ^^^^^^^^^^^^^^
+```
+
+The refusal comes from the contract, `fn greet(name: String) : String`.
+The Rust function is never called with an `Int`.
+
+A name of a package used without its import is reported as a missing
+import, since the environment knows which module declares it:
+
+<!-- run: --workspace examples/packages -->
+```hql
+"hi".shout()
+```
+
+```text
+check error[unknown-name]: `shout` is declared in the module `hello`: write `import hello`
+ --> <expression>:1:1
+  |
+1 | "hi".shout()
+  | ^^^^^^^^^^^^
+```
+
+## What is next
+
+[[34-writing-an-extension|Chapter 34]] writes the `hello` package: its
+crate, its contract, and the Rust functions behind it.

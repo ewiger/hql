@@ -36,8 +36,15 @@ hql eval '40 + 2'
 42
 ```
 
-`hql builtins` lists every step a pipeline may use, grouped by the extension
-that provides it.
+`hql builtins` lists every step a pipeline may use, grouped by the module
+that declares it, each with the package providing it.
+
+## Packages
+
+`hql` runs with nothing else installed. A **package** adds modules that are
+not part of it, such as `ml`, and is built on your machine by `hql package
+install`, which needs `cargo` from [rustup](https://rustup.rs).
+[[learn/36-installing-packages|Installing packages]] has the commands.
 
 !!! note "Versions"
 

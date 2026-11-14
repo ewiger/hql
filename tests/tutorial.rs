@@ -151,6 +151,22 @@ fn every_program_in_the_book_writes_what_the_book_shows() {
             }
         }
     }
+    // The chapters on extensions run in a workspace that lists the crate of
+    // the `hello` package: it is built here, once, before any page runs.
+    let built = Command::new(env!("CARGO_BIN_EXE_hql"))
+        .args([
+            "--workspace",
+            "examples/packages",
+            "eval",
+            "import hello\n1",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        built.status.success(),
+        "{}",
+        String::from_utf8_lossy(&built.stderr)
+    );
     let mut chapters = Vec::new();
     pages(std::path::Path::new("doc/public/learn"), &mut chapters);
     chapters.sort();

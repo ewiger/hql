@@ -1,4 +1,4 @@
-//! The `format` extension: writing a value as text in a presentation format.
+//! The `format` module's operations, in `std`: writing a value as text in a presentation format.
 //!
 //! A format is a value of `Format`: `Markdown`, `Json`, `D2` and the rest.
 //! `format(x, F)` applies the encoder for `x`'s type in `F` and gives the

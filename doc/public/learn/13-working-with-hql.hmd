@@ -48,17 +48,22 @@ hql> :quit
 
 ## What a step takes
 
-`hql builtins` lists every step with its signature, one line per form:
+`hql builtins` lists every step with its signature, one line per form,
+grouped by the module declaring it. Each heading names the module, the
+package providing it and whether a program has it without an import:
 
 ```text
 $ hql builtins
-core 0.5.0 (always available)
+collections (std 0.6.0, always available)
   size
     Collection<T> | size<T>() -> Int
-    Count all element occurrences.
+    Window<T> | size<T>() -> Int
+    pure, reduction
+    The number of element occurrences in `self`, an `Int`: `[1, 2, 2, 3] | size` is `4`, and `Set([1, 2, 2]) | size` is `2`.
   contains
     Collection<T> | contains<T>(value: T (positional)) -> Bool
-    Whether a value occurs in the collection.
+    pure, reduction
+    `true` when `value` occurs in `self`, and `false` otherwise: `[1, 2, 3] | contains(2)` is `true`.
   …
 ```
 
@@ -205,6 +210,7 @@ every mode, each read in turn:
 | user | `config.toml` in the **HQL home**, `~/.hql/`; `$HQL_HOME` names another directory |
 | named context | the selected `[context.<name>]` table of the system or user file |
 | HQL home modules | `~/.hql/modules/`, a module root when it exists |
+| HQL home packages | `~/.hql/lib/`, the packages `hql package` installed ([[36-installing-packages|chapter 36]]) |
 | workspace | the workspace's `hql.toml` |
 | `$HQL_PATH` | further module roots, separated as `$PATH` is |
 | command line | `--modules <dir>` |
@@ -219,6 +225,11 @@ Module roots and extension imports gather across the layers, each once. A
 gathered root is a place to look, not a priority: a module that two roots
 provide is still an error. `prelude` is the last layer's that states it. The
 HQL home is the user's environment, not a workspace, and never a vault.
+
+A workspace's `hql.toml` takes one more key, `[packages] paths`: the crates
+of packages under development, each built on first use and loaded before
+the installed ones
+([[36-installing-packages#a-package-under-development|chapter 36]]).
 
 ### Named contexts
 

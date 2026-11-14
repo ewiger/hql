@@ -143,6 +143,7 @@ The [[reference]] has a page per standard module.
 | [Receiver modules](receiver-modules.hmd) | `module m for T`, functions taking `self`, and `value.f()` calls |
 | [Visibility](visibility.hmd) | public and `private` declarations, and a module's contract |
 | [How names resolve](names.hmd) | import units, a unit's own names, ambiguity, and modules as closures |
+| [Modules and packages](packages.hmd) | modules, packages, extensions and libraries; builtin and installable packages |
 
 ## What is next
 

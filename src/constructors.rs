@@ -55,8 +55,8 @@ pub(crate) fn is_constructor_name(name: &str) -> bool {
 /// the extension providing the module, as `Logger` of `io.logging` is.
 pub(crate) fn is_table_constructor(module: &str, name: &str) -> bool {
     is_constructor_name(name)
-        && crate::extensions::builtin_module(module)
-            .and_then(|extension| extension.step(name))
+        && crate::extensions::provider_of(module)
+            .and_then(|extension| extension.implementation(module, name))
             .is_none()
 }
 

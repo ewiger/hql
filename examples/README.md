@@ -40,6 +40,11 @@ The [windows](windows/README.md) cases rank and compare rows within their
 partition with `over`, and order ties with `then`, from
 [HQL-0050](../doc/proposals/HQL-0050/index.hmd).
 
+The [packages](packages/README.md) workspace lists the crate of the `hello`
+package under `[packages] paths`, so a program there imports a module whose
+functions are loaded from a library. The book's part on extending HQL runs
+in it, from [HQL-0057](../doc/proposals/HQL-0057/index.hmd).
+
 The [crypto](crypto/README.md) cases are design input for
 [HQL-0053](../doc/proposals/HQL-0053/index.hmd): `Bytes`, keys read from
 PEM, signatures over text and canonical JSON, HMAC, Argon2id password

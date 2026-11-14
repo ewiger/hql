@@ -1,0 +1,128 @@
+# Declarations
+
+A declaration is written as a function is, up to the result type, and
+stops there. This page reads the parts of a declaration that a function
+with a body does not have, each from a line of the standard library.
+
+## The receiver
+
+A first parameter named `self` is the **receiver**: the value a call is
+made on. A declaration with a receiver is reached by a receiver call,
+`value.f()`, by a pipe, `value | f`, and by an ordinary call with the
+receiver first:
+
+```hql
+[abs(-3), (-3).abs(), -3 | abs]
+```
+
+```text
+[3, 3, 3]
+```
+
+A declaration without `self` takes its first argument the same way, as the
+value the call is made on, and is not reached by a receiver call.
+
+## Positional and named parameters
+
+A `/` in a parameter list ends the parameters a call writes by position
+only, and a `*` begins the ones it writes by name only. `pow` is declared
+`fn pow(self: Int, exponent: Int, /) : Int`, so its exponent has no name
+at a call:
+
+```hql
+pow(2, 10)
+```
+
+```text
+1024
+```
+
+```hql
+pow(2, exponent = 10)
+```
+
+```text
+check error[type-mismatch]: `pow` takes `exponent` by position: write the value without `exponent =`
+ --> <expression>:1:19
+  |
+1 | pow(2, exponent = 10)
+  |                   ^^
+```
+
+A parameter after `*` is the reverse: `fn shuffle<T>(self: Seq<T>, *, seed:
+Int) : List<T>` takes `seed` by name, `xs.shuffle(seed = 7)`, and never by
+position. `/` and `*` are written in declarations only; a function with a
+body takes its arguments by position.
+
+## Defaults
+
+A parameter with `= value` after its type may be left out of a call. The
+declaration states the default so that a reader sees it; the Rust function
+supplies it, since an argument a call does not write is absent when the
+function runs. [[34-writing-an-extension/natives|Natives]] shows one.
+
+## Forms of one name
+
+A name may be declared more than once, each line a **form**. A call takes
+the first form its receiver and arguments fit:
+
+```text
+fn abs(self: Int) : Int
+fn abs(self: Float) : Float
+fn abs(self: Decimal) : Decimal
+fn abs(self: Duration) : Duration
+```
+
+```hql
+[abs(-3), abs(-1.5f).int(), abs(-2.50).int()]
+```
+
+```text
+[3, 1, 2]
+```
+
+The forms of a name share one Rust function, which reads the value it was
+given. A function with a body has one form.
+
+## Purity
+
+A declaration written `fn` is **pure**: its result depends on its
+arguments alone, so the planner may reorder it, run it once for equal
+arguments, or skip it when nothing reads the result. A declaration written
+`effectful fn` runs once, where it is written. The two forms of `shuffle`
+differ in exactly this:
+
+```text
+fn shuffle<T>(self: Seq<T>, *, seed: Int) : List<T>
+effectful fn shuffle<T>(self: Seq<T>) : List<T>
+```
+
+With a seed the result is a function of the seed and the list. Without one
+the call draws from the evaluation's seed and is effectful.
+
+## Shape
+
+A word before `fn` states how a backend may split the input of a call:
+
+| Word | What it states |
+| --- | --- |
+| `elementwise fn` | the result for each element depends on that element alone |
+| `partition fn` | the input is regrouped by a key, and the groups complete in any order |
+| `reduction fn` | the whole input collapses to one value through a combiner |
+| none | a **barrier**: the whole input is needed before any output |
+
+`count` is declared `reduction fn count<T>(self: Collection<T>) : Int`: a
+count of a collection is the sum of the counts of its parts.
+
+```hql
+[1, 2, 3].count()
+```
+
+```text
+3
+```
+
+Purity and shape are claims about the Rust function. The declaration
+states them, the extension marks its function the same way, and the two
+markings are compared when the package is bound
+([[how-std-is-built|next page]]).

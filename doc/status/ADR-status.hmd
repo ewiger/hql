@@ -101,4 +101,5 @@ cards
 | [[HQL-0054]] | Key vaults: stored keys, SSH agents, keychains and cloud key managers                                                    | accepted            | no          |
 | [[HQL-0055]] | Steps, autes, stages, tasks and jobs: units of computation and units of execution                                        | implemented in part | partially   |
 | [[HQL-0056]] | Computation plans and backend engines                                                                                    | drafted             | no          |
+| [[HQL-0057]] | Packages: the `hql-extensions` registry, `hql package`, and installed extensions                                         | drafted             | no          |
 <!-- /hql:output -->

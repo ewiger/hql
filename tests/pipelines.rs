@@ -21,7 +21,7 @@ fn holds(source: &str) {
 fn every_core_step_declares_the_shape_its_table_states() {
     let core = catalogue(&hql::extensions::Config::default())
         .into_iter()
-        .find(|provider| provider.name == "core")
+        .find(|provider| provider.module == "collections")
         .unwrap();
     let shape_of = |name: &str| {
         core.steps

@@ -240,6 +240,66 @@ enum Command {
     /// Check the semantic-search chain — vault, configuration, index, model,
     /// query set — and name the first part that is missing.
     Doctor,
+    /// Install, list, rebuild and remove packages: extensions built on
+    /// this machine and loaded when a program imports one of their modules.
+    Package {
+        #[command(subcommand)]
+        action: PackageAction,
+    },
+}
+
+/// What `hql package` does with the packages installed under the HQL home.
+#[derive(Debug, Subcommand)]
+enum PackageAction {
+    /// Build a package with `cargo` against this `hql` and install it: one
+    /// the registry lists, by name, or a crate on this machine, by `--path`.
+    Install {
+        /// A package of the registry, `ml`, or `ml@0.1.0` for a version
+        /// other than the one the registry pins.
+        #[arg(required_unless_present = "path", conflicts_with = "path")]
+        name: Option<String>,
+        /// The crate of the package, on this machine.
+        #[arg(long, value_name = "DIR")]
+        path: Option<PathBuf>,
+    },
+    /// List the registry's packages whose name, modules or description
+    /// hold a text.
+    Search {
+        /// The text.
+        text: String,
+    },
+    /// Install the version the registry pins, where an installed package
+    /// came from the registry at another; every such package where none is
+    /// named.
+    Update {
+        /// An installed package.
+        name: Option<String>,
+    },
+    /// Print the registry in use: where it is read from, when it was
+    /// fetched and how many packages it lists.
+    Registry {
+        /// Fetch the registry now, whatever the cache holds.
+        #[arg(long)]
+        refresh: bool,
+    },
+    /// List the installed packages, with the modules each provides.
+    List,
+    /// Print what an installed package records about itself.
+    Info {
+        /// An installed package.
+        name: String,
+    },
+    /// Build an installed package again from its source, after `hql` or
+    /// the compiler changed; every installed package where none is named.
+    Rebuild {
+        /// An installed package.
+        name: Option<String>,
+    },
+    /// Remove an installed package.
+    Remove {
+        /// An installed package.
+        name: String,
+    },
 }
 
 /// What `hql config` does with the named contexts of the system and user
@@ -377,7 +437,7 @@ fn directory_of(file: &str) -> PathBuf {
 }
 
 /// The commands a first argument may name; anything else is a program.
-const COMMANDS: [&str; 13] = [
+const COMMANDS: [&str; 14] = [
     "context",
     "eval",
     "check",
@@ -389,6 +449,7 @@ const COMMANDS: [&str; 13] = [
     "builtins",
     "config",
     "doctor",
+    "package",
     "help",
     "reference",
 ];
@@ -553,6 +614,10 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     {
         return config_action(action, &environment, out, err);
     }
+    // The package commands read and write the HQL home alone.
+    if let Command::Package { action } = &cli.command {
+        return package_action(action, &environment, out);
+    }
     let context = crate::context::ExecutionContext::construct(&request(cli), &environment)
         .map_err(|error| error.to_string())?;
     // What `io.env` reads: the arguments, and the variables the workspace
@@ -572,6 +637,13 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         for diagnostic in &vault.warnings {
             crate::io::write_diagnostic(diagnostic.clone());
         }
+        // The packages of the process, before the first program is
+        // checked: the crates the workspace lists, then the installed ones.
+        let home = crate::context::HqlHome::of(&environment);
+        crate::package::activate_configured(
+            &vault.extensions.package_paths,
+            home.as_ref().map(|home| home.path.as_path()),
+        );
         dispatch(cli, &context, &vault, out, err)
     });
     // Every diagnostic was delivered before the run ends: the channel
@@ -610,6 +682,229 @@ fn request(cli: &Cli) -> crate::context::Request {
 
 /// `hql config <action>`: the named contexts of the system and user
 /// configuration.
+/// `hql package`: the packages installed under the HQL home.
+fn package_action(
+    action: &PackageAction,
+    environment: &crate::context::Environment,
+    out: &mut impl Write,
+) -> Result<u8, String> {
+    use crate::package::manifest::{Crate, Installed, Source};
+    use crate::package::registry;
+    let home = crate::context::HqlHome::of(environment)
+        .ok_or("no HQL home is known: set $HQL_HOME or $HOME")?
+        .path;
+    let written = |error: io::Error| error.to_string();
+    // Build a crate into the home and load the result, so that what is
+    // reported installed is what a program can import.
+    let install = |crate_dir: &Path, source: Source, out: &mut dyn Write| -> Result<u8, String> {
+        let package = Crate::read(crate_dir)?;
+        let destination = crate::package::directory(&home, &package.package);
+        let installed = crate::package::build::install(crate_dir, &destination, source)?;
+        let active = crate::package::activate(std::slice::from_ref(&destination));
+        if let Some(refused) = active
+            .refused
+            .iter()
+            .find(|refused| refused.name == installed.name)
+        {
+            return Err(refused.reason.clone());
+        }
+        writeln!(
+            out,
+            "installed {} {} ({}) in {}",
+            installed.name,
+            installed.version,
+            installed.provides.join(", "),
+            destination.display()
+        )
+        .map_err(written)?;
+        Ok(0)
+    };
+    // Resolve a name in the registry, check that it admits this hql before
+    // anything is fetched, fetch its source into the home and install it.
+    let by_name = |name: &str, version: Option<&str>, out: &mut dyn Write| -> Result<u8, String> {
+        let loaded = registry::load(&home, false)?;
+        let entry = loaded.entry(name)?;
+        entry.admits(crate::ext::HQL)?;
+        let (crate_dir, source) = registry::fetch_source(&home, &loaded, entry, version)?;
+        install(&crate_dir, source, out)
+    };
+    let held = |name: &str| -> Result<(PathBuf, Installed), String> {
+        let directory = crate::package::directory(&home, name);
+        if !directory.is_dir() {
+            return Err(format!(
+                "no package `{name}` is installed: `hql package list` names those that are"
+            ));
+        }
+        let installed = Installed::read(&directory)?;
+        Ok((directory, installed))
+    };
+    match action {
+        PackageAction::Install {
+            path: Some(path), ..
+        } => {
+            let crate_dir = path
+                .canonicalize()
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+            install(&crate_dir, Source::Path(crate_dir.clone()), out)
+        }
+        PackageAction::Install { name, path: None } => {
+            let written = name.as_deref().unwrap_or_default();
+            let (name, version) = match written.split_once('@') {
+                Some((name, version)) => (name, Some(version)),
+                None => (written, None),
+            };
+            by_name(name, version, out)
+        }
+        PackageAction::Search { text } => {
+            let registry = registry::load(&home, false)?;
+            for entry in registry.search(text) {
+                writeln!(
+                    out,
+                    "{} {} ({}, {})\n  {}",
+                    entry.name,
+                    entry.pinned(),
+                    entry.kind(),
+                    entry.provides.join(", "),
+                    entry.description
+                )
+                .map_err(written)?;
+            }
+            Ok(0)
+        }
+        PackageAction::Update { name } => {
+            let loaded = registry::load(&home, false)?;
+            let names: Vec<String> = match name {
+                Some(name) => vec![name.clone()],
+                None => crate::package::installed(&home)
+                    .iter()
+                    .filter_map(|directory| Installed::read(directory).ok())
+                    .filter(|installed| matches!(installed.source, Source::Registry { .. }))
+                    .map(|installed| installed.name)
+                    .collect(),
+            };
+            for name in &names {
+                let (_, installed) = held(name)?;
+                if matches!(installed.source, Source::Path(_)) {
+                    return Err(format!(
+                        "package `{name}` was installed from a path, which the registry does \
+                         not version: `hql package rebuild {name}` builds it again"
+                    ));
+                }
+                let entry = loaded.entry(name)?;
+                if installed.version == entry.pinned() && installed.stale().is_none() {
+                    writeln!(
+                        out,
+                        "{name} {} is the registry's version",
+                        installed.version
+                    )
+                    .map_err(written)?;
+                } else {
+                    by_name(name, None, out)?;
+                }
+            }
+            Ok(0)
+        }
+        PackageAction::Registry { refresh } => {
+            let loaded = registry::load(&home, *refresh)?;
+            let fetched = jiff::Timestamp::try_from(loaded.fetched)
+                .map_or_else(|_| "an unknown time".to_owned(), |time| time.to_string());
+            writeln!(
+                out,
+                "registry: {}\nfetched: {fetched}\npackages: {}",
+                loaded.origin,
+                loaded.entries.len()
+            )
+            .map_err(written)?;
+            Ok(0)
+        }
+        PackageAction::List => {
+            for directory in crate::package::installed(&home) {
+                match Installed::read(&directory) {
+                    Ok(installed) => writeln!(
+                        out,
+                        "{} {} ({}){}",
+                        installed.name,
+                        installed.version,
+                        installed.provides.join(", "),
+                        if installed.stale().is_some() {
+                            format!(
+                                ": built against hql {}, run `hql package rebuild {}`",
+                                installed.hql, installed.name
+                            )
+                        } else {
+                            String::new()
+                        }
+                    ),
+                    Err(reason) => writeln!(out, "{}: {reason}", directory.display()),
+                }
+                .map_err(written)?;
+            }
+            Ok(0)
+        }
+        PackageAction::Info { name } => {
+            let (directory, installed) = held(name)?;
+            let source = match &installed.source {
+                Source::Path(path) => format!("path {}", path.display()),
+                Source::Registry { registry, tag } => format!("{tag} of {registry}"),
+            };
+            writeln!(
+                out,
+                "package: {}\ncrate: {} {}\nprovides: {}\nsource: {source}\nbuilt: {} against \
+                 hql {} with rustc {} for {}\nlibrary: {}",
+                installed.name,
+                installed.krate,
+                installed.version,
+                installed.provides.join(", "),
+                installed.built,
+                installed.hql,
+                installed.rustc,
+                installed.target,
+                directory.join(&installed.library).display()
+            )
+            .map_err(written)?;
+            if let Some(stale) = installed.stale() {
+                writeln!(out, "state: {stale}").map_err(written)?;
+            }
+            Ok(0)
+        }
+        PackageAction::Rebuild { name } => {
+            let names: Vec<String> = match name {
+                Some(name) => vec![name.clone()],
+                None => crate::package::installed(&home)
+                    .iter()
+                    .filter_map(|directory| Installed::read(directory).ok())
+                    .map(|installed| installed.name)
+                    .collect(),
+            };
+            for name in &names {
+                let (_, installed) = held(name)?;
+                // The source it was built from: the crate on this machine,
+                // or the one fetched into the home when it was installed.
+                let crate_dir = match &installed.source {
+                    Source::Path(path) => path.clone(),
+                    Source::Registry { .. } => {
+                        registry::crate_directory(&home, name, &installed.krate)
+                    }
+                };
+                install(&crate_dir, installed.source.clone(), out)?;
+            }
+            Ok(0)
+        }
+        PackageAction::Remove { name } => {
+            let (directory, installed) = held(name)?;
+            std::fs::remove_dir_all(&directory)
+                .map_err(|error| format!("{}: {error}", directory.display()))?;
+            let source = registry::source_directory(&home, name);
+            if source.is_dir() {
+                std::fs::remove_dir_all(&source)
+                    .map_err(|error| format!("{}: {error}", source.display()))?;
+            }
+            writeln!(out, "removed {} {}", installed.name, installed.version).map_err(written)?;
+            Ok(0)
+        }
+    }
+}
+
 fn config_action(
     action: &ConfigAction,
     environment: &crate::context::Environment,
@@ -925,11 +1220,14 @@ fn dispatch(
 
     match &cli.command {
         Command::Builtins => {
+            // One module per heading, with the extension providing it: a
+            // step is reached by importing its module, never its package.
             for provider in crate::extensions::catalogue(&vault.extensions) {
                 writeln!(
                     out,
-                    "{} {} ({})",
-                    provider.name,
+                    "{} ({} {}, {})",
+                    provider.module,
+                    provider.extension,
                     provider.version,
                     provider.availability.label()
                 )
@@ -972,6 +1270,9 @@ fn dispatch(
             }
             Ok(0)
         }
+        Command::Package { .. } => {
+            Err("`hql package` runs before a workspace is loaded".to_owned())
+        }
         Command::Doctor => {
             let checks = crate::extensions::semantic::doctor(vault);
             for check in &checks {
@@ -984,7 +1285,29 @@ fn dispatch(
                 )
                 .map_err(|error| error.to_string())?;
             }
-            Ok(u8::from(checks.iter().any(|check| !check.ok)))
+            // The packages of the process: each one loaded, and each one
+            // found and refused with the reason the load gave.
+            let mut refused = false;
+            if let Some(active) = crate::package::active() {
+                for package in &active.loaded {
+                    writeln!(
+                        out,
+                        "{:<8} {:<7} {} {} ({})",
+                        "package",
+                        "ok",
+                        package.installed.name,
+                        package.installed.version,
+                        package.installed.provides.join(", ")
+                    )
+                    .map_err(|error| error.to_string())?;
+                }
+                for package in &active.refused {
+                    refused = true;
+                    writeln!(out, "{:<8} {:<7} {}", "package", "refused", package.reason)
+                        .map_err(|error| error.to_string())?;
+                }
+            }
+            Ok(u8::from(refused || checks.iter().any(|check| !check.ok)))
         }
         Command::Config { .. } => {
             writeln!(

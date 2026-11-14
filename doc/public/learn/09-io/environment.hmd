@@ -121,7 +121,7 @@ var("HOME")
 ```
 
 ```text
-check error[unknown-name]: `var` is provided by the `io.env` extension: write `import io.env`
+check error[unknown-name]: `var` is declared in the module `io.env`: write `import io.env`
  --> <expression>:1:1
   |
 1 | var("HOME")
