@@ -4,7 +4,7 @@
 //! `format(x, F)` applies the encoder for `x`'s type in `F` and gives the
 //! encoded text, a `String` a later step may read. A renderer is one of a
 //! format's encoders for one shape, `Graph` or `Table`; which one writes a
-//! type in a format is chosen per vault in `hql.toml`, over built-in
+//! type in a format is chosen per project in `.hql/config.toml`, over built-in
 //! defaults. The model is stated in
 //! [presentation](../../doc/wiki/hql/presentation.hmd).
 
@@ -109,7 +109,7 @@ pub fn format_named(name: &str) -> Option<TypeConstructor> {
         .map(|(format, _)| TypeConstructor(format))
 }
 
-/// Which renderer a vault chose for a type in a format, read from `hql.toml`:
+/// Which renderer a vault chose for a type in a format, read from `.hql/config.toml`:
 ///
 /// ```toml
 /// [format.Graph]

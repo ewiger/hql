@@ -8,6 +8,17 @@ use hql::{check_reported, run};
 use std::fs;
 use tempfile::tempdir;
 
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
+
 fn axes(diagnostic: &Diagnostic) -> (Phase, Kind, Severity, Disposition) {
     (
         diagnostic.phase,
@@ -126,7 +137,7 @@ fn a_warning_leaves_the_value_and_the_status() {
 #[test]
 fn the_loader_writes_skipped_document_and_keeps_the_rest() {
     let directory = tempdir().unwrap();
-    fs::write(directory.path().join("hql.toml"), "").unwrap();
+    fs::write(project_config(directory.path()), "").unwrap();
     fs::write(
         directory.path().join("broken.md"),
         "---\ntitle: [unclosed\n---\n# Broken\n",
@@ -281,7 +292,7 @@ fn a_tap_observes_the_channel_as_it_is_written() {
 fn a_vault_states_its_own_mode_and_the_query_still_outranks_it() {
     let directory = tempdir().unwrap();
     fs::write(
-        directory.path().join(hql::reporting::CONFIG_FILE),
+        project_config(directory.path()),
         "[report]\nmode = \"collect\"\n",
     )
     .unwrap();
@@ -313,13 +324,13 @@ fn the_shown_level_parses_by_name() {
 fn the_shown_level_comes_from_the_query_then_the_vault() {
     let directory = tempdir().unwrap();
     fs::write(
-        directory.path().join("hql.toml"),
+        project_config(directory.path()),
         "[report]\nlevel = \"info\"\n",
     )
     .unwrap();
     let from_vault = Level::resolve(None, Some(directory.path()));
     assert_eq!(from_vault.severity, Severity::Info);
-    assert!(from_vault.origin.contains("hql.toml"));
+    assert!(from_vault.origin.contains(".hql/config.toml"));
     let from_query = Level::resolve(Some(Severity::Debug), Some(directory.path()));
     assert_eq!(from_query.severity, Severity::Debug);
     assert_eq!(from_query.origin, "this query");

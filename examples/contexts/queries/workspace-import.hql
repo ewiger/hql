@@ -1,5 +1,5 @@
 // status: valid-now
-// feature: an extension the workspace's hql.toml imports is in scope for every program it runs, with no import line
+// feature: an extension the project's .hql/config.toml imports is in scope for every program it runs, with no import line
 // implementation: implemented
 // environment: knowledge-v1
 // vault: contexts/workspace

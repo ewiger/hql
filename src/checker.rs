@@ -3393,7 +3393,7 @@ impl<'a> Checker<'a> {
         let Some(path) = located else {
             let hint = if roots.is_empty() {
                 "; no module root is configured: pass `--modules <dir>` or set `[modules] \
-                 roots` in hql.toml"
+                 roots` in .hql/config.toml"
                     .to_owned()
             } else {
                 format!(

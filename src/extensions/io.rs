@@ -532,7 +532,7 @@ fn configured<'v>(
             if id.contains(':') || id.contains('/') || id.contains('.') {
                 format!(
                     "{id:?} is not an endpoint id: connection details belong in configuration, \
-                 `[endpoint.<id>]` in hql.toml, and a program names the id"
+                 `[endpoint.<id>]` in .hql/config.toml, and a program names the id"
                 )
             } else {
                 format!("{id:?} is not an endpoint id: an id is snake_case, `[a-z][a-z0-9_]*`")
@@ -542,7 +542,7 @@ fn configured<'v>(
     vault.endpoints.get(id).ok_or_else(|| {
         let hint = vault.endpoints.nearest(id).map_or_else(
             || {
-                "; an endpoint is declared under `[endpoint.<id>]` in the vault's hql.toml"
+                "; an endpoint is declared under `[endpoint.<id>]` in the project's .hql/config.toml"
                     .to_owned()
             },
             |near| format!("; did you mean `{near}`?"),

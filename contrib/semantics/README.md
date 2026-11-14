@@ -24,14 +24,14 @@ work.
 
 ```sh
 python3 cli.py build   --vault ../../tests/fixtures/birds \
-                       --out   ../../tests/fixtures/birds/.hql/index.sqlite \
+                       --out   ../../tests/fixtures/birds/.hmd/index.sqlite \
                        --built-at 2026-09-18T00:00:00+00:00 \
                        --query "night hunting birds" \
                        --query "birds swimming underwater catching fish" \
                        --query "birds weaving hanging nests"
 python3 cli.py verify  --vault ../../tests/fixtures/birds \
-                       --index ../../tests/fixtures/birds/.hql/index.sqlite
-python3 cli.py inspect --index ../../tests/fixtures/birds/.hql/index.sqlite
+                       --index ../../tests/fixtures/birds/.hmd/index.sqlite
+python3 cli.py inspect --index ../../tests/fixtures/birds/.hmd/index.sqlite
 ```
 
 `--offline` refuses the network and is what CI uses; the model must already be
@@ -66,12 +66,12 @@ two vendors anyone happens to use.
 model server on `localhost` both implement. It uses only the standard library,
 so reaching a hosted embedder costs this tool no dependency.
 
-A vault declares its embedder in `hql.toml`, beside the index the embedder
+A vault declares its embedder in `.hql/config.toml`, beside the index the embedder
 fills. The whole table is optional and its absence means `local`.
 
 ```toml
 [semantics]
-index = ".hql/index.sqlite"
+index = ".hmd/index.sqlite"
 
 [semantics.embedder]
 provider    = "http"
@@ -107,8 +107,8 @@ calling. An unpinnable claim is better refused than invented.
 ### Keys
 
 `api_key_env` names the environment variable holding the key. It never holds the
-key: `hql.toml` is committed, and
-[`tests/fixtures/birds/hql.toml`](../../tests/fixtures/birds/hql.toml) already
+key: `.hql/config.toml` is committed, and
+[`tests/fixtures/birds/.hql/config.toml`](../../tests/fixtures/birds/.hql/config.toml) already
 is. A literal `api_key` in the table is refused, and the refusal says where the
 key goes. An unset variable is refused before a single card is read, so the
 failure is the variable rather than an HTTP 401 a hundred requests later.

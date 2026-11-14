@@ -10,6 +10,17 @@ use std::path::Path;
 use std::process::{Command, Output, Stdio};
 use tempfile::{TempDir, tempdir};
 
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
+
 /// A tree whose sorted walk differs from the text order of its paths:
 /// `a/b.md` before `a-b.md`, although `-` sorts before `/`.
 fn tree() -> TempDir {
@@ -335,7 +346,7 @@ fn a_listing_is_held_once_whatever_changes_on_disk() {
 fn a_listing_is_bounded_by_the_run_context() {
     let dir = tree();
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         "[execution]\nmax_elements = 3\n",
     )
     .unwrap();
@@ -395,7 +406,7 @@ fn hql_in(dir: &Path, args: &[&str]) -> Output {
 #[test]
 fn a_document_lists_only_under_its_own_directory() {
     let dir = tree();
-    fs::write(dir.path().join("hql.toml"), "").unwrap();
+    fs::write(project_config(dir.path()), "").unwrap();
     fs::write(dir.path().join("t/a/secret.txt"), "s").unwrap();
     let cell = |name: &str, program: &str| {
         fs::write(

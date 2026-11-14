@@ -204,7 +204,7 @@ abstract type Catalog<S> : DataSource
 abstract type VaultSource : DataSource
 
 // A configured endpoint, by its id: `source("field_notes")`. The run
-// context's configuration, `[endpoint.<id>]` in hql.toml, states its kind,
+// context's configuration, `[endpoint.<id>]` in .hql/config.toml, states its kind,
 // and the kind its type, read at check time and offline: a `vault` endpoint
 // is a Vault, and a `csv`, `json`, `json_lines`, `yaml`, `sqlite`,
 // `postgres` or `spark` endpoint a Seq<Data>, or a Seq of the type its
@@ -256,7 +256,7 @@ fn stem(self: Path) : String
 /// `some("csv")`. A segment that opens with its only `.`, `.env`, has none.
 fn extension(self: Path) : Option<String>
 
-/// The endpoint configured under the literal `id` in hql.toml, as the
+/// The endpoint configured under the literal `id` in .hql/config.toml, as the
 /// transport its kind states, with its schema boundary: a `postgres`
 /// endpoint is a `Postgres`, a `csv` endpoint a `File`. Constructing it
 /// opens nothing, and it needs no import: the configuration names the
@@ -272,7 +272,7 @@ fn configured(id: String) : Transport
 /// give: `s : Seq<Sighting> = source(file("birds.json"))` decodes each
 /// document as a `Sighting`. The format may be omitted when the endpoint is
 /// `file` of a literal path whose extension implies one. `source(id)` reads
-/// the source configured under the literal `id` in hql.toml, as the type
+/// the source configured under the literal `id` in .hql/config.toml, as the type
 /// its kind states, and takes no format; `source(c)` of a `Channel<T>` is a
 /// `Seq<T>` of what it holds now. Effectful: it runs once, where it is
 /// written.

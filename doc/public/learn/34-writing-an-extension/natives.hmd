@@ -105,7 +105,7 @@ and the module root into the HQL home, and loads the result. A package
 that builds and does not bind is reported here, by the defect binding
 found, and not when a program later imports it.
 
-<!-- run: --workspace examples/packages -->
+<!-- run: --project examples/packages -->
 ```hql
 import hello
 

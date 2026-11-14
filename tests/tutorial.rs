@@ -151,15 +151,10 @@ fn every_program_in_the_book_writes_what_the_book_shows() {
             }
         }
     }
-    // The chapters on extensions run in a workspace that lists the crate of
+    // The chapters on extensions run in a project that lists the crate of
     // the `hello` package: it is built here, once, before any page runs.
     let built = Command::new(env!("CARGO_BIN_EXE_hql"))
-        .args([
-            "--workspace",
-            "examples/packages",
-            "eval",
-            "import hello\n1",
-        ])
+        .args(["--project", "examples/packages", "eval", "import hello\n1"])
         .output()
         .unwrap();
     assert!(
@@ -171,6 +166,8 @@ fn every_program_in_the_book_writes_what_the_book_shows() {
     pages(std::path::Path::new("doc/public/learn"), &mut chapters);
     chapters.sort();
     let mut checked = 0;
+    // Every mismatch is gathered, so one run names all of them.
+    let mut wrong = Vec::new();
     for chapter in chapters {
         let text = std::fs::read_to_string(&chapter).unwrap();
         let mut defined = HashMap::new();
@@ -179,18 +176,24 @@ fn every_program_in_the_book_writes_what_the_book_shows() {
                 continue;
             }
             let written = run(&block, &defined);
-            if let Some(expected) = &block.expected {
-                assert_eq!(
-                    &written,
-                    expected,
-                    "{}: the program\n{}\nwrites\n{written}",
+            if let Some(expected) = &block.expected
+                && &written != expected
+            {
+                wrong.push(format!(
+                    "{}: the program\n{}\nwrites\n{written}\nand the book shows\n{expected}",
                     chapter.display(),
                     block.program
-                );
+                ));
             }
             checked += 1;
         }
     }
+    assert!(
+        wrong.is_empty(),
+        "{} programs differ from the book:\n\n{}",
+        wrong.len(),
+        wrong.join("\n\n----\n\n")
+    );
     assert!(checked > 50, "only {checked} programs found");
 }
 

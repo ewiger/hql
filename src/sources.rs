@@ -117,19 +117,10 @@ impl VaultSource for Filesystem {
         })
     }
 
-    fn extensions(&self) -> crate::extensions::Config {
-        crate::extensions::Config::read(&self.root)
-    }
-
+    // A directory of documents configures its index, which is the vault's
+    // own (HQL-0059); modules, renderers and endpoints are a project's, and
+    // the project is taken apart from the documents.
     fn semantics(&self) -> crate::extensions::semantic::Semantics {
         crate::extensions::semantic::Semantics::read(&self.root)
-    }
-
-    fn formats(&self) -> Result<crate::extensions::format::Renderers, String> {
-        crate::extensions::format::Renderers::read(&self.root)
-    }
-
-    fn endpoints(&self) -> Result<crate::endpoints::Endpoints, String> {
-        crate::endpoints::Endpoints::read(&self.root)
     }
 }

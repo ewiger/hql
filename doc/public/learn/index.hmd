@@ -170,7 +170,7 @@ git clone https://github.com/ewiger/hql-demo && cd hql-demo
     one `hql` and one compiler.
 36. [[36-installing-packages|Installing packages]] — `hql package`, what
     an installed package is, a package under development, and the
-    settings of `hql.toml`.
+    settings of `.hql/config.toml`.
 37. [[37-the-registry-and-publishing|The registry and publishing]] —
     official and known packages, version ranges and exact versions, and
     publishing a crate.

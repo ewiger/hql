@@ -1,18 +1,13 @@
-# The vault the HQL tutorial reads. See doc/public/learn/index.hmd.
+# The project the HQL tutorial runs in. See doc/public/learn/index.hmd. Its
+# documents are a vault too, marked by `.hmd/` beside this directory.
 
 # The book's own modules, `club.reading` and `club.titles`, are files under
 # `lib/`.
 [modules]
 roots = ["lib"]
 
-# The embedding index the book's `semantic` queries read, built by
-# contrib/semantics with each question the book asks pinned at build time.
-# A changed card means rebuilding it; `python3 cli.py verify` says when.
-[semantics]
-index = ".hql/index.sqlite"
-
 # Read by the `ai` extension only, which the book describes as design; the
-# current binary ignores these tables.
+# current binary ignores these tables (HQL-0022).
 [ai]
 recordings = ".hql/runs"
 

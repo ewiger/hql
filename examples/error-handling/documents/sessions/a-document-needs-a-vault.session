@@ -16,7 +16,7 @@ $ hql render examples/error-handling/documents/every-cell-checks.hmd
 
 804
 $ hql render examples/error-handling/outside/lone.hmd
-load failure[missing-vault]: no directory at or above this document holds `.hmd/` or `hql.toml`, so it is a card of no vault
+load failure[missing-vault]: no directory at or above this document holds `.hmd/`, so it is a card of no vault
  --> examples/error-handling/outside/lone.hmd
   = help: render it inside a vault, or name one with `--vault <dir>`
 

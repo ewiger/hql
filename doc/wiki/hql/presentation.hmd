@@ -11,7 +11,7 @@ and its framing and is not the text it encodes. An **encoder** writes values
 of one type in one format; formatting applies the encoder for the value's
 type, and the result is a `String` a later step may read, which keeps its
 format for presentation. A **renderer** is a named encoder for one shape in
-one format, chosen per call with `renderer =` or per vault in `hql.toml`. A
+one format, chosen per call with `renderer =` or per vault in `.hql/config.toml`. A
 result a program leaves unformatted is formatted in the host's **presentation
 context**.
 
@@ -290,7 +290,7 @@ same with one exception: a string standing alone is written bare.
 
 ### The vault's `[format]` configuration
 
-A vault chooses a renderer per type and format in `hql.toml`, one table per
+A vault chooses a renderer per type and format in `.hql/config.toml`, one table per
 type, mapping a format's lowercase name to a renderer. A value whose type has
 no entry takes the entry of its nearest supertype, then the default:
 

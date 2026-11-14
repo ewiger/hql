@@ -12,6 +12,17 @@ use std::fs;
 use std::path::Path;
 use tempfile::{TempDir, tempdir};
 
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
+
 const CONFIG: &str = r#"
 [endpoint.ledger]
 kind = "sqlite"
@@ -72,7 +83,7 @@ const ORDER: &str = "type Order { id : Int, customer : String, total : Decimal, 
 
 fn configured() -> (TempDir, Vault) {
     let dir = tempdir().unwrap();
-    fs::write(dir.path().join("hql.toml"), CONFIG).unwrap();
+    fs::write(project_config(dir.path()), CONFIG).unwrap();
     fs::write(dir.path().join("counts.csv"), "species,count\nwren,3\n").unwrap();
     fs::create_dir(dir.path().join("notes")).unwrap();
     let vault = vault::load(dir.path()).unwrap();

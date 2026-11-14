@@ -136,7 +136,7 @@ cosine, offline, deterministic and exact, reporting `approximate: false`. It
 models no meaning and its name no longer claims to.
 
 [[semantic]] scores against vectors a language model computed ahead of time,
-stored in an SQLite index a vault names in `hql.toml`. The model stays out of
+stored in an SQLite index a vault names in `.hql/config.toml`. The model stays out of
 this binary, so the index carries the queries too and a query it does not hold
 is a failure naming the command that would add one. Scoring is exact brute force
 over stored vectors, so `approximate` is `false` here as well; an approximate

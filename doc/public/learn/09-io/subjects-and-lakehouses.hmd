@@ -38,7 +38,7 @@ idle_ms = 3000
 
 The address is written as `url`, or held by the environment variable
 `url_env` names. An address may hold a user and a password, and one that does
-is refused in `hql.toml`, so it is never written there.
+is refused in `.hql/config.toml`, so it is never written there.
 
 `tap("orders")` subscribes when the stream is first traversed, and is given
 every message published from then on, in the order it arrives. A message
@@ -190,7 +190,7 @@ The next run of the program above starts with `2`.
 Each kind is also a transport type with a constructor, in a module of its
 own: `Nats` and `nats(...)` in `io.msg.nats`, `NatsJetStream` and
 `nats_jetstream(...)` in `io.msg.nats_jetstream`. A constructor's parameters
-are its kind's keys, so a program reaches a subject with no `hql.toml`:
+are its kind's keys, so a program reaches a subject with no `.hql/config.toml`:
 
 <!-- run: skip -->
 ```hql
@@ -261,7 +261,7 @@ type = "DECIMAL(12,2)"
 | A Spark Thrift Server in HTTP mode | `http://<host>:10001/cliservice` | left out |
 
 A table name holds its catalog and schema where it has them,
-`main.sales.events`. `token` is a secret key: written in `hql.toml` it
+`main.sales.events`. `token` is a secret key: written in `.hql/config.toml` it
 refuses the vault, naming `token_env`.
 
 `target("events")` writes a `Seq` or a `Table` of a declared record. A table

@@ -1,13 +1,13 @@
 # Packages
 
-This directory is a workspace whose `hql.toml` lists the crate of the
+This directory is a workspace whose `.hql/config.toml` lists the crate of the
 `hello` package, [`tests/packages/hello/`](../../tests/packages/hello/),
 under `[packages] paths`. `hql` builds the crate the first time a program
 runs here and loads its library, so `import hello` resolves without an
 install:
 
 ```sh
-hql --workspace examples/packages eval 'import hello
+hql --project examples/packages eval 'import hello
 hello.greet("Ada")'
 ```
 

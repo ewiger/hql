@@ -39,7 +39,7 @@ in the same order. Filling the table is a `target`: the events are read as
 rather than run, so that the book's tests do not rewrite the table, and
 `Step` is the type of a program whose result is what it wrote:
 
-<!-- run: check with Event --vault examples/pipelines/shop -->
+<!-- run: check with Event --project examples/pipelines/shop -->
 ```hql
 events : Seq<Event> = source("events")
 events | target("ledger")
@@ -54,7 +54,7 @@ A table ends, so `source` reads it whole, as a `Seq`, and every step of
 `group` and a `sum`, and an amount keeps its digits as a `Decimal` on the
 way in and on the way out:
 
-<!-- run: with Event --vault examples/pipelines/shop -->
+<!-- run: with Event --project examples/pipelines/shop -->
 ```hql
 orders : Seq<Event> = source("ledger")
 orders
@@ -70,7 +70,7 @@ orders
 `tap("ledger")` gives the same rows one at a time, a `Stream` that ends
 after the last row, and holds one row in memory:
 
-<!-- run: --vault examples/pipelines/shop -->
+<!-- run: --project examples/pipelines/shop -->
 ```hql
 tap("ledger") | take(2) | map(o => o.id)
 ```
@@ -96,7 +96,7 @@ order = ["id"]
 The revenue report is the program above with `"ledger"` replaced by
 `"orders"`. It checks without a database:
 
-<!-- run: check with Event --vault examples/pipelines/shop -->
+<!-- run: check with Event --project examples/pipelines/shop -->
 ```hql
 orders : Seq<Event> = source("orders")
 orders
@@ -160,7 +160,7 @@ service that reads a topic does.
 Moving data between the two is a pipeline of two steps each way. A table's
 rows onto the topic, one message per row, in the table's `order`:
 
-<!-- run: check with Event --vault examples/pipelines/shop -->
+<!-- run: check with Event --project examples/pipelines/shop -->
 ```hql
 orders : Seq<Event> = source("orders")
 orders | sink("order_events")
@@ -173,7 +173,7 @@ Step
 and the topic's messages into the table, one row per message, committed as
 each arrives:
 
-<!-- run: check with Event --vault examples/pipelines/shop -->
+<!-- run: check with Event --project examples/pipelines/shop -->
 ```hql
 events : Stream<Event> = tap("order_events")
 events | sink("orders")
@@ -247,7 +247,7 @@ same input, and `oks()` and `errs()` keep each side. The producer's eight
 events are in a file as well, so the policy can be tried on this machine
 before it meets the topic:
 
-<!-- run: with EventData --vault examples/pipelines/shop -->
+<!-- run: with EventData --project examples/pipelines/shop -->
 ```hql
 source("raw_events")
 | validate(EventData)
@@ -275,7 +275,7 @@ type Rejected {
 }
 ```
 
-<!-- run: check with Event,EventData,Rejected --vault examples/pipelines/shop -->
+<!-- run: check with Event,EventData,Rejected --project examples/pipelines/shop -->
 ```hql
 tap("order_events_raw")
 | validate(EventData)

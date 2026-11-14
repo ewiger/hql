@@ -92,7 +92,7 @@ type Rejected {
 }
 ```
 
-<!-- run: check with Event,EventData --vault examples/pipelines/shop -->
+<!-- run: check with Event,EventData --project examples/pipelines/shop -->
 ```hql
 tap("orders_raw")
 | validate(EventData)
@@ -151,7 +151,7 @@ type Revenue {
 }
 ```
 
-<!-- run: check with Event,Revenue --vault examples/pipelines/shop -->
+<!-- run: check with Event,Revenue --project examples/pipelines/shop -->
 ```hql
 events : Seq<Event> = source("orders_silver")
 events

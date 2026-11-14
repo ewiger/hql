@@ -80,24 +80,22 @@ fn top_three(step: &str, query: &str, vault: &vault::Vault) -> Vec<String> {
 fn copied() -> (TempDir, PathBuf) {
     let directory = tempdir().expect("a temporary directory");
     let root = directory.path().join("birds");
-    fs::create_dir_all(root.join(".hql")).expect("the vault directory");
+    fs::create_dir_all(root.join(".hmd")).expect("the vault directory");
     for entry in fs::read_dir(BIRDS).expect("the fixture vault") {
         let path = entry.expect("an entry").path();
         if path.is_file() {
             fs::copy(&path, root.join(path.file_name().expect("a name"))).expect("a copy");
         }
     }
-    fs::copy(
-        Path::new(BIRDS).join(".hql/index.sqlite"),
-        root.join(".hql/index.sqlite"),
-    )
-    .expect("the index");
+    for file in [".hmd/index.sqlite", ".hmd/config.toml"] {
+        fs::copy(Path::new(BIRDS).join(file), root.join(file)).expect("the index");
+    }
     (directory, root)
 }
 
 fn spoil(root: &Path, statements: &str) {
     let connection =
-        rusqlite::Connection::open(root.join(".hql/index.sqlite")).expect("the copied index");
+        rusqlite::Connection::open(root.join(".hmd/index.sqlite")).expect("the copied index");
     connection.execute_batch(statements).expect("the change");
 }
 
@@ -343,9 +341,9 @@ fn a_vault_that_declares_an_embedder_still_answers_and_its_scores_name_the_index
     // table nor refuse it, and provenance must come from what actually ran.
     let (_directory, root) = copied();
     fs::write(
-        root.join("hql.toml"),
+        root.join(".hmd/config.toml"),
         "[semantics]\n\
-         index = \".hql/index.sqlite\"\n\
+         index = \".hmd/index.sqlite\"\n\
          \n\
          [semantics.embedder]\n\
          provider = \"http\"\n\
@@ -381,7 +379,7 @@ fn a_vault_that_declares_an_embedder_still_answers_and_its_scores_name_the_index
 fn an_index_outside_the_vault_is_refused() {
     let (_directory, root) = copied();
     fs::write(
-        root.join("hql.toml"),
+        root.join(".hmd/config.toml"),
         "[semantics]\nindex = \"../escaped.sqlite\"\n",
     )
     .expect("the configuration");
@@ -406,7 +404,7 @@ fn doctor_walks_the_chain_and_reports_every_part_present() {
 #[test]
 fn doctor_stops_at_the_first_missing_part_and_names_the_next_command() {
     let (_directory, root) = copied();
-    fs::remove_file(root.join(".hql/index.sqlite")).expect("the index removed");
+    fs::remove_file(root.join(".hmd/index.sqlite")).expect("the index removed");
     let checks = hql::extensions::semantic::doctor(&vault::load(&root).expect("the vault"));
     let last = checks.last().expect("a check");
     assert_eq!(last.part, "index");

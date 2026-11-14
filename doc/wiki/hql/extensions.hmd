@@ -217,11 +217,11 @@ and [[hql/presentation]].
 alias, `import io.net as net`, and `module.f(…)` is always available for one
 that is imported. A builtin module is one a builtin package's contract
 under `lib/` declares, implemented by that package's internal extension; a
-workspace module is an HQL file under a module root, `hql.toml` `[modules] roots` or
+workspace module is an HQL file under a module root, `.hql/config.toml` `[modules] roots` or
 `--modules`. Two visible modules may declare one function name; the input's
 type tells them apart at the call, and a call that fits both is refused
 naming both ([[HQL-0024]], parts 1 and 2). A vault states its own imports in
-`hql.toml`, and may decline the prelude. The rules are in
+`.hql/config.toml`, and may decline the prelude. The rules are in
 [[expressions|the grammar]] and
 [[cli|the command line]]; the decision is
 [[HQL-0001]].

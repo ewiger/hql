@@ -12,6 +12,17 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tempfile::tempdir;
 
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
+
 fn hql_in(dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_hql"))
         .current_dir(dir)
@@ -298,7 +309,7 @@ fn a_websocket_message_is_one_document() {
 fn a_document_reaches_no_network() {
     let dir = tempdir().unwrap();
     // A document renders only in a vault.
-    std::fs::write(dir.path().join("hql.toml"), "").unwrap();
+    std::fs::write(project_config(dir.path()), "").unwrap();
     fs::write(
         dir.path().join("d.md"),
         "```hql\nimport net\nsource(http(\"http://127.0.0.1:1/\"), Json)\n```\n",

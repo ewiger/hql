@@ -9,6 +9,17 @@ use hql::vault::{self, Vault};
 use std::fs;
 use tempfile::{TempDir, tempdir};
 
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
+
 /// The environment variables named below are never set, so no case
 /// connects to anything.
 const CONFIG: &str = r#"
@@ -33,7 +44,7 @@ const ORDER: &str = "type Order { id : Int, customer : String, total : Decimal }
 
 fn configured() -> (TempDir, Vault) {
     let dir = tempdir().unwrap();
-    fs::write(dir.path().join("hql.toml"), CONFIG).unwrap();
+    fs::write(project_config(dir.path()), CONFIG).unwrap();
     fs::write(dir.path().join("counts.csv"), "species,count\nwren,3\n").unwrap();
     let vault = vault::load(dir.path()).unwrap();
     (dir, vault)
@@ -163,7 +174,7 @@ fn a_malformed_topic_or_table_refuses_the_vault() {
     ] {
         let dir = tempdir().unwrap();
         fs::write(
-            dir.path().join("hql.toml"),
+            project_config(dir.path()),
             format!("[endpoint.db]\n{entry}"),
         )
         .unwrap();

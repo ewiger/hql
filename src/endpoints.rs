@@ -1,5 +1,5 @@
 //! The endpoints a run context configures under `[endpoint.<id>]` in
-//! `hql.toml`: what each is, its schema boundary (HQL-0035), and the
+//! `.hql/config.toml`: what each is, its schema boundary (HQL-0035), and the
 //! bounds on what one evaluation holds of it. A program names one by its
 //! id; `source` and `tap` read it, `target` and `sink` write it.
 
@@ -524,7 +524,7 @@ pub struct Bounds {
 }
 
 /// The endpoints a run context configures: `[endpoint.<id>]` in the
-/// vault's `hql.toml`, and the bounds `[execution] max_elements` and
+/// vault's `.hql/config.toml`, and the bounds `[execution] max_elements` and
 /// `max_bytes`.
 #[derive(Debug, Clone, Default)]
 pub struct Endpoints {
@@ -534,7 +534,7 @@ pub struct Endpoints {
 }
 
 impl Endpoints {
-    /// Read the endpoints a vault's `hql.toml` configures; none without one.
+    /// Read the endpoints a project's `.hql/config.toml` configures; none without one.
     ///
     /// # Errors
     /// Names the first entry that is malformed: an id off `[a-z][a-z0-9_]*`,

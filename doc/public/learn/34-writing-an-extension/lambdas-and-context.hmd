@@ -42,7 +42,7 @@ fn total(
 argument `weight` to one element and gives its result. A failure inside
 the program's function comes back through `?` as the call's failure.
 
-<!-- run: --workspace examples/packages -->
+<!-- run: --project examples/packages -->
 ```hql
 import hello
 

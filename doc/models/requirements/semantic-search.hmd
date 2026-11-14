@@ -32,7 +32,7 @@ config file remaining optional.
 | Part | Responsibility | May assume |
 | --- | --- | --- |
 | `hmd` (Python, package `hypermarkdown`) | the vault: root discovery, `.hmd/config.toml`, the namespace | nothing about HQL |
-| `contrib/semantics/` (Python) | the index: read the vault, embed each card and each query, write `.hql/index.sqlite` | `hmd` is installed |
+| `contrib/semantics/` (Python) | the index: read the vault, embed each card and each query, write `.hmd/index.sqlite` | `hmd` is installed |
 | `hql` (Rust) | the query: score a stored query against stored vectors | nothing but the index file |
 
 The dependency runs one way. A script around semantic search may assume the
@@ -43,7 +43,7 @@ a committed index, and `cargo test` must keep running with no Python present.
 ## What must hold before a query can answer
 
 1. The vault exists and is one — `.hmd/` is present.
-2. `hql.toml` names an index, and the file it names exists.
+2. `.hql/config.toml` names an index, and the file it names exists.
 3. The index describes *this* vault: every card present on both sides, and every
    content hash still matching. `cli.py verify` is what says so.
 4. The index holds the query. The binary has no model, so it cannot embed a

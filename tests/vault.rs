@@ -563,8 +563,12 @@ fn discovery_stops_at_the_nearest_marked_directory() {
     assert_eq!(vault::discover(&deep), Some(root.clone()));
     assert_eq!(vault::discover(&root), Some(root.clone()));
 
+    // A project file marks a project, not a vault: the walk passes it.
     let nested = root.join("notes");
-    std::fs::write(nested.join("hql.toml"), "").unwrap();
+    std::fs::create_dir_all(nested.join(".hql")).unwrap();
+    std::fs::write(nested.join(".hql/config.toml"), "").unwrap();
+    assert_eq!(vault::discover(&deep), Some(root.clone()));
+    std::fs::create_dir(nested.join(".hmd")).unwrap();
     assert_eq!(vault::discover(&deep), Some(nested));
 }
 

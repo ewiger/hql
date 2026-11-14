@@ -63,7 +63,7 @@ both.
 The most specific layer that states one wins:
 
 1. **the query** — `--report strict|collect`, `--report-level LEVEL`
-2. **the vault** — `[report] mode` and `level` in `hql.toml` at its root
+2. **the vault** — `[report] mode` and `level` in `.hql/config.toml` at its root
 3. **the user** — `HQL_REPORT`, `HQL_REPORT_LEVEL` in the environment
 4. **the default** — `strict`, and `warning`
 

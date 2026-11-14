@@ -763,24 +763,24 @@ pub(crate) fn providers(step: &str) -> Vec<&'static str> {
         .collect()
 }
 
-/// What a vault's `hql.toml` says about extensions.
+/// What a project's `.hql/config.toml` says about modules and packages.
 ///
-/// The prelude is a compatibility convenience, and a vault that wants every
+/// The prelude is a compatibility convenience, and a project that wants every
 /// capability stated in the program that uses it must be able to decline it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Config {
-    /// What is imported for every program this vault runs: builtin modules
+    /// What is imported for every program this project runs: builtin modules
     /// by name, and packages by their id, which imports every module the
     /// package provides.
     pub imports: Vec<String>,
     /// Whether the prelude's modules arrive without being asked for.
     pub prelude: bool,
     /// The module roots workspace modules are discovered under: `[modules]
-    /// roots` in `hql.toml`, resolved against the vault, and `--modules` on
+    /// roots` in `.hql/config.toml`, resolved against the project root, and `--modules` on
     /// the command line.
     pub module_roots: Vec<std::path::PathBuf>,
     /// The crates of packages under development: `[packages] paths` in
-    /// `hql.toml`, resolved against the vault. Each is built on first use
+    /// `.hql/config.toml`, resolved against the project root. Each is built on first use
     /// and loaded as an installed package is.
     pub package_paths: Vec<std::path::PathBuf>,
 }
@@ -797,7 +797,7 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Read `[extensions]` from a vault's configuration file.
+    /// Read `[modules]` and `[packages]` from a project's `.hql/config.toml`.
     ///
     /// A file that is absent or says nothing about extensions leaves the
     /// defaults in force, which is what a vault that has never heard of an
@@ -833,7 +833,7 @@ impl Config {
                 .map(|path| root.join(path))
                 .collect();
         }
-        let Some(section) = parsed.get("extensions") else {
+        let Some(section) = parsed.get("modules") else {
             return config;
         };
         if let Some(prelude) = section.get("prelude").and_then(toml::Value::as_bool) {
@@ -858,7 +858,7 @@ pub enum Availability {
     Core,
     /// In the prelude this vault keeps.
     Prelude,
-    /// Named by the vault's `hql.toml`.
+    /// Named by the project's `.hql/config.toml`.
     Configured,
     /// Registered, and written out by any program that wants it.
     Absent,
@@ -1819,7 +1819,7 @@ mod tests {
         };
         let failed = Resolution::new(&config).unwrap_err();
         assert!(
-            failed.message().contains("hql.toml"),
+            failed.message().contains(".hql/config.toml"),
             "{}",
             failed.message()
         );

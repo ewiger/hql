@@ -3,7 +3,7 @@
 Start at [the library index](wiki/library.hmd). Six book cards with a `genre`
 and a page count are the dataset for filtering, mapping, grouping and reducing.
 Only `wiki/` is the vault, so this README and the query files do not become
-cards. The vault's `hql.toml` names the `localhost` backend, which is the
+cards. The vault's `.hql/config.toml` names the `localhost` backend, which is the
 default and the only one; the line records where the results are promised to
 hold rather than changing anything, and `hql config` reports it.
 

@@ -5,7 +5,7 @@
 //! reads it, and held for the rest of the process: no code of the crate
 //! writes it, so every evaluation sees the same environment. What a program
 //! reads of it is filtered by the grant: every variable a standalone run, the
-//! names `env = [...]` lists where a workspace's `hql.toml` states it, and
+//! names `env = [...]` lists where a project's `.hql/config.toml` states it, and
 //! none under `hql render`, whose host policy is the document's. A variable
 //! whose name or value is not UTF-8 is not held, so it reads as unset, as a
 //! withheld one does. The arguments are the `--arg name=value` pairs the

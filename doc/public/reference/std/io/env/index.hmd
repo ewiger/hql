@@ -7,7 +7,7 @@ module io.env
 
 What a program reads from the invocation that runs it: environment
 variables and named arguments. The environment is read through a grant:
-a program run alone is granted every variable; a workspace's `hql.toml`
+a program run alone is granted every variable; a project's `.hql/config.toml`
 narrows the grant to `env = ["NAME", "PREFIX_*"]`, a `*` matching any
 suffix; `hql render` grants none. A variable that is unset, withheld by
 the grant, or whose value is not UTF-8 reads as absent, and the three

@@ -342,12 +342,12 @@ links, is design direction.
 The most specific layer that states a setting wins:
 
 1. **the query** — `--report collect`, `--report-level debug`
-2. **the vault** — `[report]` in `hql.toml` at its root
+2. **the vault** — `[report]` in `.hql/config.toml` at its root
 3. **the user** — `HQL_REPORT`, `HQL_REPORT_LEVEL` in the environment
 4. **the default**
 
 ```toml
-# hql.toml at the vault root
+# .hql/config.toml at the vault root
 [report]
 mode  = "collect"   # list every problem in the vault, then fail
 level = "info"      # deliver info diagnostics, hide debug

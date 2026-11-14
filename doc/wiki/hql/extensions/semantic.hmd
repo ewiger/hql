@@ -29,7 +29,7 @@ A vault names its index, and the path resolves inside the vault root:
 
 ```toml
 [semantics]
-index = ".hql/index.sqlite"
+index = ".hmd/index.sqlite"
 ```
 
 With no index configured, `semantic` is an error naming both the missing

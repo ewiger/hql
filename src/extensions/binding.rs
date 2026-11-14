@@ -1204,10 +1204,13 @@ impl Runtime {
             let configured = |message: String| {
                 Diagnostic::name(
                     0..0,
-                    format!("the vault's {}: {message}", crate::reporting::CONFIG_FILE),
+                    format!(
+                        "`[modules] import` of the project's {}: {message}",
+                        crate::reporting::CONFIG_FILE
+                    ),
                 )
             };
-            // A vault's import list names builtin modules, or packages,
+            // A project's import list names builtin modules, or packages,
             // which import every module they provide; a workspace module is
             // imported where it is used.
             let bound = resolution

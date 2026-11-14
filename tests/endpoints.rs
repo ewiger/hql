@@ -1,4 +1,4 @@
-//! Configured endpoints: `[endpoint.<id>]` in a vault's `hql.toml`, read by
+//! Configured endpoints: `[endpoint.<id>]` in a project's `.hql/config.toml`, read by
 //! `source("id")`, typed offline from the configuration and bounded by the
 //! run context. See doc/proposals/HQL-0012/index.hmd.
 
@@ -6,6 +6,17 @@ use hql::reporting::Mode;
 use hql::vault::{self, Vault};
 use std::fs;
 use tempfile::{TempDir, tempdir};
+
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
 
 /// A vault with two vault endpoints, a CSV file, a JSON array and an SQLite
 /// table, configured by `config` appended to the endpoints every case shares.
@@ -37,7 +48,7 @@ fn configured(extra: &str) -> (TempDir, Vault) {
         )
         .unwrap();
     fs::write(
-        root.join("hql.toml"),
+        project_config(root),
         format!(
             r#"
 [endpoint.field_notes]
@@ -238,13 +249,13 @@ fn a_malformed_configuration_refuses_the_vault() {
         ),
     ] {
         let dir = tempdir().unwrap();
-        fs::write(dir.path().join("hql.toml"), entry).unwrap();
+        fs::write(project_config(dir.path()), entry).unwrap();
         let error = vault::load(dir.path()).unwrap_err().to_string();
         assert!(error.contains(says), "{entry}: {error}");
     }
     let dir = tempdir().unwrap();
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         "[endpoint.db]\nkind = \"sqlite\"\npath = \"x\"\ntable = \"t\"\npassword_env = \"DB_PASSWORD\"\n",
     )
     .unwrap();
@@ -409,13 +420,13 @@ fn a_boundary_is_configured_field_by_field() {
         ),
     ] {
         let dir = tempdir().unwrap();
-        fs::write(dir.path().join("hql.toml"), format!("{source}{fields}")).unwrap();
+        fs::write(project_config(dir.path()), format!("{source}{fields}")).unwrap();
         let error = vault::load(dir.path()).unwrap_err().to_string();
         assert!(error.contains(says), "{fields}: {error}");
     }
     let dir = tempdir().unwrap();
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         "[endpoint.notes]\nkind = \"vault\"\nroot = \"notes\"\n[endpoint.notes.fields.id]\nname = \"x\"\n",
     )
     .unwrap();
@@ -467,7 +478,7 @@ fn a_null_reads_as_absent_unless_the_boundary_says_otherwise() {
                    seen : Seq<Reading> = source(\"readings\")\nseen | map(r => r.reading) | List";
     let config = |extra: &str| {
         fs::write(
-            dir.path().join("hql.toml"),
+            project_config(dir.path()),
             format!("[endpoint.readings]\nkind = \"json\"\npath = \"data/readings.json\"\n{extra}"),
         )
         .unwrap();
@@ -492,7 +503,7 @@ fn a_configured_target_is_written_through_its_boundary() {
     let dir = tempdir().unwrap();
     fs::create_dir(dir.path().join("out")).unwrap();
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         r#"
 [endpoint.ledger]
 kind = "csv"
@@ -722,7 +733,7 @@ table = "blobs"
 fn an_unreadable_configuration_is_an_error_not_an_empty_one() {
     let dir = tempdir().unwrap();
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         b"# caf\xe9\n[endpoint.prices]\nkind = \"json\"\npath = \"p.json\"\n",
     )
     .unwrap();
@@ -730,7 +741,7 @@ fn an_unreadable_configuration_is_an_error_not_an_empty_one() {
         Err(error) => error.to_string(),
         Ok(vault) => refusal("xs : Seq<Data> = source(\"prices\")\nxs | List", &vault),
     };
-    assert!(error.contains("hql.toml"), "{error}");
+    assert!(error.contains(".hql/config.toml"), "{error}");
     assert!(!error.contains("no source"), "{error}");
 }
 

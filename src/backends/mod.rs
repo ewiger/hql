@@ -5,7 +5,7 @@
 //! held to the value, the type, the sequence positions and the diagnostic
 //! `localhost` gives. Backends are compiled in and registered in one table,
 //! as extensions are. Which backend runs a program is host configuration —
-//! the query's `--backend`, the vault's `[execution] backend`, the user's
+//! the query's `--backend`, the project's `[execution] backend`, the user's
 //! `HQL_BACKEND`, then the default — and never syntax, because the answer
 //! does not depend on it. See `doc/proposals/HQL-0004/index.hmd`.
 //!
@@ -47,7 +47,7 @@ pub(crate) trait Backend: Sync {
 /// One registered backend: its name, what it is, and what runs a program on
 /// it.
 pub struct Registered {
-    /// The name `--backend`, `hql.toml` and `HQL_BACKEND` write.
+    /// The name `--backend`, `.hql/config.toml` and `HQL_BACKEND` write.
     pub name: &'static str,
     /// One sentence about how it executes a program.
     pub summary: &'static str,
@@ -150,8 +150,8 @@ pub struct Selection {
 pub enum Origin {
     /// `--backend` on this query.
     Query,
-    /// The vault's `hql.toml`, `[execution] backend`.
-    Vault,
+    /// The project's `.hql/config.toml`, `[execution] backend`.
+    Project,
     /// `HQL_BACKEND` in the environment.
     Environment,
     /// The selected named context, `[execution] backend` (HQL-0025).
@@ -170,7 +170,7 @@ impl Origin {
     pub fn label(self) -> String {
         match self {
             Self::Query => "--backend".to_owned(),
-            Self::Vault => format!("the vault's {CONFIG_FILE}"),
+            Self::Project => format!("the project's {CONFIG_FILE}"),
             Self::Environment => format!("${ENVIRONMENT}"),
             Self::Context => "the selected context".to_owned(),
             Self::User => "user configuration".to_owned(),
@@ -190,7 +190,7 @@ impl Selection {
         }
     }
 
-    /// Resolve the backend from the query, the vault and the environment,
+    /// Resolve the backend from the query, the project and the environment,
     /// with the precedence the reporting settings use: the most specific
     /// layer that names one wins.
     ///
@@ -199,9 +199,9 @@ impl Selection {
     /// A name that is not registered fails, naming the layer that supplied
     /// it, so that every program run under it fails rather than running
     /// somewhere else.
-    pub fn resolve(query: Option<&str>, vault_root: Option<&Path>) -> Result<Self, String> {
-        let from_vault = || {
-            let text = fs::read_to_string(vault_root?.join(CONFIG_FILE)).ok()?;
+    pub fn resolve(query: Option<&str>, project_root: Option<&Path>) -> Result<Self, String> {
+        let from_project = || {
+            let text = fs::read_to_string(project_root?.join(CONFIG_FILE)).ok()?;
             let parsed: toml::Value = toml::from_str(&text).ok()?;
             Some(
                 parsed
@@ -213,8 +213,8 @@ impl Selection {
         };
         let (name, origin) = if let Some(name) = query {
             (name.to_owned(), Origin::Query)
-        } else if let Some(name) = from_vault() {
-            (name, Origin::Vault)
+        } else if let Some(name) = from_project() {
+            (name, Origin::Project)
         } else if let Ok(name) = env::var(ENVIRONMENT) {
             (name, Origin::Environment)
         } else {
@@ -262,7 +262,7 @@ mod tests {
     fn an_unregistered_name_fails_naming_the_layer_that_supplied_it() {
         for (origin, layer) in [
             (Origin::Query, "--backend"),
-            (Origin::Vault, "hql.toml"),
+            (Origin::Project, ".hql/config.toml"),
             (Origin::Environment, "$HQL_BACKEND"),
         ] {
             let refused = Selection::of("postgres", origin).unwrap_err();
@@ -368,15 +368,16 @@ mod tests {
     }
 
     #[test]
-    fn the_query_outranks_the_vault() {
+    fn the_query_outranks_the_project() {
         let vault = tempfile::tempdir().unwrap();
+        fs::create_dir_all(vault.path().join(".hql")).unwrap();
         fs::write(
             vault.path().join(CONFIG_FILE),
             "[execution]\nbackend = \"nonesuch\"\n",
         )
         .unwrap();
         let refused = Selection::resolve(None, Some(vault.path())).unwrap_err();
-        assert!(refused.contains("hql.toml"), "{refused}");
+        assert!(refused.contains(".hql/config.toml"), "{refused}");
         let chosen = Selection::resolve(Some("localhost"), Some(vault.path())).unwrap();
         assert_eq!(chosen.origin, Origin::Query);
         fs::write(
@@ -385,7 +386,7 @@ mod tests {
         )
         .unwrap();
         let chosen = Selection::resolve(None, Some(vault.path())).unwrap();
-        assert_eq!(chosen.origin, Origin::Vault);
+        assert_eq!(chosen.origin, Origin::Project);
         assert_eq!(chosen.backend.name, "localhost");
     }
 }

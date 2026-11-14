@@ -67,7 +67,7 @@ let punctuation = match ext::named(arguments, "punctuation") {
 };
 ```
 
-<!-- run: --workspace examples/packages -->
+<!-- run: --project examples/packages -->
 ```hql
 import hello
 

@@ -47,7 +47,7 @@ it, and a program imports it:
 hql package install --path hello
 ```
 
-<!-- run: --workspace examples/packages -->
+<!-- run: --project examples/packages -->
 ```hql
 import hello
 

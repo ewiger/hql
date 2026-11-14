@@ -495,7 +495,7 @@ errors
 | sink(stderr, Json)
 ```
 
-They do not need entries in `hql.toml`.
+They do not need entries in `.hql/config.toml`.
 
 Whether a source ends lives in its type, not in separate I/O APIs. A file is
 replayable, so `source(file(p))` is a `Seq<Data>`; standard input arrives

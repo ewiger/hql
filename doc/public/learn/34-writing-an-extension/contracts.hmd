@@ -50,7 +50,7 @@ A type a contract declares belongs to the language once the package is
 loaded: a program that imports `hello` reads `g.text`, and the checker
 knows it is a `String`.
 
-<!-- run: --workspace examples/packages -->
+<!-- run: --project examples/packages -->
 ```hql
 import hello
 
@@ -81,7 +81,7 @@ The remaining lines are declarations
   `T -> Int`.
 - `Greeting` takes `punctuation` by name only, after `*`, with a default.
 
-<!-- run: --workspace examples/packages -->
+<!-- run: --project examples/packages -->
 ```hql
 import hello
 

@@ -7,7 +7,7 @@ use crate::diagnostics::Diagnostic;
 use crate::lexer::Token;
 use crate::reporting::{Level, Mode, Settings, Severity};
 use crate::types::{TypeConstructor, Value};
-use crate::vault::{self, Vault};
+use crate::vault::Vault;
 use crate::{render, transclude};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use rustyline::completion::Completer;
@@ -55,26 +55,34 @@ pub struct Cli {
 /// Options every subcommand accepts.
 #[derive(Debug, Clone, Args)]
 pub struct Options {
-    /// The vault to run against; `cards` and traversal need one. Names the
-    /// workspace as `--workspace` does.
-    #[arg(long, global = true, value_name = "DIR", conflicts_with = "workspace")]
-    pub vault: Option<PathBuf>,
-    /// The workspace to run in, a directory holding `.hmd/` or `hql.toml`.
-    /// Without it, the nearest such directory at or above the program's file,
-    /// or above the working directory for an expression or standard input.
+    /// The HyperMarkdown vault `hmd` reads, a directory holding `.hmd/`.
+    /// Without it, the nearest such directory at or above the program's
+    /// file, or above the working directory for an expression or standard
+    /// input. Selects no project.
     #[arg(long, global = true, value_name = "DIR")]
-    pub workspace: Option<PathBuf>,
-    /// Run with no workspace: no `.hmd/` or `hql.toml` is discovered. User
-    /// and system configuration still apply.
-    #[arg(long, global = true, conflicts_with_all = ["workspace", "vault"])]
+    pub vault: Option<PathBuf>,
+    /// The HQL project to run in, a directory holding `.hql/config.toml`.
+    /// Without it, the nearest such directory at or above the program's
+    /// file, or above the working directory for an expression or standard
+    /// input.
+    #[arg(long, global = true, value_name = "DIR")]
+    pub project: Option<PathBuf>,
+    /// Run with no project and no discovery: no `.hql/config.toml` and no
+    /// `.hmd/` is looked for. User and system configuration still apply.
+    #[arg(long, global = true, conflicts_with = "project")]
     pub bare: bool,
+    /// A module imported into every unit of the run, as a line of a prelude
+    /// is: `--import hmd`. May be repeated; the command-line layer of
+    /// `[modules] import`.
+    #[arg(long = "import", global = true, value_name = "MODULE")]
+    pub imports: Vec<String>,
     /// The named context to run under for this invocation, in place of
     /// `$HQL_CONTEXT` and the configured `current-context`.
     #[arg(long, global = true, value_name = "NAME")]
     pub context: Option<String>,
     /// A module root: a directory whose `.hql` files are the modules a program
     /// imports by their position, `lib/a/b.hql` as `import a.b`. May be
-    /// repeated, and adds to the roots the vault's `hql.toml` names.
+    /// repeated, and adds to the roots `[modules] roots` names.
     #[arg(long, global = true, value_name = "DIR")]
     pub modules: Vec<PathBuf>,
     /// What the answer is wrapped in: the value alone, or one JSON document
@@ -125,7 +133,7 @@ pub struct Options {
     #[arg(long, global = true, value_name = "MODE")]
     pub report: Option<String>,
     /// The execution backend that runs a checked program: `localhost`, the
-    /// in-memory evaluator, unless `hql.toml` or `HQL_BACKEND` names
+    /// in-memory evaluator, unless `.hql/config.toml` or `HQL_BACKEND` names
     /// another. The answer does not depend on it.
     #[arg(long, global = true, value_name = "NAME")]
     pub backend: Option<String>,
@@ -168,7 +176,8 @@ enum Command {
         /// A program declaring the type the source is read as, or `-` for
         /// standard input.
         file: String,
-        /// The endpoint's id, `[endpoint.<id>]` in the vault's hql.toml.
+        /// The endpoint's id, `[endpoint.<id>]` in the project's
+        /// `.hql/config.toml`.
         id: String,
         /// The type the source is read as; the source's `element` without it.
         #[arg(long = "as", value_name = "TYPE")]
@@ -230,7 +239,7 @@ enum Command {
         #[command(subcommand)]
         action: Option<ConfigAction>,
     },
-    /// Show the execution context: the mode, the workspace and vault, the
+    /// Show the execution context: the mode, the project and the vault, the
     /// anchor discovery started from, and where each came from.
     Context {
         /// A program file, whose directory is the anchor; the working
@@ -455,10 +464,11 @@ const COMMANDS: [&str; 14] = [
 ];
 
 /// Options that take a value, so the word after one is not the program.
-const VALUED: [&str; 16] = [
+const VALUED: [&str; 17] = [
     "--context",
     "--vault",
-    "--workspace",
+    "--project",
+    "--import",
     "--now",
     "--zone",
     "--seed",
@@ -633,7 +643,7 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     // The run's diagnostic channel exists before the loader runs, so the
     // loader writes into it as every later phase does.
     let opened = crate::io::open_diagnostics();
-    let result = context.load_workspace().and_then(|vault| {
+    let result = context.load().and_then(|vault| {
         for diagnostic in &vault.warnings {
             crate::io::write_diagnostic(diagnostic.clone());
         }
@@ -665,16 +675,13 @@ fn request(cli: &Cli) -> crate::context::Request {
         Command::Context { file } => file.as_deref(),
         _ => None,
     };
-    let workspace = match (&cli.options.workspace, &cli.options.vault) {
-        (Some(dir), _) => Some((dir.clone(), "--workspace")),
-        (None, Some(dir)) => Some((dir.clone(), "--vault")),
-        (None, None) => None,
-    };
     crate::context::Request {
         anchor: file.and_then(crate::context::Request::anchor_of),
         bare: cli.options.bare,
-        workspace,
+        project: cli.options.project.clone(),
+        vault: cli.options.vault.clone(),
         modules: cli.options.modules.clone(),
+        imports: cli.options.imports.clone(),
         context: cli.options.context.clone(),
         ..crate::context::Request::default()
     }
@@ -930,18 +937,18 @@ fn config_action(
             let mut rows = vec![[
                 "CURRENT".to_owned(),
                 "NAME".to_owned(),
-                "WORKSPACE".to_owned(),
+                "PROJECT".to_owned(),
                 "DEFINED IN".to_owned(),
             ]];
             for (name, named) in &contexts {
                 let marked = current
                     .as_ref()
                     .is_some_and(|current| &current.value == name);
-                let workspace = named.workspace().map_err(|error| error.to_string())?;
+                let project = named.project().map_err(|error| error.to_string())?;
                 rows.push([
                     if marked { "*" } else { "" }.to_owned(),
                     name.clone(),
-                    workspace.map_or_else(|| "-".to_owned(), |root| root.display().to_string()),
+                    project.map_or_else(|| "-".to_owned(), |root| root.display().to_string()),
                     named.path.display().to_string(),
                 ]);
             }
@@ -1017,7 +1024,8 @@ fn write_context(
     out: &mut impl Write,
 ) -> Result<(), String> {
     let path = |path: Option<&Path>| path.map(|path| path.display().to_string());
-    let workspace = context.workspace.as_ref();
+    let project = context.project.as_ref();
+    let vault = context.vault.as_ref();
     if options.envelope == Shape::Json {
         let document = serde_json::json!({
             "mode": context.mode().label(),
@@ -1025,9 +1033,10 @@ fn write_context(
                 "name": choice.value,
                 "origin": choice.origin.label(),
             })),
-            "workspace": path(context.workspace_root()),
-            "workspace_origin": workspace.map(|workspace| workspace.origin.label()),
+            "project": path(context.project_root()),
+            "project_origin": project.map(|project| project.origin.label()),
             "vault": path(context.vault()),
+            "vault_origin": vault.map(|vault| vault.origin.label()),
             "anchor": context.anchor.display().to_string(),
             "cwd": context.cwd.display().to_string(),
             "hql_home": context.layers.home.as_ref().map(|home| serde_json::json!({
@@ -1067,16 +1076,17 @@ fn write_context(
             }),
         ),
         (
-            "workspace",
-            workspace.map_or_else(none, |workspace| {
-                format!(
-                    "{} ({})",
-                    workspace.root.display(),
-                    workspace.origin.label()
-                )
+            "project",
+            project.map_or_else(none, |project| {
+                format!("{} ({})", project.root.display(), project.origin.label())
             }),
         ),
-        ("vault", path(context.vault()).unwrap_or_else(none)),
+        (
+            "vault",
+            vault.map_or_else(none, |vault| {
+                format!("{} ({})", vault.root.display(), vault.origin.label())
+            }),
+        ),
         ("anchor", context.anchor.display().to_string()),
         ("cwd", context.cwd.display().to_string()),
         (
@@ -1146,7 +1156,7 @@ fn dispatch(
     out: &mut impl Write,
     err: &mut impl Write,
 ) -> Result<u8, String> {
-    let root = context.workspace_root();
+    let root = context.project_root();
     let requested = match &cli.options.report {
         Some(name) => Some(Mode::parse(name).ok_or_else(|| {
             format!("unknown report mode `{name}`; expected `strict` or `collect`")
@@ -1270,9 +1280,7 @@ fn dispatch(
             }
             Ok(0)
         }
-        Command::Package { .. } => {
-            Err("`hql package` runs before a workspace is loaded".to_owned())
-        }
+        Command::Package { .. } => Err("`hql package` runs before a project is loaded".to_owned()),
         Command::Doctor => {
             let checks = crate::extensions::semantic::doctor(vault);
             for check in &checks {
@@ -1784,10 +1792,14 @@ enum Found {
     Own(Box<Vault>),
 }
 
-/// The vault of the document `file`: the workspace an explicit selection
-/// names, or the nearest directory at or above the document holding `.hmd/`
-/// or `hql.toml`; standard input's is the run's. `None` where there is none,
-/// and always under `--bare`: the document is a card of no vault.
+/// The vault of the document `file`, and the project its cells run in.
+///
+/// `hql render` is a HyperMarkdown host (HQL-0059): the vault is the one
+/// `--vault` names, else the nearest directory at or above the document
+/// holding `.hmd/`; standard input's is the run's. The project is the one
+/// the vault's `.hmd/config.toml` selects with `[hql] project`, else the
+/// nearest at or above the document. `None` where there is no vault, and
+/// always under `--bare`: the document is a card of no vault.
 fn document_vault(
     file: &str,
     cli: &Cli,
@@ -1795,35 +1807,47 @@ fn document_vault(
     loaded: &Vault,
 ) -> Result<Option<Found>, String> {
     let named = context
-        .workspace
+        .vault
         .as_ref()
-        .is_some_and(|workspace| workspace.origin.is_explicit());
+        .is_some_and(|vault| vault.origin.is_explicit());
     if named || file == "-" {
         return Ok(loaded.is_present().then_some(Found::Loaded));
     }
     if context.bare {
         return Ok(None);
     }
-    let loaded_root = context.workspace_root();
     let document = fs::canonicalize(file).map_err(|error| format!("{file}: {error}"))?;
-    let Some(found) = document.parent().and_then(vault::discover) else {
+    let Some(directory) = document.parent() else {
         return Ok(None);
     };
-    let same = loaded_root
-        .and_then(|root| fs::canonicalize(root).ok())
-        .is_some_and(|root| root == found);
-    if same {
+    let Some(found) = crate::context::discover_vault(directory) else {
+        return Ok(None);
+    };
+    let selected = crate::context::selected_project(&found).map_err(|error| error.to_string())?;
+    let canonical = |path: Option<&Path>| path.and_then(|path| fs::canonicalize(path).ok());
+    let same_vault = canonical(context.vault()) == Some(found.clone());
+    let own_project = match &selected {
+        Some(project) => Some(project.clone()),
+        None => crate::context::discover_project(directory, context.layers.home.as_ref())
+            .map_err(|error| error.to_string())?,
+    };
+    let same_project = canonical(context.project_root()) == canonical(own_project.as_deref());
+    if same_vault && same_project && cli.options.project.is_none() {
         return Ok(Some(Found::Loaded));
     }
-    // The document's own workspace, under the same system and user layers
-    // as the run's.
-    let request = crate::context::Request {
-        anchor: Some(found),
+    // The document's own vault and project, under the same system and user
+    // layers as the run's.
+    let mut request = crate::context::Request {
+        anchor: Some(directory.to_path_buf()),
+        host_vault: Some(found),
         ..request(cli)
     };
+    if request.project.is_none() {
+        request.host_project = own_project;
+    }
     let own = crate::context::ExecutionContext::construct(&request, &context.environment)
         .map_err(|error| error.to_string())?;
-    Ok(Some(Found::Own(Box::new(own.load_workspace()?))))
+    Ok(Some(Found::Own(Box::new(own.load()?))))
 }
 
 /// The load failure of a document in no vault.
@@ -1834,8 +1858,7 @@ fn missing_vault(origin: &str) -> Diagnostic {
         Severity::Failure,
         crate::diagnostics::Disposition::Fatal,
         0..0,
-        "no directory at or above this document holds `.hmd/` or `hql.toml`, so it is a \
-         card of no vault",
+        "no directory at or above this document holds `.hmd/`, so it is a card of no vault",
     )
     .with_help("render it inside a vault, or name one with `--vault <dir>`");
     refused.origin = Some(origin.to_owned());

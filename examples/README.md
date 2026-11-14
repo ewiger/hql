@@ -93,7 +93,7 @@ order, match a glob and test a path with `io.fs`, from
 [HQL-0040](../doc/proposals/HQL-0040/index.hmd).
 
 The [data sources](sources/README.md) cases read the sources a vault's
-`hql.toml` configures by id with `source("id")`: two vaults side by side, a
+`.hql/config.toml` configures by id with `source("id")`: two vaults side by side, a
 CSV file and a JSON array, typed from the configuration before anything is
 read, from [HQL-0012](../doc/proposals/HQL-0012/index.hmd).
 
@@ -115,7 +115,7 @@ variables with `io.env`, each defaulted where it is absent, from
 [HQL-0041](../doc/proposals/HQL-0041/parts/05-env.hmd) part 5.
 
 The [contexts](contexts/README.md) cases run in two workspaces whose
-`hql.toml` gives a program a module root, an extension imported for every
+`.hql/config.toml` gives a program a module root, an extension imported for every
 program, or no prelude, from [HQL-0025](../doc/proposals/HQL-0025/index.hmd).
 
 The [doc strings](doc-strings/README.md) sessions print `///` doc strings

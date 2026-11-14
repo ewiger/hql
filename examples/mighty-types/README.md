@@ -69,7 +69,7 @@ gives, `module mighty.text for String`, and importing a file whose declaration
 names another module is refused. A program names the root through the
 `modules:` line of its header, as `hql run --modules examples/mighty-types/lib`
 does on the command line and `[modules] roots = ["lib"]` does in a
-workspace's `hql.toml`. Files under a module root are not corpus cases.
+workspace's `.hql/config.toml`. Files under a module root are not corpus cases.
 
 | Module | Kind | Provides |
 | --- | --- | --- |

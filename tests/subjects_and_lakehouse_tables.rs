@@ -9,6 +9,17 @@ use hql::vault::{self, Vault};
 use std::fs;
 use tempfile::{TempDir, tempdir};
 
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
+
 /// The environment variables named below are never set, so no case
 /// connects to anything.
 const CONFIG: &str = r#"
@@ -49,7 +60,7 @@ const ORDER: &str = "type Order { id : Int, customer : String, total : Decimal }
 
 fn configured() -> (TempDir, Vault) {
     let dir = tempdir().unwrap();
-    fs::write(dir.path().join("hql.toml"), CONFIG).unwrap();
+    fs::write(project_config(dir.path()), CONFIG).unwrap();
     fs::write(dir.path().join("counts.csv"), "species,count\nwren,3\n").unwrap();
     let vault = vault::load(dir.path()).unwrap();
     (dir, vault)
@@ -151,7 +162,7 @@ fn a_lakehouse_column_is_written_as_a_type_that_keeps_the_value() {
     // A Decimal in a DOUBLE column may lose digits, and says so.
     let dir = tempdir().unwrap();
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         "[endpoint.orders]\nkind = \"spark\"\nurl_env = \"U\"\ntable = \"orders\"\n\n\
          [endpoint.orders.fields.total]\ntype = \"DOUBLE\"\n",
     )
@@ -251,7 +262,7 @@ fn a_malformed_subject_or_lakehouse_table_refuses_the_vault() {
     ] {
         let dir = tempdir().unwrap();
         fs::write(
-            dir.path().join("hql.toml"),
+            project_config(dir.path()),
             format!("[endpoint.db]\n{entry}"),
         )
         .unwrap();
@@ -265,7 +276,7 @@ fn a_list_field_is_written_to_a_nesting_format_as_a_list() {
     // The cell a message's boundary writes is the cell a JSON file's does.
     let dir = tempdir().unwrap();
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         "[endpoint.rejected]\nkind = \"json_lines\"\npath = \"rejected.jsonl\"\n",
     )
     .unwrap();
@@ -383,14 +394,14 @@ fn a_consumer_is_a_key_of_the_kind_and_a_name() {
     let entry = "[endpoint.events]\nkind = \"nats_jetstream\"\nurl = \"nats://h:4222\"\n\
                  stream = \"S\"\nsubject = \"s\"\n";
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         format!("{entry}consumer = \"billing\"\n"),
     )
     .unwrap();
     let vault = vault::load(dir.path()).unwrap();
     checks(r#"tap("events") | take(1)"#, &vault);
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         format!("{entry}consumer = \"billing.eu\"\n"),
     )
     .unwrap();
@@ -402,7 +413,7 @@ fn a_consumer_is_a_key_of_the_kind_and_a_name() {
 fn a_core_subject_is_its_own_kind_and_module() {
     let dir = tempdir().unwrap();
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         "[endpoint.alerts]\nkind = \"nats\"\nurl_env = \"HQL_TEST_UNSET_NATS_URL\"\n\
          subject = \"alerts.>\"\nidle_ms = 500\n",
     )

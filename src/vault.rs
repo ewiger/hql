@@ -26,13 +26,19 @@ pub struct Vault {
     pub edges: Vec<Edge>,
     /// What loading wanted to say without refusing to load.
     pub warnings: Vec<crate::diagnostics::Diagnostic>,
-    /// What the vault's `hql.toml` says about extensions.
+    /// The root of the HQL project the run is configured by; empty when the
+    /// run has none. A project is not the vault: the two are found apart
+    /// (HQL-0059), and may be one directory or two.
+    pub project: PathBuf,
+    /// What the project's `.hql/config.toml` says about modules and
+    /// packages.
     pub extensions: Config,
-    /// What it says about its embedding index.
+    /// What the vault's `.hmd/config.toml` says about its embedding index.
     pub semantics: Semantics,
-    /// Which renderer writes a type in a presentation format.
+    /// Which renderer writes a type in a presentation format, from the
+    /// project.
     pub formats: crate::extensions::format::Renderers,
-    /// The endpoints its `hql.toml` configures, by id.
+    /// The endpoints the project's `.hql/config.toml` configures, by id.
     pub endpoints: crate::endpoints::Endpoints,
 }
 
@@ -46,6 +52,7 @@ impl Vault {
             by_name: BTreeMap::new(),
             edges: Vec::new(),
             warnings: Vec::new(),
+            project: PathBuf::new(),
             extensions: Config::default(),
             semantics: Semantics::default(),
             formats: crate::extensions::format::Renderers::default(),
@@ -57,6 +64,27 @@ impl Vault {
     #[must_use]
     pub fn is_present(&self) -> bool {
         !self.root.as_os_str().is_empty()
+    }
+
+    /// The project root, when the run has a project.
+    #[must_use]
+    pub fn project_root(&self) -> Option<&Path> {
+        (!self.project.as_os_str().is_empty()).then_some(self.project.as_path())
+    }
+
+    /// Take the configuration of the project at `root`: its packages,
+    /// renderers and endpoints, each relative path read against `root`.
+    ///
+    /// # Errors
+    ///
+    /// A malformed renderer or endpoint entry, naming it.
+    pub fn configure_project(&mut self, root: &Path) -> io::Result<()> {
+        let invalid = |message: String| io::Error::new(io::ErrorKind::InvalidData, message);
+        self.extensions = Config::read(root);
+        self.formats = crate::extensions::format::Renderers::read(root).map_err(invalid)?;
+        self.endpoints = crate::endpoints::Endpoints::read(root).map_err(invalid)?;
+        self.project = root.to_path_buf();
+        Ok(())
     }
 
     /// The name this vault reports as the index a retrieval used.
@@ -103,29 +131,44 @@ impl Vault {
 
 /// The nearest directory at or above `start` that is a vault root, if any.
 ///
-/// The walk is HyperMarkDown's: it stops at the first directory holding
-/// `.hmd/`, or `hql.toml` for a vault that only HQL configures.
+/// The walk is HyperMarkdown's: it stops at the first directory holding
+/// `.hmd/`. A project's `.hql/` marks no vault.
 #[must_use]
 pub fn discover(start: &Path) -> Option<PathBuf> {
-    start
-        .ancestors()
-        .find(|dir| is_root(dir))
-        .map(Path::to_path_buf)
+    crate::context::discover_vault(start)
 }
 
-/// Whether a directory marks a vault root.
+/// Whether a directory marks a vault root: it holds `.hmd/`.
 #[must_use]
 pub fn is_root(dir: &Path) -> bool {
-    dir.join(".hmd").is_dir() || dir.join(crate::reporting::CONFIG_FILE).is_file()
+    crate::context::is_vault(dir)
 }
 
-/// Load every Markdown and HyperMarkDown document under a directory.
+/// Read every Markdown and HyperMarkdown document under a directory as the
+/// cards of a vault, with the vault's own index configuration, and nothing
+/// of any project.
 ///
 /// # Errors
 ///
 /// Returns the underlying I/O failure when the root cannot be read.
-pub fn load(root: &Path) -> io::Result<Vault> {
+pub fn load_documents(root: &Path) -> io::Result<Vault> {
     load_source(&crate::sources::Filesystem::new(root))
+}
+
+/// Read a directory as a vault, as a host that names it does: its documents
+/// are cards whether or not it holds `.hmd/`, and when it is also a project,
+/// holding `.hql/config.toml`, the run takes that project's configuration.
+///
+/// # Errors
+///
+/// Returns the underlying I/O failure when the root cannot be read, and a
+/// malformed project configuration.
+pub fn load(root: &Path) -> io::Result<Vault> {
+    let mut vault = load_documents(root)?;
+    if crate::context::is_project(root) {
+        vault.configure_project(root)?;
+    }
+    Ok(vault)
 }
 
 /// Load a source through document and knowledge assembly.
@@ -158,6 +201,7 @@ pub fn load_source(source: &dyn crate::sources::VaultSource) -> io::Result<Vault
         .collect();
     let edges = crate::knowledge::build_edges(&cards);
     Ok(Vault {
+        project: PathBuf::new(),
         extensions: source.extensions(),
         semantics: source.semantics(),
         formats: source

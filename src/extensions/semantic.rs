@@ -39,7 +39,11 @@ const BUILD: &str = "hql-semantics build";
 /// than scored by an arithmetic it did not ask for.
 const METRIC: &str = "cosine";
 
-/// What a vault's `hql.toml` says about its index.
+/// The file a vault configures its index in, relative to the vault root: the
+/// index is HyperMarkdown's, kept beside the vault's cards (HQL-0059).
+pub const VAULT_CONFIG: &str = ".hmd/config.toml";
+
+/// What a vault's `.hmd/config.toml` says about its index.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Semantics {
     /// The index path, relative to the vault root.
@@ -47,10 +51,10 @@ pub struct Semantics {
 }
 
 impl Semantics {
-    /// Read `[semantics]` from a vault's configuration file.
+    /// Read `[semantics]` from a vault's `.hmd/config.toml`.
     #[must_use]
     pub fn read(root: &Path) -> Self {
-        let Ok(text) = std::fs::read_to_string(root.join(crate::reporting::CONFIG_FILE)) else {
+        let Ok(text) = std::fs::read_to_string(root.join(VAULT_CONFIG)) else {
             return Self::default();
         };
         let Ok(parsed) = toml::from_str::<toml::Value>(&text) else {
@@ -199,7 +203,7 @@ pub fn doctor(vault: &Vault) -> Vec<Check> {
     ) {
         return checks;
     }
-    let config = vault.root.join(crate::reporting::CONFIG_FILE);
+    let config = vault.root.join(VAULT_CONFIG);
     let path = match configured(vault, &(0..0)) {
         Ok(path) => {
             check(
@@ -284,8 +288,7 @@ fn configured(vault: &Vault, span: &Range<usize>) -> Result<PathBuf, Diagnostic>
             span.clone(),
             format!(
                 "`semantic` needs an index: name one with `[semantics] index` in \
-                 {}, and build it with `{BUILD}`",
-                crate::reporting::CONFIG_FILE
+                 the vault's {VAULT_CONFIG}, and build it with `{BUILD}`"
             ),
         )
     })?;
@@ -534,8 +537,8 @@ mod tests {
     fn a_vault_relative_path_resolves_and_an_escaping_one_does_not() {
         let root = Path::new("/vault");
         assert_eq!(
-            within(root, Path::new(".hql/index.sqlite")),
-            Some(PathBuf::from("/vault/.hql/index.sqlite"))
+            within(root, Path::new(".hmd/index.sqlite")),
+            Some(PathBuf::from("/vault/.hmd/index.sqlite"))
         );
         assert_eq!(within(root, Path::new("../elsewhere.sqlite")), None);
         assert_eq!(within(root, Path::new("/etc/passwd")), None);
@@ -555,10 +558,11 @@ mod tests {
         // would describe what a vault claims rather than what ran — so the
         // table is neither read nor refused, and only `index` is taken.
         let directory = tempfile::tempdir().expect("a temporary directory");
+        std::fs::create_dir_all(directory.path().join(".hmd")).expect("the vault marker");
         std::fs::write(
-            directory.path().join(crate::reporting::CONFIG_FILE),
+            directory.path().join(VAULT_CONFIG),
             "[semantics]\n\
-             index = \".hql/index.sqlite\"\n\
+             index = \".hmd/index.sqlite\"\n\
              \n\
              [semantics.embedder]\n\
              provider = \"http\"\n\
@@ -572,7 +576,7 @@ mod tests {
         assert_eq!(
             Semantics::read(directory.path()),
             Semantics {
-                index: Some(".hql/index.sqlite".to_owned())
+                index: Some(".hmd/index.sqlite".to_owned())
             }
         );
     }

@@ -9,6 +9,17 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::OnceLock;
 
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
+
 const HQL: &str = env!("CARGO_BIN_EXE_hql");
 
 /// The fixture package's crate.
@@ -346,7 +357,7 @@ fn a_workspace_lists_the_crate_of_a_package_it_develops() {
     let home = tempfile::tempdir().unwrap();
     let workspace = tempfile::tempdir().unwrap();
     std::fs::write(
-        workspace.path().join("hql.toml"),
+        project_config(workspace.path()),
         format!(
             "[packages]\npaths = [{:?}]\n",
             fixture().display().to_string()

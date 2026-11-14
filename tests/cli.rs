@@ -4,6 +4,17 @@ use std::io::Write;
 use std::process::{Command, Output, Stdio};
 use tempfile::tempdir;
 
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
+
 const VAULT: &str = "tests/fixtures/vault";
 /// A vault that declines the prelude and configures its own import.
 const CONFIGURED: &str = "tests/fixtures/configured";
@@ -586,7 +597,7 @@ fn config_reports_the_backend_and_an_unknown_one_fails_every_program() {
     );
     let mapreduce = stdout(&hql(&["--vault", "examples/mapreduce/wiki", "config"]));
     assert!(
-        mapreduce.contains("backend: localhost (from the vault's hql.toml)"),
+        mapreduce.contains("backend: localhost (from the project's .hql/config.toml)"),
         "{mapreduce}"
     );
     let chosen = hql(&["--backend", "localhost", "eval", "1 + 1"]);
@@ -835,7 +846,7 @@ fn a_stream_is_written_line_by_line_as_it_arrives() {
 fn render_runs_one_cell_and_reports_every_cell_as_json() {
     let directory = tempdir().unwrap();
     // A document renders only in a vault.
-    std::fs::write(directory.path().join("hql.toml"), "").unwrap();
+    std::fs::write(project_config(directory.path()), "").unwrap();
     let path = directory.path().join("notes.hmd");
     std::fs::write(
         &path,
@@ -912,7 +923,7 @@ fn boundary_prints_an_endpoints_effective_boundary() {
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         "[endpoint.ledger]\nkind = \"csv\"\npath = \"ledger.csv\"\nstrictness = \"open\"\n\
          [endpoint.ledger.fields.species]\nname = \"Species Name\"\n\
          [endpoint.ledger.fields.count]\nwrite = false\n",

@@ -10,7 +10,7 @@ keys, signs and verifies `String`, `Bytes` and `Data`, computes HMAC tags,
 hashes passwords with Argon2id, and encrypts under a shared key or to an
 X25519 recipient in the age format. A private key is a secret value: it
 prints as its public key's thumbprint, and no format writes it. Module
-`crypto.keyvault` reaches keys a [vault](vault/hql.toml) configures by id
+`crypto.keyvault` reaches keys a [vault](vault/.hql/config.toml) configures by id
 and name; a stored private key signs and decrypts through the vault and is
 never a value of the program.
 

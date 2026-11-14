@@ -9,6 +9,17 @@ use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 use tempfile::tempdir;
 
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
+
 /// Run `hql` in a directory, with standard input closed.
 fn hql_in(dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_hql"))
@@ -308,7 +319,7 @@ fn a_relative_path_resolves_against_the_program_that_names_it() {
 fn a_document_reads_beside_itself_and_writes_nothing() {
     let dir = tempdir().unwrap();
     // A document renders only in a vault.
-    std::fs::write(dir.path().join("hql.toml"), "").unwrap();
+    std::fs::write(project_config(dir.path()), "").unwrap();
     fs::create_dir(dir.path().join("doc")).unwrap();
     fs::write(dir.path().join("doc/d.json"), "{\"k\": 1}").unwrap();
     fs::write(dir.path().join("outside.json"), "{\"k\": 2}").unwrap();
@@ -472,7 +483,7 @@ fn a_channel_holds_values_in_the_order_they_were_written() {
 fn a_document_may_write_its_own_channels() {
     let dir = tempdir().unwrap();
     // A document renders only in a vault.
-    std::fs::write(dir.path().join("hql.toml"), "").unwrap();
+    std::fs::write(project_config(dir.path()), "").unwrap();
     fs::write(
         dir.path().join("doc.md"),
         "```hql\nc = Channel<Int>(\"cell\")\n[1, 2] | sink(c)\nsource(c) | size\n```\n",

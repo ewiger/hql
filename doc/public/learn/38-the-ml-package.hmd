@@ -219,7 +219,7 @@ model = d.fit_linear()
 ```
 
 This is `examples/linear.hql` of the package's crate. That directory holds
-an `hql.toml` listing the crate under `[packages] paths`, so in a checkout
+an `.hql/config.toml` listing the crate under `[packages] paths`, so in a checkout
 the example runs against the source beside it, with no install:
 
 ```sh

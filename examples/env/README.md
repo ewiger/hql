@@ -4,7 +4,7 @@ The cases follow [HQL-0041 part 5](../../doc/proposals/HQL-0041/parts/05-env.hmd
 The `io.env` module is imported with `import io.env` and reached as `env`.
 `env.var` and `env.vars` read the environment through the host's grant:
 every variable for a program run on its own, the names `env = [...]` lists
-in a workspace's `hql.toml`, and none under `hql render`. An unset variable
+in a project's `.hql/config.toml`, and none under `hql render`. An unset variable
 and a withheld one both read as `none`. `env.arg` and `env.args` read the
 invocation's `--arg name=value` pairs, which are always granted. Every
 operation is effectful.

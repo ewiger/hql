@@ -232,7 +232,7 @@ evaluator, one step after another with no fusion, partitioning or parallelism,
 always registered, the default, and the oracle every other backend has to
 match; a conformance test runs the corpus through every registered backend
 against it. Which backend runs a program is host configuration —
-`--backend`, `[execution] backend` in `hql.toml`, `HQL_BACKEND`, then the
+`--backend`, `[execution] backend` in `.hql/config.toml`, `HQL_BACKEND`, then the
 default — never syntax. The reduce side — `reduce`, `group`, `collect` — is
 shown in [the mapreduce example](../../../../examples/mapreduce/README.md).
 

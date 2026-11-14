@@ -1,5 +1,5 @@
 // status: valid-now
-// feature: a module found under the module root the workspace's hql.toml names, imported by its dotted name
+// feature: a module found under the module root the project's .hql/config.toml names, imported by its dotted name
 // implementation: implemented
 // environment: knowledge-v1
 // vault: contexts/workspace

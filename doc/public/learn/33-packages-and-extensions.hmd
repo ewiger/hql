@@ -43,7 +43,7 @@ vault's module root, `examples/tutorial/lib`, holds no such file. The
 import is refused.
 The program is the same in a workspace where a package does provide it:
 
-<!-- run: --workspace examples/packages -->
+<!-- run: --project examples/packages -->
 ```hql
 import hello
 
@@ -69,7 +69,7 @@ packages are found picks no winner.
 `hql builtins` names the provider beside each module:
 
 ```sh
-hql --workspace examples/packages builtins
+hql --project examples/packages builtins
 ```
 
 ```text
@@ -115,7 +115,7 @@ and each declaration was paired with its function. The import is a matter
 of names. That is why a call to a function of a package is checked as any
 call is:
 
-<!-- run: --workspace examples/packages -->
+<!-- run: --project examples/packages -->
 ```hql
 import hello
 
@@ -136,7 +136,7 @@ The Rust function is never called with an `Int`.
 A name of a package used without its import is reported as a missing
 import, since the environment knows which module declares it:
 
-<!-- run: --workspace examples/packages -->
+<!-- run: --project examples/packages -->
 ```hql
 "hi".shout()
 ```

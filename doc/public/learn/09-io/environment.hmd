@@ -151,10 +151,10 @@ read through a **grant** the host fixes before evaluation:
 
 | Host | Variables granted |
 | --- | --- |
-| `hql eval`, `hql run`, `hql repl` | every variable, or the names `env = [...]` lists in the workspace's `hql.toml` |
+| `hql eval`, `hql run`, `hql repl` | every variable, or the names `env = [...]` lists in the project's `.hql/config.toml` |
 | `hql render` | none |
 
-In `hql.toml`, `env` is a list of names and `PREFIX_*` patterns, a `*`
+In `.hql/config.toml`, `env` is a list of names and `PREFIX_*` patterns, a `*`
 matching any suffix:
 
 ```toml

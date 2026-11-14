@@ -9,7 +9,7 @@ pages after it cover receiver modules, visibility, and how a name resolves.
 
 A workspace module is an HQL file under a **module root**, named by its
 position under the root: `lib/club/reading.hql` is the module `club.reading`,
-and `lib/club/mod.hql` would be `club`. The roots come from `hql.toml`:
+and `lib/club/mod.hql` would be `club`. The roots come from `.hql/config.toml`:
 
 ```toml
 [modules]

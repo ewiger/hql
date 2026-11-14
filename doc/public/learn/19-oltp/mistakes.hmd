@@ -9,7 +9,7 @@ Checking sees the configuration; evaluation sees the systems:
 | `source("order_events")` | checking | check error[type-mismatch]: `order_events` is a `kafka` endpoint, read by `tap` as a `Stream`, not by `source` as a `Seq` |
 | a stream written by `target("orders")` | checking | check error[type-mismatch]: `target("orders")` writes a Table or a sequence of a declared record, not Stream&lt;Event&gt; |
 | `sink("ledger")` | checking | check error[type-mismatch]: endpoint `ledger` is a `sqlite` endpoint, which `sink` does not write; write it whole with `target` |
-| a password in `hql.toml` | loading the vault | `url` holds credentials; name the environment variable that holds the address, `url_env = "VARIABLE"` |
+| a password in `.hql/config.toml` | loading the vault | `url` holds credentials; name the environment variable that holds the address, `url_env = "VARIABLE"` |
 | `SHOP_DSN` not set | evaluation, before the first row | execute failure[io-failure]: endpoint `orders`: the environment variable `SHOP_DSN`, which `dsn_env` names, is not set |
 | a raw order read as `Event` | evaluation, at that order | execute failure[io-failure]: endpoint `raw_events`, field `amount`: "free" is not a decimal number |
 | a write to a wildcard subject | evaluation, at the write | execute failure[io-failure]: subject `orders.>` holds a wildcard, which reads many subjects and writes none; a message is published to one subject |

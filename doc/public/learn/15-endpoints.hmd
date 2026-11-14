@@ -5,7 +5,7 @@ subject and a webhook differ in where their data is and whether it ends; to
 a program each is an **endpoint**, and four steps read and write all of
 them. This chapter is that model, told over the shop of
 [[14-etl-pipelines|chapter 14]]. The programs run with
-`--vault examples/pipelines/shop`.
+`--project examples/pipelines/shop`.
 
 ## One file, two spellings
 
@@ -13,7 +13,7 @@ An endpoint is a value that states where documents are. Constructing one
 performs no I/O, and a program can reach the shop's events by writing the
 endpoint itself, `file(path)`:
 
-<!-- run: --vault examples/pipelines/shop -->
+<!-- run: --project examples/pipelines/shop -->
 ```hql
 source(file("examples/pipelines/shop/data/events.json")) | size
 ```
@@ -22,7 +22,7 @@ source(file("examples/pipelines/shop/data/events.json")) | size
 1
 ```
 
-or by naming the id the shop's `hql.toml` declares it under:
+or by naming the id the shop's `.hql/config.toml` declares it under:
 
 ```toml
 [endpoint.events]
@@ -30,7 +30,7 @@ kind = "json"
 path = "data/events.json"
 ```
 
-<!-- run: --vault examples/pipelines/shop -->
+<!-- run: --project examples/pipelines/shop -->
 ```hql
 source("events") | size
 ```
@@ -51,7 +51,7 @@ types that system uses.
 The rest of Part II uses ids, for the reason the second spelling exists: a
 program that names an id is not tied to one machine's paths, one server's
 address, or one system. Moving the events from a file into a table is a
-change to `hql.toml`, not to the pipeline.
+change to `.hql/config.toml`, not to the pipeline.
 
 ## Four steps
 
@@ -67,7 +67,7 @@ A table ends, so `source` reads it. A topic does not, so it is read by
 `tap`; `source` of one is a check error, because a `Seq` is a value that
 ends and a topic has no last message:
 
-<!-- run: --vault examples/pipelines/shop -->
+<!-- run: --project examples/pipelines/shop -->
 ```hql
 source("order_events")
 ```
@@ -83,7 +83,7 @@ check error[type-mismatch]: `order_events` is a `kafka` endpoint, read by `tap` 
 The writing side is the mirror. A stream has no last value for `target` to
 wait for, so a stream is written with `sink`:
 
-<!-- run: --vault examples/pipelines/shop -->
+<!-- run: --project examples/pipelines/shop -->
 ```hql
 type Event {
     id       : Int
@@ -105,7 +105,7 @@ check error[type-mismatch]: `target("orders")` writes a Table or a sequence of a
    |          ^^^^^^^^^^^^^^^^
 ```
 
-<!-- run: check --vault examples/pipelines/shop -->
+<!-- run: check --project examples/pipelines/shop -->
 ```hql
 type Event {
     id       : Int
@@ -132,13 +132,13 @@ process that hangs ([[finite-or-live|finite or live]]).
 ## The kind states the type
 
 `source("orders")` is a PostgreSQL table, and the program above was checked
-without a database. Checking reads `hql.toml`, finds `kind = "postgres"`,
+without a database. Checking reads `.hql/config.toml`, finds `kind = "postgres"`,
 and types `orders` from the kind alone: it ends, `source` reads it as a
 `Seq` of rows, and `target` writes it in one transaction or `sink` row by
 row. No connection is made until the program runs, and `hql check`
 never runs it:
 
-<!-- run: check --vault examples/pipelines/shop -->
+<!-- run: check --project examples/pipelines/shop -->
 ```hql
 source("customer_revenue")
 ```
@@ -169,7 +169,7 @@ chapter 9.
 
 ## Secrets live in the environment
 
-The shop's `hql.toml` holds no password. An endpoint whose address may carry
+The shop's `.hql/config.toml` holds no password. An endpoint whose address may carry
 a secret names the environment variable that holds it, `dsn_env` for a
 database, `brokers_env` for Kafka, `url_env` for NATS and the lakehouse, and
 `token_env` for a token:
@@ -194,7 +194,7 @@ A variable that is not set is found when the endpoint is first read, and the
 failure names the endpoint and the variable, never its value:
 
 ```text
-$ hql --vault examples/pipelines/shop eval 'source("orders")'
+$ hql --project examples/pipelines/shop eval 'source("orders")'
 execute failure[io-failure]: endpoint `orders`: the environment variable `SHOP_DSN`, which `dsn_env` names, is not set
  --> <expression>:1:1
   |
@@ -222,7 +222,7 @@ module of its own, imported by its full path, and its constructor takes the
 keys its kind takes, so a program reaches a subject without any
 configuration:
 
-<!-- run: check --vault examples/pipelines/shop -->
+<!-- run: check --project examples/pipelines/shop -->
 ```hql
 import io.msg.nats_jetstream
 
@@ -237,7 +237,7 @@ A message is one document, so no format is named, and it is `Json` unless
 one is. A table is rows of named columns, so it takes no format at all, and
 naming one is a check error:
 
-<!-- run: check --vault examples/pipelines/shop -->
+<!-- run: check --project examples/pipelines/shop -->
 ```hql
 import io.db.sqlite
 

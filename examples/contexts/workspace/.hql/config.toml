@@ -1,0 +1,6 @@
+# The project of the execution-context cases: its own module root, and
+# one module imported into every unit it runs.
+
+[modules]
+roots = ["lib"]
+import = ["stats"]

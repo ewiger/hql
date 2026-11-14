@@ -2,7 +2,7 @@
 
 `hql package` builds a package from its crate and keeps it under the HQL
 home, where every program on the machine reaches it. This chapter is the
-commands, the files they write, and the two settings of `hql.toml` that
+commands, the files they write, and the two settings of `.hql/config.toml` that
 concern packages.
 
 ## The commands
@@ -142,20 +142,20 @@ package  ok      hello 0.1.0 (hello)
 ## A package under development
 
 Installing copies a build. While a package is being written, a workspace
-names the crate instead, under `[packages] paths` in its `hql.toml`:
+names the crate instead, under `[packages] paths` in its `.hql/config.toml`:
 
 ```toml
 [packages]
 paths = ["../hello"]
 ```
 
-A path is read against the directory of the `hql.toml`. Each crate listed
+A path is read against the directory of the `.hql/config.toml`. Each crate listed
 is built the first time a program runs in the workspace, and again
 whenever its `Cargo.toml`, a file under `src/` or a file under its module
 root is newer than the build. The build is kept under the crate's own
 `target/` directory, and nothing is written to the HQL home.
 
-<!-- run: --workspace examples/packages -->
+<!-- run: --project examples/packages -->
 ```hql
 import hello
 
@@ -168,7 +168,7 @@ Greeting("Ada").length
 
 The workspace of that program is
 [`examples/packages/`](https://github.com/ewiger/hql/tree/main/examples/packages),
-whose `hql.toml` lists the `hello` crate. A crate a workspace lists comes
+whose `.hql/config.toml` lists the `hello` crate. A crate a workspace lists comes
 before an installed package of the same name, so the checkout being edited
 is the one that runs.
 
@@ -176,10 +176,10 @@ is the one that runs.
 
 A module of a package is imported where it is used, as any module outside
 the prelude is. A workspace whose programs all use one may import it once,
-under `[extensions] import` in `hql.toml`, by the package's name:
+under `[modules] import` in `.hql/config.toml`, by the package's name:
 
 ```toml
-[extensions]
+[modules]
 import = ["hello"]
 ```
 
@@ -192,7 +192,7 @@ standard module or a package; it is the one place a package is named.
 | Source | Found in | Wins over |
 | --- | --- | --- |
 | a builtin package | the `hql` binary | everything: no package provides a module `std` or `search` does |
-| a crate under `[packages] paths` | the workspace's `hql.toml` | an installed package of the same name |
+| a crate under `[packages] paths` | the project's `.hql/config.toml` | an installed package of the same name |
 | an installed package | `~/.hql/lib/` | a workspace module of the same name |
 | a workspace module | the module roots ([[05-modules|chapter 5]]) | |
 

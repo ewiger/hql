@@ -120,7 +120,7 @@ description = "HQL package `ml`: datasets, fitted models as values, prediction a
 license = "MIT"
 repository = "https://github.com/ewiger/hql-extensions"
 readme = "README.md"
-include = ["/src", "/modules", "/examples/*.hql", "/examples/hql.toml", "/README.md"]
+include = ["/src", "/modules", "/examples/*.hql", "/examples/.hql/config.toml", "/README.md"]
 
 [dependencies]
 hql = "0.7"

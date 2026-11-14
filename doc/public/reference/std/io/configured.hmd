@@ -7,7 +7,7 @@ In [`std/io`](index.hmd).
 fn configured(id: String) : Transport
 ```
 
-The endpoint configured under the literal `id` in hql.toml, as the
+The endpoint configured under the literal `id` in .hql/config.toml, as the
 transport its kind states, with its schema boundary: a `postgres`
 endpoint is a `Postgres`, a `csv` endpoint a `File`. Constructing it
 opens nothing, and it needs no import: the configuration names the

@@ -154,7 +154,7 @@ type Event {
 }
 ```
 
-<!-- run: with Event --vault examples/pipelines/shop -->
+<!-- run: with Event --project examples/pipelines/shop -->
 ```hql
 orders : Seq<Event> = source("ledger")
 orders | filter(o => o.kind == "order_placed") | map(o => o.amount) | sum
@@ -166,7 +166,7 @@ orders | filter(o => o.kind == "order_placed") | map(o => o.amount) | sum
 
 and over a topic that does not:
 
-<!-- run: --vault examples/pipelines/shop -->
+<!-- run: --project examples/pipelines/shop -->
 ```hql
 type Event {
     id       : Int
@@ -195,7 +195,7 @@ stream and makes it a stream of batches, which is the **micro-batch** of
 Spark Structured Streaming: inside each batch every whole-input step
 applies, and the result is one value per batch, written as each closes:
 
-<!-- run: with Event --vault examples/pipelines/shop -->
+<!-- run: with Event --project examples/pipelines/shop -->
 ```hql
 events : Stream<Event> = tap("events")
 events
@@ -233,7 +233,7 @@ happens to an order is an **event**: placed, shipped, or a payment that
 failed. On the first day the events are one JSON file, and the shop's whole
 data platform is a pipeline over it:
 
-<!-- run: --vault examples/pipelines/shop -->
+<!-- run: --project examples/pipelines/shop -->
 ```hql
 source("events")
 | filter(e => e.kind == "order_placed")
@@ -245,7 +245,7 @@ source("events")
 ["ada", "grace", "linus"]
 ```
 
-`source("events")` names no file. The shop's `hql.toml`, in
+`source("events")` names no file. The shop's `.hql/config.toml`, in
 [`examples/pipelines/shop/`](https://github.com/ewiger/hql/tree/main/examples/pipelines/shop),
 declares `events` as a `json` endpoint, and the program names the id. That
 one indirection is what lets the rest of Part II happen without the program
@@ -286,7 +286,7 @@ report.hql` passes one, and the program reads it with `env.arg` from
 `import io.env`, as text, with a default where it is not passed
 ([[environment|environment and arguments]]):
 
-<!-- run: --vault examples/pipelines/shop --arg customer=ada -->
+<!-- run: --project examples/pipelines/shop --arg customer=ada -->
 ```hql
 import io.env
 
@@ -357,7 +357,7 @@ runs, while keeping the checked program's meaning.
 | PySpark | readers and writers, in code | DataFrame operations | when the job runs, at the operation that fails |
 | ksqlDB | topics as streams and tables | SQL over them | when the statement is submitted, or in the records it skips |
 | dbt | models over a warehouse | SQL, with tests after | when the model builds, or when its tests run |
-| HQL | ids bound in `hql.toml` | the steps of this book | when the file is checked, before anything connects |
+| HQL | ids bound in `.hql/config.toml` | the steps of this book | when the file is checked, before anything connects |
 
 The columns are the same four things. What HQL adds is a type for each
 arrow: stream against table, finite against live, a declared record against

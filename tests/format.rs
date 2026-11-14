@@ -1,10 +1,21 @@
 //! `format` writes a value as text of a presentation format, and a vault's
-//! `hql.toml` chooses which renderer writes a type in a format.
+//! `.hql/config.toml` chooses which renderer writes a type in a format.
 
 use hql::reporting::Mode;
 use hql::types::Value;
 use hql::vault::Vault;
 use std::path::Path;
+
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
 
 fn fixture() -> Vault {
     hql::vault::load(Path::new("tests/fixtures/vault")).unwrap()
@@ -139,7 +150,7 @@ fn configured(toml: &str) -> std::io::Result<Vault> {
     let directory = tempfile::tempdir().unwrap();
     std::fs::write(directory.path().join("a.hmd"), "# A\n\nSee [[b]].\n").unwrap();
     std::fs::write(directory.path().join("b.hmd"), "# B\n").unwrap();
-    std::fs::write(directory.path().join("hql.toml"), toml).unwrap();
+    std::fs::write(project_config(directory.path()), toml).unwrap();
     hql::vault::load(directory.path())
 }
 

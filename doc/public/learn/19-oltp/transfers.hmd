@@ -48,7 +48,7 @@ element = "Transfer"
 holds. `update` selects rows with the `filter` of every pipeline and `set`
 gives the fields that change; its value is the number of rows changed:
 
-<!-- run: check with Account,Transfer --vault examples/pipelines/shop -->
+<!-- run: check with Account,Transfer --project examples/pipelines/shop -->
 ```hql
 accounts = configured("accounts")
 
@@ -69,7 +69,7 @@ field of the row, a literal, a value bound outside the lambda, comparisons,
 to compute it in HQL and bind it. `insert` adds a row or a collection of
 them, and `delete` removes the rows it selects:
 
-<!-- run: check with Account,Transfer --vault examples/pipelines/shop -->
+<!-- run: check with Account,Transfer --project examples/pipelines/shop -->
 ```hql
 transfers = configured("transfers")
 
@@ -96,7 +96,7 @@ CSV file is not `Deletable`. A `sqlite` or `postgres` table is all three, and a
 A transaction scope runs its block as one unit over its participants, a set
 of endpoints in one database, and commits when the block ends:
 
-<!-- run: check with Account,Transfer --vault examples/pipelines/shop -->
+<!-- run: check with Account,Transfer --project examples/pipelines/shop -->
 ```hql
 accounts = configured("accounts")
 transfers = configured("transfers")
@@ -145,7 +145,7 @@ the scope did not commit. A rollback by the program's own rule, a
 constraint the database enforced and a conflict that outlasted the attempts
 are all data, matched like any other:
 
-<!-- run: check with Account,Transfer --vault examples/pipelines/shop -->
+<!-- run: check with Account,Transfer --project examples/pipelines/shop -->
 ```hql
 accounts = configured("accounts")
 transfers = configured("transfers")

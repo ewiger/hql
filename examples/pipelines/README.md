@@ -2,7 +2,7 @@
 
 `shop/` is the vault Part II of the book runs against: a small shop whose
 orders pass through files, a SQLite table, PostgreSQL, Kafka, core NATS,
-NATS JetStream and a lakehouse. Its `hql.toml` declares every one of them
+NATS JetStream and a lakehouse. Its `.hql/config.toml` declares every one of them
 under an id. The files and the SQLite table are on this machine, so the
 programs that read them run here. Every other endpoint names a server by an
 environment variable, so a program over it is checked here, `hql check`

@@ -1,30 +1,46 @@
-//! The execution context of an invocation (HQL-0025): whether it runs bare or
-//! in a workspace, which workspace, and where it was found.
+//! The execution context of an invocation (HQL-0025, HQL-0059): the HQL
+//! project it runs in, if any, the HyperMarkdown vault it reads, if any, and
+//! where each was found.
 //!
-//! Four locations stay distinct: the process working directory, the
-//! execution anchor that discovery starts from, the workspace root, and the
-//! vault root. Discovery walks upward from the anchor to the nearest
-//! directory marked by `.hmd/` or `hql.toml`; an explicit selection replaces
-//! the walk, and bare execution suppresses it. Module discovery, extension
-//! loading and the document loader consume the result; none of them is
-//! decided here.
+//! A project and a vault are different things. A **project** is HQL's: a
+//! directory holding `.hql/config.toml`, which supplies configuration,
+//! packages and endpoints. A **vault** is HyperMarkdown's: a directory
+//! holding `.hmd/`, whose documents are cards. Neither marks the other, and
+//! the two are found independently.
 //!
-//! Bare means no workspace, not no configuration. The system configuration
+//! Five locations stay distinct: the working directory, where `hql` was
+//! started; the anchor, the source directory discovery starts from; the
+//! project root; the vault root; and the HQL home. Project discovery walks
+//! upward from the anchor to the nearest directory holding
+//! `.hql/config.toml`, skipping the directory whose `.hql/` is the HQL home;
+//! vault discovery walks upward to the nearest `.hmd/`. An explicit
+//! selection replaces either walk, and bare execution suppresses both.
+//!
+//! Bare means no project, not no configuration. The system configuration
 //! file, the user's HQL home (`~/.hql`, or `$HQL_HOME`) and `$HQL_PATH`
-//! contribute in every mode; a workspace's `hql.toml` adds to them. A
-//! relative path in a configuration file is read against the directory of
-//! the file that declares it.
+//! contribute in every mode; a project's `.hql/config.toml` adds to them. A
+//! relative path in the project file is read against the project root; in
+//! the user or system file, against the directory holding that file.
 //!
 //! A named context is a `[context.<name>]` table of the system or user file:
 //! reusable configuration, selected by `--context`, then `$HQL_CONTEXT`,
 //! then `current-context`, then a context named `default`. A context is not
-//! a workspace; it binds one only when it states `workspace`.
+//! a project; it binds one only when it states `project`.
 
-use crate::reporting::CONFIG_FILE;
 use std::path::{Path, PathBuf};
 
 /// The directory that marks a HyperMarkdown vault.
 pub const VAULT_MARKER: &str = ".hmd";
+/// The directory that holds a project's configuration and state, and the
+/// HQL home's own name under the user's home directory.
+pub const PROJECT_DIRECTORY: &str = ".hql";
+/// The configuration file inside `.hql/`, of a project and of the HQL home.
+pub const CONFIG_NAME: &str = "config.toml";
+/// A project's configuration file, relative to the project root.
+pub const PROJECT_CONFIG: &str = ".hql/config.toml";
+/// The file a workspace was configured by before HQL-0059; HQL reads no file
+/// of that name, and refuses a directory holding one in place of a project.
+pub const RETIRED_CONFIG: &str = "hql.toml";
 /// The environment variable naming the HQL home in place of `~/.hql`.
 pub const HOME_ENVIRONMENT: &str = "HQL_HOME";
 /// The environment variable naming the system configuration file.
@@ -38,9 +54,9 @@ pub const CURRENT_CONTEXT: &str = "current-context";
 /// The context selected when nothing else selects one, if it is defined.
 pub const DEFAULT_CONTEXT: &str = "default";
 /// The HQL home's directory under the user's home directory.
-pub const HOME_DIRECTORY: &str = ".hql";
+pub const HOME_DIRECTORY: &str = PROJECT_DIRECTORY;
 /// The configuration file of the HQL home and of the system.
-pub const USER_CONFIG: &str = "config.toml";
+pub const USER_CONFIG: &str = CONFIG_NAME;
 /// The HQL home's directory of module files, a module root when present.
 pub const MODULES_DIRECTORY: &str = "modules";
 
@@ -61,12 +77,21 @@ pub enum ContextError {
     /// Two explicit selections contradict each other.
     #[error("{0}")]
     Conflict(String),
-    /// An explicitly selected workspace is not a directory.
+    /// An explicitly selected project or vault is not a directory.
     #[error("{}: not a directory", .0.display())]
     NotADirectory(PathBuf),
-    /// An explicitly selected workspace carries neither marker.
-    #[error("{}: not a workspace: it holds neither `.hmd/` nor `hql.toml`", .0.display())]
-    NotAWorkspace(PathBuf),
+    /// An explicitly selected project holds no `.hql/config.toml`.
+    #[error("{}: not a project: it holds no `{PROJECT_CONFIG}`", .0.display())]
+    NotAProject(PathBuf),
+    /// An explicitly selected vault holds no `.hmd/`.
+    #[error("{}: not a vault: it holds no `{VAULT_MARKER}/`", .0.display())]
+    NotAVault(PathBuf),
+    /// A directory configures HQL with the retired `hql.toml`.
+    #[error(
+        "{}: `{RETIRED_CONFIG}` is retired: move it to `{PROJECT_CONFIG}` in the same directory",
+        .0.display()
+    )]
+    Retired(PathBuf),
     /// A configuration file cannot be read, or says something malformed.
     #[error("{}: {message}", path.display())]
     Config {
@@ -120,8 +145,8 @@ pub enum Origin {
     Home,
     /// The selected named context.
     Context(String),
-    /// The workspace's `hql.toml`.
-    Workspace,
+    /// The project's `.hql/config.toml`.
+    Project,
     /// An environment variable, by name.
     Environment(&'static str),
     /// A command-line option, by name.
@@ -138,7 +163,7 @@ impl Origin {
             Self::User => "user configuration".to_owned(),
             Self::Home => "the HQL home".to_owned(),
             Self::Context(name) => format!("context `{name}`"),
-            Self::Workspace => format!("the workspace's {CONFIG_FILE}"),
+            Self::Project => format!("the project's {PROJECT_CONFIG}"),
             Self::Environment(name) => format!("${name}"),
             Self::Option(name) => (*name).to_owned(),
         }
@@ -154,6 +179,101 @@ pub struct Contributed<T> {
     pub origin: Origin,
 }
 
+/// Which file a table of configuration keys is read from, for the keys it
+/// may hold (HQL-0059, part 1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Level {
+    /// A project's `.hql/config.toml`.
+    Project,
+    /// The user file or the system file.
+    Layer,
+    /// A `[context.<name>]` table of the user or system file.
+    Context,
+}
+
+/// Keys a configuration file once took and takes no longer, each with what
+/// replaces it. A file stating one is refused, naming the replacement.
+const RETIRED_KEYS: &[(&str, &str)] = &[
+    (
+        "extensions",
+        "`[extensions]` is now `[modules]`: `import` and `prelude` are keys of `[modules]`",
+    ),
+    (
+        "semantics",
+        "`[semantics]` is HyperMarkdown's: it is a table of the vault's `.hmd/config.toml`",
+    ),
+    (
+        "sources",
+        "`[sources]` is not read; an endpoint is declared under `[endpoint.<id>]`",
+    ),
+    (
+        "workspace",
+        "`workspace` is now `project`: a context binds a project",
+    ),
+];
+
+/// Check that a table holds only the keys its level takes, refusing a
+/// retired key by naming its replacement.
+fn validate(table: &toml::Table, level: Level, path: &Path) -> Result<(), ContextError> {
+    for key in table.keys() {
+        if let Some((_, replacement)) = RETIRED_KEYS.iter().find(|(retired, _)| retired == key) {
+            return Err(refuse(path, *replacement));
+        }
+        let known = match key.as_str() {
+            "packages" | "modules" | "execution" | "report" => true,
+            // Reserved for the AI harness (HQL-0022), specified there.
+            "env" | "endpoint" | "keyvault" | "format" | "ai" => level == Level::Project,
+            CURRENT_CONTEXT | "context" => level == Level::Layer,
+            "project" => level == Level::Context,
+            _ => false,
+        };
+        if !known {
+            let file = match level {
+                Level::Project => "a project's configuration",
+                Level::Layer => "the user or system configuration",
+                Level::Context => "a named context",
+            };
+            return Err(refuse(
+                path,
+                format!("`{key}` is not a key {file} takes; HQL-0059, part 1, lists them"),
+            ));
+        }
+    }
+    let section = |name: &str, keys: &[&str]| -> Result<(), ContextError> {
+        let Some(value) = table.get(name) else {
+            return Ok(());
+        };
+        let section = value
+            .as_table()
+            .ok_or_else(|| refuse(path, format!("`{name}` is a table, `[{name}]`")))?;
+        if let Some(key) = section.keys().find(|key| !keys.contains(&key.as_str())) {
+            let known: Vec<String> = keys.iter().map(|key| format!("`{key}`")).collect();
+            return Err(refuse(
+                path,
+                format!("`[{name}]` takes no `{key}`; it takes {}", known.join(", ")),
+            ));
+        }
+        Ok(())
+    };
+    section("modules", &["roots", "import", "prelude"])?;
+    section("report", &["mode", "level"])?;
+    match level {
+        Level::Project => {
+            section("packages", &["dependencies", "paths"])?;
+            section("execution", &["backend", "max_elements", "max_bytes"])?;
+        }
+        Level::Layer => {
+            section("packages", &["dependencies", "paths"])?;
+            section("execution", &["backend"])?;
+        }
+        Level::Context => {
+            section("packages", &["paths"])?;
+            section("execution", &["backend"])?;
+        }
+    }
+    Ok(())
+}
+
 /// One configuration file of the layering, and its contents when present.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConfigFile {
@@ -166,11 +286,13 @@ pub struct ConfigFile {
 }
 
 impl ConfigFile {
-    /// Read a configuration file; an absent one is a layer with nothing in it.
+    /// Read a configuration file; an absent one is a layer with nothing in
+    /// it. A present one must hold only the keys its layer takes.
     ///
     /// # Errors
     ///
-    /// The file exists and cannot be read, or is not TOML.
+    /// The file exists and cannot be read, is not TOML, or holds a key its
+    /// layer does not take.
     pub fn read(origin: Origin, path: PathBuf) -> Result<Self, ContextError> {
         let text = match std::fs::read_to_string(&path) {
             Ok(text) => text,
@@ -188,17 +310,34 @@ impl ConfigFile {
                 });
             }
         };
-        match toml::from_str::<toml::Table>(&text) {
-            Ok(table) => Ok(Self {
-                origin,
-                path,
-                table: Some(table),
-            }),
-            Err(error) => Err(ContextError::Config {
-                path,
-                message: error.message().to_owned(),
-            }),
+        let table = toml::from_str::<toml::Table>(&text).map_err(|error| ContextError::Config {
+            path: path.clone(),
+            message: error.message().to_owned(),
+        })?;
+        let level = if origin == Origin::Project {
+            Level::Project
+        } else {
+            Level::Layer
+        };
+        validate(&table, level, &path)?;
+        if let Some(contexts) = table.get("context").and_then(toml::Value::as_table) {
+            for (name, entry) in contexts {
+                if let Some(entry) = entry.as_table() {
+                    validate(entry, Level::Context, &path).map_err(|error| match error {
+                        ContextError::Config { path, message } => ContextError::Config {
+                            path,
+                            message: format!("`[context.{name}]`: {message}"),
+                        },
+                        other => other,
+                    })?;
+                }
+            }
         }
+        Ok(Self {
+            origin,
+            path,
+            table: Some(table),
+        })
     }
 
     /// Whether the file exists.
@@ -207,16 +346,23 @@ impl ConfigFile {
         self.table.is_some()
     }
 
-    /// The directory a relative path in this file is read against.
+    /// The directory a relative path in this file is read against: the
+    /// project root for a project's `.hql/config.toml`, the directory
+    /// holding the file otherwise.
     #[must_use]
     pub fn base(&self) -> &Path {
-        self.path.parent().unwrap_or_else(|| Path::new("."))
+        let directory = self.path.parent().unwrap_or_else(|| Path::new("."));
+        if self.origin == Origin::Project {
+            directory.parent().unwrap_or(directory)
+        } else {
+            directory
+        }
     }
 }
 
 /// The settings a configuration table contributes to the context: module
-/// roots, extension imports and the prelude. The same shape is read from
-/// the system file, the user file and a workspace's `hql.toml`.
+/// roots, implicit imports and the prelude. The same shape is read from
+/// the system file, the user file, a named context and a project's file.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct Settings {
     module_roots: Vec<PathBuf>,
@@ -228,8 +374,9 @@ impl Settings {
     /// Read the settings of `table`, whose paths are read against `base`;
     /// `path` names the declaring file in a refusal.
     fn of(table: &toml::Table, base: &Path, path: &Path) -> Result<Self, ContextError> {
-        let strings = |section: &str, key: &str| -> Result<Vec<String>, ContextError> {
-            let Some(value) = table.get(section).and_then(|section| section.get(key)) else {
+        let modules = table.get("modules");
+        let strings = |key: &str| -> Result<Vec<String>, ContextError> {
+            let Some(value) = modules.and_then(|section| section.get(key)) else {
                 return Ok(Vec::new());
             };
             value
@@ -240,32 +387,29 @@ impl Settings {
                         .map(|item| item.as_str().map(str::to_owned))
                         .collect::<Option<Vec<_>>>()
                 })
-                .ok_or_else(|| refuse(path, format!("`[{section}] {key}` is a list of strings")))
+                .ok_or_else(|| refuse(path, format!("`[modules] {key}` is a list of strings")))
         };
-        let prelude = match table
-            .get("extensions")
-            .and_then(|section| section.get("prelude"))
-        {
+        let prelude = match modules.and_then(|section| section.get("prelude")) {
             None => None,
             Some(value) => Some(
                 value
                     .as_bool()
-                    .ok_or_else(|| refuse(path, "`[extensions] prelude` is true or false"))?,
+                    .ok_or_else(|| refuse(path, "`[modules] prelude` is true or false"))?,
             ),
         };
         Ok(Self {
-            module_roots: strings("modules", "roots")?
+            module_roots: strings("roots")?
                 .into_iter()
                 .map(|root| absolute(base, Path::new(&root)))
                 .collect(),
-            imports: strings("extensions", "import")?,
+            imports: strings("import")?,
             prelude,
         })
     }
 }
 
 /// The user's HQL environment: `~/.hql`, or the directory `$HQL_HOME` names.
-/// It is not a workspace, and never a vault.
+/// It is never a project, and never a vault.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HqlHome {
     /// The directory.
@@ -296,10 +440,19 @@ impl HqlHome {
     pub fn config_file(&self) -> PathBuf {
         self.path.join(USER_CONFIG)
     }
+
+    /// Whether `dir` is the directory whose `.hql/` is this home: the one
+    /// directory the project walk skips, since the user file has the shape
+    /// of a project's.
+    #[must_use]
+    pub fn is_held_by(&self, dir: &Path) -> bool {
+        let candidate = dir.join(PROJECT_DIRECTORY);
+        candidate.is_dir() && same_directory(&candidate, &self.path)
+    }
 }
 
-/// The configuration that exists independently of any workspace: the
-/// system file and the user's HQL home.
+/// The configuration that exists independently of any project: the system
+/// file and the user's HQL home.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Layers {
     /// The HQL home, when one is known.
@@ -315,7 +468,8 @@ impl Layers {
     ///
     /// # Errors
     ///
-    /// A configuration file that exists and cannot be read as TOML.
+    /// A configuration file that exists and cannot be read as TOML, or that
+    /// holds a key the user and system files do not take.
     pub fn load(environment: &Environment) -> Result<Self, ContextError> {
         let home = HqlHome::of(environment);
         let system = environment
@@ -470,7 +624,7 @@ fn merge(base: &mut toml::Table, over: &toml::Table) {
 }
 
 /// A `[context.<name>]` table: settings grouped under a name, and the
-/// workspace it binds when it states one.
+/// project it binds when it states one.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NamedContext {
     /// Its name.
@@ -490,24 +644,33 @@ impl NamedContext {
         self.path.parent().unwrap_or_else(|| Path::new("."))
     }
 
-    /// The workspace it binds, if it states one.
+    /// The project it binds, if it states one.
     ///
     /// # Errors
     ///
-    /// A `workspace` that is not a path.
-    pub fn workspace(&self) -> Result<Option<PathBuf>, ContextError> {
-        match self.table.get("workspace") {
+    /// A `project` that is not a path.
+    pub fn project(&self) -> Result<Option<PathBuf>, ContextError> {
+        match self.table.get("project") {
             None => Ok(None),
             Some(value) => value
                 .as_str()
-                .map(|path| Some(absolute(self.base(), Path::new(path))))
+                .map(|path| Some(absolute(self.base(), &expand_home(path))))
                 .ok_or_else(|| {
                     refuse(
                         &self.path,
-                        format!("`[context.{}] workspace` is a path", self.name),
+                        format!("`[context.{}] project` is a path", self.name),
                     )
                 }),
         }
+    }
+}
+
+/// A path as written in a configuration file, with a leading `~/` read as
+/// the user's home directory.
+fn expand_home(path: &str) -> PathBuf {
+    match (path.strip_prefix("~/"), std::env::home_dir()) {
+        (Some(rest), Some(home)) => home.join(rest),
+        _ => PathBuf::from(path),
     }
 }
 
@@ -539,15 +702,14 @@ pub fn set_current_context(text: &str, name: &str) -> String {
     written
 }
 
-/// The three execution modes an invocation runs in.
+/// The two execution modes an invocation runs in. Whether a vault is read
+/// is a separate fact: a project may have one, and a bare run may too.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecutionMode {
-    /// No workspace and no vault.
+    /// No project: only the system and user layers configure the run.
     Bare,
-    /// A workspace marked by `hql.toml` alone.
-    Workspace,
-    /// A workspace marked by `.hmd/`, which is also the vault.
-    Vault,
+    /// A project's `.hql/config.toml` configures the run.
+    Project,
 }
 
 impl ExecutionMode {
@@ -556,15 +718,14 @@ impl ExecutionMode {
     pub fn label(self) -> &'static str {
         match self {
             Self::Bare => "bare",
-            Self::Workspace => "workspace",
-            Self::Vault => "vault",
+            Self::Project => "project",
         }
     }
 }
 
-/// How the workspace of an invocation was selected.
+/// How a project or a vault of an invocation was selected.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WorkspaceOrigin {
+pub enum Selection {
     /// The nearest marked directory at or above the anchor.
     Discovered,
     /// A command-line option, named as it was written.
@@ -573,14 +734,18 @@ pub enum WorkspaceOrigin {
     Context(String),
     /// The embedding host supplied it.
     Host,
+    /// The vault selected it: its `[hql] project`, or the nearest project
+    /// at or above a vault named explicitly.
+    Vault,
 }
 
-impl WorkspaceOrigin {
+impl Selection {
     /// How `hql context` names the origin.
     #[must_use]
     pub fn label(&self) -> String {
         match self {
             Self::Discovered => "discovered from the anchor".to_owned(),
+            Self::Vault => "selected by the vault".to_owned(),
             Self::Option(option) => (*option).to_owned(),
             Self::Context(name) => format!("context `{name}`"),
             Self::Host => "the host".to_owned(),
@@ -594,45 +759,141 @@ impl WorkspaceOrigin {
     }
 }
 
-/// The root of the HQL environment an invocation runs in.
+/// A directory an invocation selected, and how.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Workspace {
-    /// The workspace directory.
+pub struct Selected {
+    /// The directory.
     pub root: PathBuf,
     /// How it was selected.
-    pub origin: WorkspaceOrigin,
+    pub origin: Selection,
 }
 
-impl Workspace {
-    /// Whether the root holds `.hmd/`, which makes it a vault.
+impl Selected {
+    /// The project configuration file of a project root.
     #[must_use]
-    pub fn is_vault(&self) -> bool {
-        self.root.join(VAULT_MARKER).is_dir()
-    }
-
-    /// The workspace configuration file, when the root holds one.
-    #[must_use]
-    pub fn config_file(&self) -> Option<PathBuf> {
-        let file = self.root.join(CONFIG_FILE);
-        file.is_file().then_some(file)
+    pub fn config_file(&self) -> PathBuf {
+        self.root.join(PROJECT_CONFIG)
     }
 }
 
-/// Whether a directory is a workspace boundary: it holds `.hmd/` or
-/// `hql.toml`.
+/// Whether a directory is a project root: it holds `.hql/config.toml`.
 #[must_use]
-pub fn is_boundary(dir: &Path) -> bool {
-    crate::vault::is_root(dir)
+pub fn is_project(dir: &Path) -> bool {
+    dir.join(PROJECT_CONFIG).is_file()
 }
 
-/// The nearest workspace boundary at or above `anchor`. The walk stops at
-/// the first marked directory, so an outer boundary never reaches past an
-/// inner one.
+/// Whether a directory is a vault root: it holds `.hmd/`.
 #[must_use]
-pub fn discover(anchor: &Path) -> Option<PathBuf> {
+pub fn is_vault(dir: &Path) -> bool {
+    dir.join(VAULT_MARKER).is_dir()
+}
+
+/// The nearest project at or above `anchor`, skipping the directory whose
+/// `.hql/` is the HQL home. A directory configured by the retired
+/// `hql.toml` and no project file stops the walk with a refusal, so a
+/// stale file is never silently ignored.
+///
+/// # Errors
+///
+/// [`ContextError::Retired`] for an `hql.toml` met before a project.
+pub fn discover_project(
+    anchor: &Path,
+    home: Option<&HqlHome>,
+) -> Result<Option<PathBuf>, ContextError> {
+    for dir in anchor.ancestors() {
+        if home.is_some_and(|home| home.is_held_by(dir)) {
+            continue;
+        }
+        if is_project(dir) {
+            return Ok(Some(dir.to_path_buf()));
+        }
+        if dir.join(RETIRED_CONFIG).is_file() {
+            return Err(ContextError::Retired(dir.to_path_buf()));
+        }
+    }
+    Ok(None)
+}
+
+/// The HQL project a vault selects with `[hql] project` in its
+/// `.hmd/config.toml`, read against the vault root; `None` where it selects
+/// none. HyperMarkdown owns the file; HQL reads this one table of it.
+///
+/// # Errors
+///
+/// The file is not TOML, `project` is not a path, or names a directory that
+/// is not a project.
+pub fn selected_project(vault: &Path) -> Result<Option<PathBuf>, ContextError> {
+    let path = vault.join(VAULT_MARKER).join(CONFIG_NAME);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Ok(None);
+    };
+    let table = toml::from_str::<toml::Table>(&text).map_err(|error| ContextError::Config {
+        path: path.clone(),
+        message: error.message().to_owned(),
+    })?;
+    let Some(value) = table.get("hql").and_then(|hql| hql.get("project")) else {
+        return Ok(None);
+    };
+    let written = value
+        .as_str()
+        .ok_or_else(|| refuse(&path, "`[hql] project` is a path"))?;
+    let root = absolute(vault, Path::new(written));
+    if !is_project(&root) {
+        return Err(refuse(
+            &path,
+            format!(
+                "`[hql] project` names {}, which holds no `{PROJECT_CONFIG}`",
+                root.display()
+            ),
+        ));
+    }
+    Ok(Some(root))
+}
+
+/// The project of a run that names none, as HQL-0059 resolves it: the one
+/// the vault selects with `[hql] project`; else the nearest at or above the
+/// anchor; else, for a vault named explicitly, the nearest at or above the
+/// vault root, as the HyperMarkdown host of that vault finds it.
+///
+/// # Errors
+///
+/// A malformed `[hql] project`, and a retired `hql.toml` met by a walk.
+pub fn resolve_project(
+    anchor: &Path,
+    vault: Option<&Selected>,
+    home: Option<&HqlHome>,
+) -> Result<Option<Selected>, ContextError> {
+    if let Some(vault) = vault
+        && let Some(root) = selected_project(&vault.root)?
+    {
+        return Ok(Some(Selected {
+            root,
+            origin: Selection::Vault,
+        }));
+    }
+    if let Some(root) = discover_project(anchor, home)? {
+        return Ok(Some(Selected {
+            root,
+            origin: Selection::Discovered,
+        }));
+    }
+    if let Some(vault) = vault.filter(|vault| vault.origin.is_explicit())
+        && let Some(root) = discover_project(&vault.root, home)?
+    {
+        return Ok(Some(Selected {
+            root,
+            origin: Selection::Vault,
+        }));
+    }
+    Ok(None)
+}
+
+/// The nearest vault at or above `anchor`: the walk HyperMarkdown makes.
+#[must_use]
+pub fn discover_vault(anchor: &Path) -> Option<PathBuf> {
     anchor
         .ancestors()
-        .find(|dir| is_boundary(dir))
+        .find(|dir| is_vault(dir))
         .map(Path::to_path_buf)
 }
 
@@ -678,17 +939,25 @@ impl Environment {
 /// a host such as HyperMarkdown supplies.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Request {
-    /// The directory discovery starts from; the working directory without one.
+    /// The source directory discovery starts from; the working directory
+    /// without one.
     pub anchor: Option<PathBuf>,
-    /// Run with no workspace whatever the filesystem holds.
+    /// Run with no project and no discovery, whatever the filesystem holds.
     pub bare: bool,
-    /// A workspace named on the command line, with the option that named it.
-    pub workspace: Option<(PathBuf, &'static str)>,
-    /// A workspace an embedding host supplies; discovery does not run.
-    pub host_workspace: Option<PathBuf>,
+    /// A project named on the command line, `--project`.
+    pub project: Option<PathBuf>,
+    /// A vault named on the command line, `--vault`.
+    pub vault: Option<PathBuf>,
+    /// A project an embedding host supplies; discovery does not run.
+    pub host_project: Option<PathBuf>,
+    /// A vault an embedding host supplies; discovery does not run.
+    pub host_vault: Option<PathBuf>,
     /// Module roots named on the command line, read against the working
     /// directory.
     pub modules: Vec<PathBuf>,
+    /// Modules imported into every unit, named on the command line,
+    /// `--import`: the command-line layer of `[modules] import`.
+    pub imports: Vec<String>,
     /// A named context selected for this invocation alone.
     pub context: Option<String>,
 }
@@ -713,12 +982,14 @@ impl Request {
 pub struct ExecutionContext {
     /// The process working directory.
     pub cwd: PathBuf,
-    /// Where discovery starts.
+    /// Where discovery starts: the source directory of the program.
     pub anchor: PathBuf,
-    /// The workspace, absent in bare mode.
-    pub workspace: Option<Workspace>,
+    /// The project, absent in bare mode.
+    pub project: Option<Selected>,
+    /// The vault, when one is named, supplied or found.
+    pub vault: Option<Selected>,
     /// Whether bare execution was requested, rather than found for want of
-    /// a boundary.
+    /// a project.
     pub bare: bool,
     /// The environment it was constructed in.
     pub environment: Environment,
@@ -728,11 +999,11 @@ pub struct ExecutionContext {
     pub context: Option<Contributed<String>>,
     /// Its definition.
     pub named: Option<NamedContext>,
-    /// The workspace's `hql.toml`, in workspace and vault mode.
-    pub workspace_config: Option<ConfigFile>,
+    /// The project's `.hql/config.toml`, in project mode.
+    pub project_config: Option<ConfigFile>,
     /// Every module root, in layer order, each once.
     pub module_roots: Vec<Contributed<PathBuf>>,
-    /// Every extension imported for each program, in layer order, each once.
+    /// Every module imported into each unit, in layer order, each once.
     pub imports: Vec<Contributed<String>>,
     /// Whether the prelude's modules arrive unasked; the last layer stating
     /// it wins.
@@ -744,8 +1015,9 @@ impl ExecutionContext {
     ///
     /// # Errors
     ///
-    /// Contradictory explicit selections, and an explicit workspace that is
-    /// not one.
+    /// Contradictory explicit selections, an explicit project or vault that
+    /// is not one, a retired `hql.toml` met by the walk, and a malformed
+    /// configuration file.
     pub fn construct(request: &Request, environment: &Environment) -> Result<Self, ContextError> {
         let layers = Layers::load(environment)?;
         let anchor = request.anchor.as_ref().map_or_else(
@@ -761,22 +1033,22 @@ impl ExecutionContext {
         });
         let bound = named
             .as_ref()
-            .map(NamedContext::workspace)
+            .map(NamedContext::project)
             .transpose()?
             .flatten();
-        let explicit = match (&request.host_workspace, &request.workspace) {
-            (Some(_), Some((_, option))) => {
-                return Err(ContextError::Conflict(format!(
-                    "the host supplies the workspace, and {option} names another"
-                )));
+        let explicit = match (&request.host_project, &request.project) {
+            (Some(_), Some(_)) => {
+                return Err(ContextError::Conflict(
+                    "the host supplies the project, and --project names another".to_owned(),
+                ));
             }
-            (Some(root), None) => Some(Workspace {
+            (Some(root), None) => Some(Selected {
                 root: root.clone(),
-                origin: WorkspaceOrigin::Host,
+                origin: Selection::Host,
             }),
-            (None, Some((root, option))) => Some(Workspace {
+            (None, Some(root)) => Some(Selected {
                 root: root.clone(),
-                origin: WorkspaceOrigin::Option(option),
+                origin: Selection::Option("--project"),
             }),
             (None, None) => None,
         };
@@ -784,7 +1056,7 @@ impl ExecutionContext {
             && let Some(explicit) = &explicit
         {
             return Err(ContextError::Conflict(format!(
-                "--bare runs with no workspace, and {} names one",
+                "--bare runs with no project, and {} names one",
                 explicit.origin.label()
             )));
         }
@@ -793,7 +1065,7 @@ impl ExecutionContext {
         {
             if request.bare {
                 return Err(ContextError::Conflict(format!(
-                    "--bare runs with no workspace, and context `{}`, which {} selects, binds {}",
+                    "--bare runs with no project, and context `{}`, which {} selects, binds {}",
                     choice.value,
                     choice.origin.label(),
                     root.display()
@@ -803,7 +1075,7 @@ impl ExecutionContext {
                 && !same_directory(&explicit.root, root)
             {
                 return Err(ContextError::Conflict(format!(
-                    "context `{}`, which {} selects, binds the workspace {}, and {} names {}",
+                    "context `{}`, which {} selects, binds the project {}, and {} names {}",
                     choice.value,
                     choice.origin.label(),
                     root.display(),
@@ -814,41 +1086,72 @@ impl ExecutionContext {
         }
         let explicit = explicit.or_else(|| {
             let name = context.as_ref()?.value.clone();
-            bound.map(|root| Workspace {
+            bound.map(|root| Selected {
                 root,
-                origin: WorkspaceOrigin::Context(name),
+                origin: Selection::Context(name),
             })
         });
-        let workspace = if request.bare {
+        let vault = match (&request.host_vault, &request.vault) {
+            (Some(_), Some(_)) => {
+                return Err(ContextError::Conflict(
+                    "the host supplies the vault, and --vault names another".to_owned(),
+                ));
+            }
+            (Some(root), None) => Some(Selected {
+                root: root.clone(),
+                origin: Selection::Host,
+            }),
+            (None, Some(root)) => {
+                let root = root.clone();
+                if !root.is_dir() {
+                    return Err(ContextError::NotADirectory(root));
+                }
+                if !is_vault(&root) {
+                    return Err(ContextError::NotAVault(root));
+                }
+                Some(Selected {
+                    root,
+                    origin: Selection::Option("--vault"),
+                })
+            }
+            (None, None) if request.bare => None,
+            (None, None) => discover_vault(&anchor).map(|root| Selected {
+                root,
+                origin: Selection::Discovered,
+            }),
+        };
+        let project = if request.bare {
             None
         } else if let Some(explicit) = explicit {
             if !explicit.root.is_dir() {
                 return Err(ContextError::NotADirectory(explicit.root));
             }
-            if explicit.origin != WorkspaceOrigin::Host && !is_boundary(&explicit.root) {
-                return Err(ContextError::NotAWorkspace(explicit.root));
+            if explicit.origin != Selection::Host && !is_project(&explicit.root) {
+                if explicit.root.join(RETIRED_CONFIG).is_file() {
+                    return Err(ContextError::Retired(explicit.root));
+                }
+                return Err(ContextError::NotAProject(explicit.root));
             }
             Some(explicit)
         } else {
-            discover(&anchor).map(|root| Workspace {
-                root,
-                origin: WorkspaceOrigin::Discovered,
-            })
+            resolve_project(&anchor, vault.as_ref(), layers.home.as_ref())?
         };
-        let workspace_config = workspace
+        let project_config = project
             .as_ref()
-            .map(|workspace| ConfigFile::read(Origin::Workspace, workspace.root.join(CONFIG_FILE)))
+            .filter(|project| is_project(&project.root))
+            .map(|project| ConfigFile::read(Origin::Project, project.config_file()))
             .transpose()?;
         let mut context = Self {
             cwd: environment.cwd.clone(),
             anchor,
-            workspace,
+            project,
+            vault,
             bare: request.bare,
             environment: environment.clone(),
             layers,
             context,
             named,
-            workspace_config,
+            project_config,
             module_roots: Vec::new(),
             imports: Vec::new(),
             prelude: Contributed {
@@ -860,10 +1163,10 @@ impl ExecutionContext {
         Ok(context)
     }
 
-    /// Gather the module roots and extension settings of every layer, in
+    /// Gather the module roots and module settings of every layer, in
     /// order: the system file, the user file, the selected context, the HQL
-    /// home's modules, the workspace's `hql.toml`, `$HQL_PATH`, then
-    /// `--modules`.
+    /// home's modules, the project's file, `$HQL_PATH`, then `--modules`
+    /// and `--import`.
     fn contribute(&mut self, request: &Request) -> Result<(), ContextError> {
         let layers: Vec<ConfigFile> = self.layers.files().cloned().collect();
         for file in &layers {
@@ -879,7 +1182,7 @@ impl ExecutionContext {
                 self.add_root(modules, Origin::Home);
             }
         }
-        if let Some(file) = self.workspace_config.clone() {
+        if let Some(file) = self.project_config.clone() {
             self.take(&file)?;
         }
         if let Some(paths) = self.environment.hql_path.clone() {
@@ -892,6 +1195,13 @@ impl ExecutionContext {
         for path in &request.modules {
             self.add_root(path.clone(), Origin::Option("--modules"));
         }
+        self.settle(
+            Settings {
+                imports: request.imports.clone(),
+                ..Settings::default()
+            },
+            &Origin::Option("--import"),
+        );
         Ok(())
     }
 
@@ -942,8 +1252,8 @@ impl ExecutionContext {
         });
     }
 
-    /// Hand the effective module roots and extension settings to the
-    /// extension configuration a vault carries.
+    /// Hand the effective module roots and module settings to the
+    /// extension configuration a run carries.
     pub fn configure(&self, config: &mut crate::extensions::Config) {
         config.module_roots = self
             .module_roots
@@ -958,15 +1268,15 @@ impl ExecutionContext {
         config.prelude = self.prelude.value;
     }
 
-    /// The environment variables the workspace grants a program: the
-    /// names and `PREFIX_*` patterns of `env = [...]` in its `hql.toml`, or
-    /// `None` where it states none and every variable is granted.
+    /// The environment variables the project grants a program: the names
+    /// and `PREFIX_*` patterns of `env = [...]` in its `.hql/config.toml`,
+    /// or `None` where it states none and every variable is granted.
     ///
     /// # Errors
     ///
     /// `env` is stated and is not a list of strings.
     pub fn env_grant(&self) -> Result<Option<Vec<String>>, ContextError> {
-        let Some(file) = &self.workspace_config else {
+        let Some(file) = &self.project_config else {
             return Ok(None);
         };
         let Some(value) = file.table.as_ref().and_then(|table| table.get("env")) else {
@@ -989,7 +1299,7 @@ impl ExecutionContext {
             })
     }
 
-    /// A scalar setting `[section] key` that the workspace, the environment
+    /// A scalar setting `[section] key` that the project, the environment
     /// and the command line leave to configuration: the selected context's,
     /// else the user file's, else the system file's.
     ///
@@ -1033,55 +1343,55 @@ impl ExecutionContext {
         Ok(None)
     }
 
-    /// Load the workspace's documents into a vault configured by this
-    /// context: its module roots, extension imports and prelude. Bare mode
-    /// gets an empty vault under the same configuration. A host that
-    /// supplies the workspace calls this after [`Self::construct`].
+    /// Load what the run reads: the vault's documents as cards, when there
+    /// is a vault, under the project's configuration, when there is a
+    /// project, and the module settings of every layer. A host that supplies
+    /// the project or the vault calls this after [`Self::construct`].
     ///
     /// # Errors
     ///
-    /// The workspace cannot be read, naming it.
-    pub fn load_workspace(&self) -> Result<crate::vault::Vault, String> {
-        let mut vault = match self.workspace_root() {
+    /// The vault cannot be read, or the project's configuration is
+    /// malformed, naming the directory.
+    pub fn load(&self) -> Result<crate::vault::Vault, String> {
+        let mut vault = match self.vault() {
             None => crate::vault::Vault::empty(),
-            Some(root) => {
-                crate::vault::load(root).map_err(|error| format!("{}: {error}", root.display()))?
-            }
+            Some(root) => crate::vault::load_documents(root)
+                .map_err(|error| format!("{}: {error}", root.display()))?,
         };
+        if let Some(root) = self.project_root() {
+            vault
+                .configure_project(root)
+                .map_err(|error| format!("{}: {error}", root.display()))?;
+        }
         self.configure(&mut vault.extensions);
         Ok(vault)
     }
 
     /// Every configuration file of the layering, in order, present or not.
     pub fn config_files(&self) -> impl Iterator<Item = &ConfigFile> {
-        self.layers.files().chain(self.workspace_config.iter())
+        self.layers.files().chain(self.project_config.iter())
     }
 
     /// The mode the context puts the invocation in.
     #[must_use]
     pub fn mode(&self) -> ExecutionMode {
-        match &self.workspace {
-            None => ExecutionMode::Bare,
-            Some(workspace) if workspace.is_vault() => ExecutionMode::Vault,
-            Some(_) => ExecutionMode::Workspace,
+        if self.project.is_some() {
+            ExecutionMode::Project
+        } else {
+            ExecutionMode::Bare
         }
     }
 
-    /// The vault root: the workspace root when it holds `.hmd/`.
+    /// The vault root, when there is a vault.
     #[must_use]
     pub fn vault(&self) -> Option<&Path> {
-        self.workspace
-            .as_ref()
-            .filter(|workspace| workspace.is_vault())
-            .map(|workspace| workspace.root.as_path())
+        self.vault.as_ref().map(|vault| vault.root.as_path())
     }
 
-    /// The workspace root, absent in bare mode.
+    /// The project root, absent in bare mode.
     #[must_use]
-    pub fn workspace_root(&self) -> Option<&Path> {
-        self.workspace
-            .as_ref()
-            .map(|workspace| workspace.root.as_path())
+    pub fn project_root(&self) -> Option<&Path> {
+        self.project.as_ref().map(|project| project.root.as_path())
     }
 }
 
@@ -1096,7 +1406,7 @@ fn same_directory(left: &Path, right: &Path) -> bool {
 /// resolved by position. The walk upward then visits only the directory's
 /// real ancestors: `/a/tmp/../notes` walks `/a/notes`, then `/a`, and never
 /// `/a/tmp`.
-fn absolute(base: &Path, path: &Path) -> PathBuf {
+pub(crate) fn absolute(base: &Path, path: &Path) -> PathBuf {
     use std::path::Component;
     let joined = if path.is_absolute() {
         path.to_path_buf()
@@ -1140,55 +1450,80 @@ mod tests {
         }
     }
 
+    fn write(path: &Path, text: &str) {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, text).unwrap();
+    }
+
+    /// Mark `dir` as a project with an empty `.hql/config.toml`.
+    fn project(dir: &Path) {
+        write(&dir.join(PROJECT_CONFIG), "");
+    }
+
     #[test]
-    fn a_directory_with_no_boundary_above_it_runs_bare() {
+    fn a_directory_with_no_project_above_it_runs_bare() {
         let root = tempfile::tempdir().unwrap();
         let context =
             ExecutionContext::construct(&Request::default(), &environment(root.path())).unwrap();
         assert_eq!(context.mode(), ExecutionMode::Bare);
-        assert_eq!(context.workspace, None);
+        assert_eq!(context.project, None);
         assert_eq!(context.vault(), None);
         assert_eq!(context.anchor, root.path());
     }
 
     #[test]
-    fn the_walk_starts_at_the_anchor_not_the_working_directory() {
+    fn the_walks_start_at_the_anchor_not_the_working_directory() {
         let root = tempfile::tempdir().unwrap();
-        let vault = root.path().join("a");
-        fs::create_dir_all(vault.join(".hmd")).unwrap();
-        fs::create_dir_all(vault.join("b/c")).unwrap();
+        let repo = root.path().join("a");
+        project(&repo);
+        fs::create_dir_all(repo.join("b/.hmd")).unwrap();
+        fs::create_dir_all(repo.join("b/c")).unwrap();
         let elsewhere = root.path().join("elsewhere");
         fs::create_dir_all(&elsewhere).unwrap();
         let context =
-            ExecutionContext::construct(&anchored(&vault.join("b/c")), &environment(&elsewhere))
+            ExecutionContext::construct(&anchored(&repo.join("b/c")), &environment(&elsewhere))
                 .unwrap();
-        assert_eq!(context.mode(), ExecutionMode::Vault);
-        assert_eq!(context.workspace_root(), Some(vault.as_path()));
-        assert_eq!(context.vault(), Some(vault.as_path()));
+        assert_eq!(context.mode(), ExecutionMode::Project);
+        assert_eq!(context.project_root(), Some(repo.as_path()));
+        assert_eq!(context.vault(), Some(repo.join("b").as_path()));
         assert_eq!(context.cwd, elsewhere);
-        assert_eq!(context.anchor, vault.join("b/c"));
+        assert_eq!(context.anchor, repo.join("b/c"));
+    }
+
+    #[test]
+    fn a_vault_is_not_a_project_and_a_project_is_not_a_vault() {
+        let root = tempfile::tempdir().unwrap();
+        let vault = root.path().join("vault");
+        fs::create_dir_all(vault.join(".hmd")).unwrap();
+        let context =
+            ExecutionContext::construct(&anchored(&vault), &environment(root.path())).unwrap();
+        assert_eq!(context.mode(), ExecutionMode::Bare);
+        assert_eq!(context.vault(), Some(vault.as_path()));
+        let repo = root.path().join("repo");
+        project(&repo);
+        let context =
+            ExecutionContext::construct(&anchored(&repo), &environment(root.path())).unwrap();
+        assert_eq!(context.mode(), ExecutionMode::Project);
+        assert_eq!(context.vault(), None);
     }
 
     #[test]
     fn a_relative_anchor_is_read_against_the_working_directory() {
         let root = tempfile::tempdir().unwrap();
-        fs::write(root.path().join(CONFIG_FILE), "").unwrap();
+        project(root.path());
         fs::create_dir_all(root.path().join("src")).unwrap();
         let context =
             ExecutionContext::construct(&anchored(Path::new("src")), &environment(root.path()))
                 .unwrap();
         assert_eq!(context.anchor, root.path().join("src"));
-        assert_eq!(context.mode(), ExecutionMode::Workspace);
-        assert_eq!(context.workspace_root(), Some(root.path()));
-        assert_eq!(context.vault(), None);
+        assert_eq!(context.project_root(), Some(root.path()));
     }
 
     #[test]
     fn an_anchor_through_a_parent_walks_only_its_real_ancestors() {
         let root = tempfile::tempdir().unwrap();
         let tmp = root.path().join("tmp");
-        fs::create_dir_all(&tmp).unwrap();
-        fs::write(tmp.join(CONFIG_FILE), "").unwrap();
+        project(&tmp);
         fs::create_dir_all(root.path().join("notes/scripts")).unwrap();
         let context = ExecutionContext::construct(
             &anchored(Path::new("../notes/scripts")),
@@ -1200,36 +1535,61 @@ mod tests {
     }
 
     #[test]
-    fn the_nearest_boundary_wins_and_an_outer_vault_is_not_merged() {
+    fn the_nearest_project_wins() {
         let root = tempfile::tempdir().unwrap();
-        fs::create_dir_all(root.path().join(".hmd")).unwrap();
+        project(root.path());
         let inner = root.path().join("inner");
+        project(&inner);
         fs::create_dir_all(inner.join("src")).unwrap();
-        fs::write(inner.join(CONFIG_FILE), "").unwrap();
         let context =
             ExecutionContext::construct(&anchored(&inner.join("src")), &environment(root.path()))
                 .unwrap();
-        assert_eq!(context.mode(), ExecutionMode::Workspace);
-        assert_eq!(context.workspace_root(), Some(inner.as_path()));
-        assert_eq!(context.vault(), None);
+        assert_eq!(context.project_root(), Some(inner.as_path()));
     }
 
     #[test]
-    fn both_markers_in_one_directory_are_one_vault_workspace() {
+    fn a_retired_hql_toml_is_refused_naming_its_replacement() {
         let root = tempfile::tempdir().unwrap();
-        fs::create_dir_all(root.path().join(".hmd")).unwrap();
-        fs::write(root.path().join(CONFIG_FILE), "").unwrap();
-        let context =
-            ExecutionContext::construct(&Request::default(), &environment(root.path())).unwrap();
-        assert_eq!(context.mode(), ExecutionMode::Vault);
-        let workspace = context.workspace.as_ref().unwrap();
-        assert_eq!(workspace.config_file(), Some(root.path().join(CONFIG_FILE)));
-        assert_eq!(context.vault(), Some(root.path()));
+        write(&root.path().join(RETIRED_CONFIG), "");
+        let refused = ExecutionContext::construct(&Request::default(), &environment(root.path()))
+            .unwrap_err();
+        assert_eq!(refused, ContextError::Retired(root.path().to_path_buf()));
+        assert!(refused.to_string().contains(PROJECT_CONFIG), "{refused}");
+        // Beside a project file it is never reached.
+        project(root.path());
+        assert!(
+            ExecutionContext::construct(&Request::default(), &environment(root.path())).is_ok()
+        );
     }
 
     #[test]
-    fn bare_suppresses_discovery() {
+    fn the_hql_home_is_never_a_project() {
         let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        write(&root.join("home/.hql/config.toml"), "");
+        fs::create_dir_all(root.join("home/code/repo")).unwrap();
+        let environment = Environment {
+            cwd: root.join("home/code/repo"),
+            home: Some(root.join("home")),
+            system_config: Some(root.join("etc/config.toml")),
+            ..Environment::default()
+        };
+        let context = ExecutionContext::construct(&Request::default(), &environment).unwrap();
+        assert_eq!(context.mode(), ExecutionMode::Bare);
+        assert!(context.layers.user.as_ref().unwrap().is_present());
+        // A project inside the home directory is found as any other is.
+        project(&root.join("home/code"));
+        let context = ExecutionContext::construct(&Request::default(), &environment).unwrap();
+        assert_eq!(
+            context.project_root(),
+            Some(root.join("home/code").as_path())
+        );
+    }
+
+    #[test]
+    fn bare_suppresses_both_walks() {
+        let root = tempfile::tempdir().unwrap();
+        project(root.path());
         fs::create_dir_all(root.path().join(".hmd")).unwrap();
         let request = Request {
             bare: true,
@@ -1237,58 +1597,70 @@ mod tests {
         };
         let context = ExecutionContext::construct(&request, &environment(root.path())).unwrap();
         assert_eq!(context.mode(), ExecutionMode::Bare);
+        assert_eq!(context.vault(), None);
     }
 
     #[test]
-    fn an_explicit_workspace_replaces_the_walk_and_keeps_the_anchor() {
+    fn an_explicit_project_replaces_the_walk_and_keeps_the_anchor() {
         let root = tempfile::tempdir().unwrap();
         let repo = root.path().join("repo");
-        fs::create_dir_all(repo.join("src/jobs")).unwrap();
-        fs::write(repo.join(CONFIG_FILE), "").unwrap();
+        project(&repo);
         let nested = repo.join("src/jobs");
-        fs::write(nested.join(CONFIG_FILE), "").unwrap();
+        project(&nested);
         let request = Request {
             anchor: Some(nested.clone()),
-            workspace: Some((repo.clone(), "--workspace")),
+            project: Some(repo.clone()),
             ..Request::default()
         };
         let context = ExecutionContext::construct(&request, &environment(root.path())).unwrap();
-        assert_eq!(context.workspace_root(), Some(repo.as_path()));
+        assert_eq!(context.project_root(), Some(repo.as_path()));
         assert_eq!(context.anchor, nested);
         assert_eq!(
-            context.workspace.unwrap().origin,
-            WorkspaceOrigin::Option("--workspace")
+            context.project.unwrap().origin,
+            Selection::Option("--project")
         );
     }
 
     #[test]
-    fn an_explicit_workspace_must_be_a_marked_directory() {
+    fn an_explicit_project_or_vault_must_be_marked() {
         let root = tempfile::tempdir().unwrap();
-        let request = |path: PathBuf| Request {
-            workspace: Some((path, "--workspace")),
-            ..Request::default()
-        };
         let missing = root.path().join("missing");
+        let with = |project: Option<PathBuf>, vault: Option<PathBuf>| {
+            ExecutionContext::construct(
+                &Request {
+                    project,
+                    vault,
+                    ..Request::default()
+                },
+                &environment(root.path()),
+            )
+        };
         assert_eq!(
-            ExecutionContext::construct(&request(missing.clone()), &environment(root.path())),
+            with(Some(missing.clone()), None),
             Err(ContextError::NotADirectory(missing))
         );
         assert_eq!(
-            ExecutionContext::construct(
-                &request(root.path().to_path_buf()),
-                &environment(root.path())
-            ),
-            Err(ContextError::NotAWorkspace(root.path().to_path_buf()))
+            with(Some(root.path().to_path_buf()), None),
+            Err(ContextError::NotAProject(root.path().to_path_buf()))
+        );
+        assert_eq!(
+            with(None, Some(root.path().to_path_buf())),
+            Err(ContextError::NotAVault(root.path().to_path_buf()))
+        );
+        write(&root.path().join(RETIRED_CONFIG), "");
+        assert_eq!(
+            with(Some(root.path().to_path_buf()), None),
+            Err(ContextError::Retired(root.path().to_path_buf()))
         );
     }
 
     #[test]
-    fn bare_with_a_workspace_is_a_conflict() {
+    fn bare_with_a_project_is_a_conflict() {
         let root = tempfile::tempdir().unwrap();
-        fs::write(root.path().join(CONFIG_FILE), "").unwrap();
+        project(root.path());
         let request = Request {
             bare: true,
-            workspace: Some((root.path().to_path_buf(), "--workspace")),
+            project: Some(root.path().to_path_buf()),
             ..Request::default()
         };
         let refused = ExecutionContext::construct(&request, &environment(root.path())).unwrap_err();
@@ -1297,23 +1669,25 @@ mod tests {
     }
 
     #[test]
-    fn a_host_workspace_is_authoritative_and_needs_no_marker() {
+    fn a_host_project_and_vault_are_authoritative_and_need_no_marker() {
         let root = tempfile::tempdir().unwrap();
         let outer = root.path();
+        project(outer);
         fs::create_dir_all(outer.join(".hmd")).unwrap();
         let hosted = outer.join("hosted");
         fs::create_dir_all(&hosted).unwrap();
         let request = Request {
-            host_workspace: Some(hosted.clone()),
+            host_project: Some(hosted.clone()),
+            host_vault: Some(hosted.clone()),
             ..Request::default()
         };
         let context = ExecutionContext::construct(&request, &environment(outer)).unwrap();
-        assert_eq!(context.workspace_root(), Some(hosted.as_path()));
-        assert_eq!(context.mode(), ExecutionMode::Workspace);
-        assert_eq!(context.workspace.unwrap().origin, WorkspaceOrigin::Host);
+        assert_eq!(context.project_root(), Some(hosted.as_path()));
+        assert_eq!(context.vault(), Some(hosted.as_path()));
+        assert_eq!(context.project.unwrap().origin, Selection::Host);
         let both = Request {
-            host_workspace: Some(hosted.clone()),
-            workspace: Some((hosted, "--workspace")),
+            host_project: Some(hosted.clone()),
+            project: Some(hosted),
             ..Request::default()
         };
         assert!(matches!(
@@ -1333,11 +1707,6 @@ mod tests {
         }
     }
 
-    fn write(path: &Path, text: &str) {
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, text).unwrap();
-    }
-
     fn roots(context: &ExecutionContext) -> Vec<(PathBuf, Origin)> {
         context
             .module_roots
@@ -1350,14 +1719,14 @@ mod tests {
     fn bare_mode_still_reads_the_system_file_the_hql_home_and_hql_path() {
         let root = tempfile::tempdir().unwrap();
         let root = root.path();
-        fs::create_dir_all(root.join("tree/.hmd")).unwrap();
+        project(&root.join("tree"));
         write(
             &root.join("etc/config.toml"),
-            "[modules]\nroots = [\"lib\"]\n[extensions]\nimport = [\"search\"]\n",
+            "[modules]\nroots = [\"lib\"]\nimport = [\"hmd\"]\n",
         );
         write(
             &root.join("home/.hql/config.toml"),
-            "[modules]\nroots = [\"mine\"]\n[extensions]\nprelude = false\nimport = [\"search\", \"net\"]\n",
+            "[modules]\nroots = [\"mine\"]\nprelude = false\nimport = [\"hmd\", \"net\"]\n",
         );
         fs::create_dir_all(root.join("home/.hql/modules")).unwrap();
         let mut environment = configured(root);
@@ -1366,6 +1735,7 @@ mod tests {
         let request = Request {
             bare: true,
             modules: vec![PathBuf::from("cli")],
+            imports: vec!["stats".to_owned()],
             ..Request::default()
         };
         let context = ExecutionContext::construct(&request, &environment).unwrap();
@@ -1388,7 +1758,11 @@ mod tests {
             .collect();
         assert_eq!(
             imports,
-            vec![("search", Origin::System), ("net", Origin::User)]
+            vec![
+                ("hmd", Origin::System),
+                ("net", Origin::User),
+                ("stats", Origin::Option("--import"))
+            ]
         );
         assert_eq!(
             context.prelude,
@@ -1400,28 +1774,26 @@ mod tests {
         let home = context.layers.home.as_ref().unwrap();
         assert_eq!(home.path, root.join("home/.hql"));
         assert_eq!(home.origin, Origin::Default);
-        // `~/.hql` is never the vault.
-        assert_eq!(context.vault(), None);
     }
 
     #[test]
-    fn a_workspace_adds_its_own_roots_and_its_relative_paths_read_against_it() {
+    fn a_project_adds_its_own_roots_read_against_the_project_root() {
         let root = tempfile::tempdir().unwrap();
         let root = root.path();
         write(
-            &root.join("tree/hql.toml"),
-            "[modules]\nroots = [\"./lib\"]\n[extensions]\nprelude = true\n",
+            &root.join("tree/.hql/config.toml"),
+            "[modules]\nroots = [\"./lib\"]\nprelude = true\n",
         );
         write(
             &root.join("home/.hql/config.toml"),
-            "[extensions]\nprelude = false\n",
+            "[modules]\nprelude = false\n",
         );
         let context = ExecutionContext::construct(&Request::default(), &configured(root)).unwrap();
         assert_eq!(
             roots(&context),
-            vec![(root.join("tree/lib"), Origin::Workspace)]
+            vec![(root.join("tree/lib"), Origin::Project)]
         );
-        assert_eq!(context.prelude.origin, Origin::Workspace);
+        assert_eq!(context.prelude.origin, Origin::Project);
         assert!(context.prelude.value);
         let files: Vec<_> = context
             .config_files()
@@ -1432,7 +1804,7 @@ mod tests {
             vec![
                 (Origin::System, false),
                 (Origin::User, true),
-                (Origin::Workspace, true)
+                (Origin::Project, true)
             ]
         );
     }
@@ -1473,17 +1845,45 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn a_retired_or_unknown_key_is_refused_naming_what_replaces_it() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        let refusal = |file: &str, text: &str| {
+            write(&root.join(file), text);
+            let refused = ExecutionContext::construct(&Request::default(), &configured(root))
+                .unwrap_err()
+                .to_string();
+            fs::remove_file(root.join(file)).unwrap();
+            refused
+        };
+        let refused = refusal("tree/.hql/config.toml", "[extensions]\nimport = [\"x\"]\n");
+        assert!(refused.contains("`[modules]`"), "{refused}");
+        let refused = refusal("tree/.hql/config.toml", "[semantics]\nindex = \"i\"\n");
+        assert!(refused.contains(".hmd/config.toml"), "{refused}");
+        let refused = refusal("tree/.hql/config.toml", "[nonsense]\n");
+        assert!(refused.contains("`nonsense`"), "{refused}");
+        let refused = refusal("tree/.hql/config.toml", "current-context = \"a\"\n");
+        assert!(refused.contains(CURRENT_CONTEXT), "{refused}");
+        let refused = refusal("home/.hql/config.toml", "[endpoint.a]\nkind = \"csv\"\n");
+        assert!(refused.contains("`endpoint`"), "{refused}");
+        let refused = refusal("home/.hql/config.toml", "[context.a]\nworkspace = \"/x\"\n");
+        assert!(refused.contains("`project`"), "{refused}");
+        let refused = refusal("tree/.hql/config.toml", "[modules]\nrots = []\n");
+        assert!(refused.contains("`rots`"), "{refused}");
+    }
+
     const CONTEXTS: &str = "\
 current-context = \"work\"
 
 [context.work.modules]
 roots = [\"work-lib\"]
 
-[context.experimental.extensions]
+[context.experimental.modules]
 prelude = false
 
 [context.production]
-workspace = \"../srv/production\"
+project = \"../srv/production\"
 ";
 
     fn selected(context: &ExecutionContext) -> Option<(String, Origin)> {
@@ -1562,14 +1962,14 @@ workspace = \"../srv/production\"
         assert_eq!(selected(&context), None);
         write(
             &root.join("etc/config.toml"),
-            "[context.default.extensions]\nimport = [\"search\"]\n",
+            "[context.default.modules]\nimport = [\"hmd\"]\n",
         );
         let context = ExecutionContext::construct(&Request::default(), &configured(root)).unwrap();
         assert_eq!(
             selected(&context),
             Some((DEFAULT_CONTEXT.to_owned(), Origin::Default))
         );
-        assert_eq!(context.imports[0].value, "search");
+        assert_eq!(context.imports[0].value, "hmd");
         assert_eq!(
             context.imports[0].origin,
             Origin::Context(DEFAULT_CONTEXT.to_owned())
@@ -1603,32 +2003,25 @@ workspace = \"../srv/production\"
     }
 
     #[test]
-    fn a_context_that_binds_a_workspace_replaces_discovery() {
+    fn a_context_that_binds_a_project_replaces_discovery() {
         let root = tempfile::tempdir().unwrap();
         let root = root.path();
         write(&root.join("home/.hql/config.toml"), CONTEXTS);
         let production = root.join("home/srv/production");
-        fs::create_dir_all(production.join(".hmd")).unwrap();
-        fs::create_dir_all(root.join("tree/.hmd")).unwrap();
+        project(&production);
+        project(&root.join("tree"));
         let request = Request {
             context: Some("production".to_owned()),
             ..Request::default()
         };
         let context = ExecutionContext::construct(&request, &configured(root)).unwrap();
-        let workspace = context.workspace.as_ref().unwrap();
-        assert!(same_directory(&workspace.root, &production));
-        assert_eq!(
-            workspace.origin,
-            WorkspaceOrigin::Context("production".to_owned())
-        );
-        assert_eq!(context.mode(), ExecutionMode::Vault);
+        let bound = context.project.as_ref().unwrap();
+        assert!(same_directory(&bound.root, &production));
+        assert_eq!(bound.origin, Selection::Context("production".to_owned()));
 
         // The same context reused without a binding leaves discovery alone.
         let context = ExecutionContext::construct(&Request::default(), &configured(root)).unwrap();
-        assert_eq!(
-            context.workspace.unwrap().origin,
-            WorkspaceOrigin::Discovered
-        );
+        assert_eq!(context.project.unwrap().origin, Selection::Discovered);
     }
 
     #[test]
@@ -1636,8 +2029,8 @@ workspace = \"../srv/production\"
         let root = tempfile::tempdir().unwrap();
         let root = root.path();
         write(&root.join("home/.hql/config.toml"), CONTEXTS);
-        fs::create_dir_all(root.join("home/srv/production/.hmd")).unwrap();
-        fs::create_dir_all(root.join("tree/.hmd")).unwrap();
+        project(&root.join("home/srv/production"));
+        project(&root.join("tree"));
         let production = || Some("production".to_owned());
         for request in [
             Request {
@@ -1647,7 +2040,7 @@ workspace = \"../srv/production\"
             },
             Request {
                 context: production(),
-                workspace: Some((root.join("tree"), "--workspace")),
+                project: Some(root.join("tree")),
                 ..Request::default()
             },
         ] {
@@ -1655,17 +2048,17 @@ workspace = \"../srv/production\"
             assert!(matches!(refused, ContextError::Conflict(_)), "{refused}");
             assert!(refused.to_string().contains("production"), "{refused}");
         }
-        // Naming the workspace the context binds is no contradiction.
+        // Naming the project the context binds is no contradiction.
         let agreeing = Request {
             context: production(),
-            workspace: Some((root.join("home/srv/production"), "--workspace")),
+            project: Some(root.join("home/srv/production")),
             ..Request::default()
         };
         assert!(ExecutionContext::construct(&agreeing, &configured(root)).is_ok());
     }
 
     #[test]
-    fn a_persistent_context_yields_to_an_explicit_workspace_or_bare() {
+    fn a_persistent_context_yields_to_an_explicit_project_or_bare() {
         let root = tempfile::tempdir().unwrap();
         let root = root.path();
         write(
@@ -1675,8 +2068,8 @@ workspace = \"../srv/production\"
                 "current-context = \"production\"",
             ),
         );
-        fs::create_dir_all(root.join("home/srv/production/.hmd")).unwrap();
-        fs::create_dir_all(root.join("tree/.hmd")).unwrap();
+        project(&root.join("home/srv/production"));
+        project(&root.join("tree"));
         let bare = Request {
             bare: true,
             ..Request::default()
@@ -1684,11 +2077,11 @@ workspace = \"../srv/production\"
         let context = ExecutionContext::construct(&bare, &configured(root)).unwrap();
         assert_eq!(context.mode(), ExecutionMode::Bare);
         let named = Request {
-            workspace: Some((root.join("tree"), "--workspace")),
+            project: Some(root.join("tree")),
             ..Request::default()
         };
         let context = ExecutionContext::construct(&named, &configured(root)).unwrap();
-        assert_eq!(context.workspace_root(), Some(root.join("tree").as_path()));
+        assert_eq!(context.project_root(), Some(root.join("tree").as_path()));
     }
 
     #[test]
@@ -1719,7 +2112,7 @@ workspace = \"../srv/production\"
         let root = root.path();
         write(
             &root.join("etc/config.toml"),
-            "current-context = \"a\"\n[context.a]\nworkspace = \"/x\"\n",
+            "current-context = \"a\"\n[context.a]\nproject = \"/x\"\n",
         );
         write(
             &root.join("home/.hql/config.toml"),

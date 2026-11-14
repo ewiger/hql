@@ -106,11 +106,11 @@ walt-whitman  (retrieved 0.1261)
 `lexical` matches spellings: a card that never uses the query's words scores
 nothing, and a card that uses common ones scores something. `semantic` scores
 by meaning, against **embeddings** a language model computed ahead of time
-into an index the vault names in `hql.toml`:
+into an index the vault names in `.hql/config.toml`:
 
 ```toml
 [semantics]
-index = ".hql/index.sqlite"
+index = ".hmd/index.sqlite"
 ```
 
 Asked for a creature and its maker, `semantic` ranks Frankenstein, the
