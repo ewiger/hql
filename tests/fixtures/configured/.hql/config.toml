@@ -1,5 +1,6 @@
-# A project that states every capability its programs use: no prelude, and the
-# retrieval extension imported once here rather than in every query.
+# A project that states every capability its programs use: no prelude, and
+# HyperMarkdown with its lexical retrieval imported once here rather than in
+# every query.
 [modules]
-import = ["lexical"]
+import = ["hmd", "hmd.search.lexical"]
 prelude = false

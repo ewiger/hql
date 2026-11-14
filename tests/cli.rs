@@ -162,7 +162,19 @@ fn json_carries_the_type_the_value_and_the_diagnostics() {
 #[test]
 fn the_vault_is_supplied_from_outside_and_its_absence_is_said_out_loud() {
     let outside = tempdir().unwrap();
+    // Plain HQL has no cards: `hmd` binds them, and names `import hmd`.
     let output = hql_in(outside.path(), &["eval", "cards | count"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr(&output).contains("import hmd"),
+        "{}",
+        stderr(&output)
+    );
+    // With `hmd` and no vault, the refusal names `--vault`.
+    let output = hql_in(
+        outside.path(),
+        &["--import", "hmd", "eval", "cards | count"],
+    );
     assert_eq!(output.status.code(), Some(1));
     assert!(stderr(&output).contains("--vault"), "{}", stderr(&output));
 
@@ -182,7 +194,7 @@ fn without_the_flag_the_vault_is_the_nearest_marked_directory_above() {
     std::fs::create_dir_all(&deep).unwrap();
     std::fs::write(deep.join("two.md"), "# Two\n").unwrap();
 
-    let output = hql_in(&deep, &["eval", "cards | count"]);
+    let output = hql_in(&deep, &["--import", "hmd", "eval", "cards | count"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert_eq!(stdout(&output), "2\n");
 
@@ -205,7 +217,7 @@ fn the_whole_pipeline_runs_from_the_command_line() {
         "--vault",
         VAULT,
         "eval",
-        "import lexical\ncards\n| lexical(\"bearer token authorization\")\n| take(2)\n| expand(depth = 1)\n| text",
+        "import hmd\ncards\n| lexical(\"bearer token authorization\")\n| take(2)\n| expand(depth = 1)\n| text",
     ]);
     assert!(output.status.success(), "{}", stderr(&output));
     let table = stdout(&output);
@@ -542,14 +554,14 @@ fn builtins_and_config_explain_the_surface_and_the_settings() {
     for provider in [
         format!("collections (std {version}, always available)"),
         format!("graph (std {version}, prelude)"),
-        format!("lexical (search {version}, imported where it is used)"),
+        format!("hmd.search.lexical (hmd {version}, imported where it is used)"),
         format!("io.net (std {version}, imported where it is used)"),
     ] {
         assert!(stdout(&listed).contains(&provider), "{provider}");
     }
     let configured = stdout(&hql(&["--vault", CONFIGURED, "builtins"]));
     assert!(configured.contains(&format!(
-        "lexical (search {version}, imported by this vault)"
+        "hmd.search.lexical (hmd {version}, imported by this project)"
     )));
     assert!(configured.contains(&format!(
         "format (std {version}, imported where it is used)"
@@ -775,7 +787,8 @@ fn config_names_the_level_and_its_origin() {
 
 #[test]
 fn to_names_the_format_a_result_is_written_in() {
-    let graph = "import lexical\ncards | lexical(\"bearer token authorization\") | take(2) | expand(depth = 1)";
+    let graph =
+        "import hmd\ncards | lexical(\"bearer token authorization\") | take(2) | expand(depth = 1)";
     let text = hql(&["--vault", VAULT, "eval", graph]);
     assert!(stdout(&text).contains("(retrieved "), "{}", stdout(&text));
     let json = hql(&["--vault", VAULT, "--to", "json", "eval", graph]);
@@ -907,7 +920,7 @@ fn a_program_outside_every_vault_imports_builtin_modules() {
         String::from_utf8_lossy(&output.stdout).trim(),
         "[true, true]"
     );
-    let unbound = hql_in(dir.path(), &["eval", "cards | size"]);
+    let unbound = hql_in(dir.path(), &["--import", "hmd", "eval", "cards | size"]);
     assert!(!unbound.status.success());
     assert!(String::from_utf8_lossy(&unbound.stderr).contains("needs a vault"));
 }

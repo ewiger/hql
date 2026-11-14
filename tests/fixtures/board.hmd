@@ -12,7 +12,7 @@ cards
 ## Closest to bearer tokens
 
 ```hql#query
-import lexical
+import hmd
 
 cards
 | lexical("bearer token authorization")

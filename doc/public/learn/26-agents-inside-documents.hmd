@@ -65,7 +65,7 @@ books
 What the shelf holds on the question the club keeps returning to.
 
 ```hql id=evidence hidden
-import semantic
+import hmd
 cards | semantic("which unread book suits a reading club") | take(3) | Context("evidence")
 ```
 

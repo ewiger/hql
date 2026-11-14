@@ -36,10 +36,12 @@ pub(crate) fn check_with<'a>(
     vault: &'a Vault,
     bound: &[(String, TypeRef)],
 ) -> Result<TypedProgram, Diagnostic> {
-    let mut scope = globals(vault);
+    let config = vault.extensions.activated(program);
+    crate::extensions::set_checking_hmd(config.hmd_active());
+    let mut scope = globals(vault, &config);
     scope.extend(bound.iter().cloned());
     let _hidden = crate::declarations::HiddenTypes::enter();
-    Checker::new(vault, scope, Resolution::new(&vault.extensions)?).program(program)
+    Checker::new(vault, scope, Resolution::new(&config)?).program(program)
 }
 
 /// Check every statement, continuing past one that fails.
@@ -61,7 +63,9 @@ pub(crate) fn check_collecting_with<'a>(
     vault: &'a Vault,
     bound: &[(String, TypeRef)],
 ) -> (Option<TypedProgram>, Vec<Diagnostic>) {
-    let resolution = match Resolution::new(&vault.extensions) {
+    let config = vault.extensions.activated(program);
+    crate::extensions::set_checking_hmd(config.hmd_active());
+    let resolution = match Resolution::new(&config) {
         Ok(resolution) => resolution,
         // A vault that cannot resolve its own configuration has nothing to
         // say about the program: every statement would fail for one reason.
@@ -70,7 +74,7 @@ pub(crate) fn check_collecting_with<'a>(
     let mut checker = Checker::new(
         vault,
         {
-            let mut scope = globals(vault);
+            let mut scope = globals(vault, &config);
             scope.extend(bound.iter().cloned());
             scope
         },
@@ -434,9 +438,14 @@ fn mentions_any(ty: &TypeRef, test: &dyn Fn(crate::types::TypeConstructor) -> bo
 
 /// The names the program module starts with: the host's bindings, `vault`
 /// among them, and the program module's bindings over it, `cards` among
-/// them. No module sees any of them.
-fn globals(vault: &Vault) -> HashMap<String, TypeRef> {
+/// them. No module sees any of them. `vault` and its bindings are
+/// HyperMarkdown's, bound only while `hmd` is active (HQL-0059).
+fn globals(vault: &Vault, config: &crate::extensions::Config) -> HashMap<String, TypeRef> {
     let mut scope = base(vault);
+    if !config.hmd_active() {
+        scope.remove(VAULT);
+        return scope;
+    }
     for (name, library) in library(vault) {
         scope.insert(name, library.result);
     }
@@ -5357,6 +5366,15 @@ impl<'a> Checker<'a> {
                 }
                 Ok(TypeRef::DATA)
             }
+            // `@[[` is a token of the core grammar, and its meaning is
+            // HyperMarkdown's: without `hmd` active it means nothing (HQL-0059).
+            Kind::DocRef(name) if !self.resolution.hmd_active() => Err(Diagnostic::name(
+                span,
+                format!(
+                    "`@[[{name}]]` is a HyperMarkdown document reference: write `import hmd`, \
+                     or run with `--import hmd`, to resolve it"
+                ),
+            )),
             // A reference may not resolve — a forward link to a document
             // nobody has written is ordinary — so it is optional by type.
             Kind::DocRef(_) => Ok(TypeRef::optional(TypeRef::CARD)),
@@ -5388,6 +5406,19 @@ impl<'a> Checker<'a> {
                             "`{name}` is not bound in a module: the host seeds it into the \
                              program module alone, so a module takes what it needs from a \
                              program as a parameter"
+                        ),
+                    )
+                } else if (name == VAULT
+                    || crate::library::bindings()
+                        .iter()
+                        .any(|(bound, _)| bound == name))
+                    && !self.resolution.hmd_active()
+                {
+                    Diagnostic::name(
+                        span,
+                        format!(
+                            "`{name}` is HyperMarkdown's: write `import hmd`, or run with \
+                             `--import hmd`, to bind it"
                         ),
                     )
                 } else if name == VAULT

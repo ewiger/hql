@@ -442,6 +442,17 @@ fn configured_type(
         }
     })?;
     if matches!(configured.kind, crate::endpoints::Kind::Vault { .. }) {
+        // An endpoint of kind `vault` is HyperMarkdown's documents read as
+        // cards, and `hmd` provides it (HQL-0059).
+        if !super::checking_hmd() {
+            return Err(Diagnostic::name(
+                span.clone(),
+                format!(
+                    "endpoint `{id}` is a vault, which `hmd` reads: write `import hmd`, or run \
+                     with `--import hmd`"
+                ),
+            ));
+        }
         return Ok(TypeRef::VAULT);
     }
     let element = match &configured.element {

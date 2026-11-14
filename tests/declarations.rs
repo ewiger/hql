@@ -63,7 +63,14 @@ fn every_file_in_a_builtin_package_is_embedded_as_written() {
                 .copied()
                 .collect(),
         ),
-        ("search", library::SEARCH.to_vec()),
+        (
+            "hmd",
+            library::HMD
+                .iter()
+                .copied()
+                .chain([("hmd.prelude", library::HMD_PRELUDE)])
+                .collect(),
+        ),
     ];
     let mut folders: Vec<String> = fs::read_dir("lib")
         .expect("the builtin packages")
@@ -72,10 +79,17 @@ fn every_file_in_a_builtin_package_is_embedded_as_written() {
         .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
         .collect();
     folders.sort_unstable();
-    assert_eq!(folders, ["search", "std"], "one folder per builtin package");
+    assert_eq!(folders, ["hmd", "std"], "one folder per builtin package");
     for (package, embedded) in &packages {
         let mut found = Vec::new();
-        modules_under(&std::path::Path::new("lib").join(package), "", &mut found);
+        // The standard package's modules are named from its folder; `hmd`'s
+        // carry the package's name, `hmd.vault`.
+        let prefix = if *package == "std" { "" } else { package };
+        modules_under(
+            &std::path::Path::new("lib").join(package),
+            prefix,
+            &mut found,
+        );
         for (name, path) in &found {
             let source = embedded
                 .iter()
@@ -92,7 +106,7 @@ fn every_file_in_a_builtin_package_is_embedded_as_written() {
     }
     assert_eq!(
         library::MODULES.len(),
-        library::STD.len() + library::SEARCH.len()
+        library::STD.len() + library::HMD.len()
     );
 }
 

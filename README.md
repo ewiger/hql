@@ -589,7 +589,7 @@ These are dataflow problems.
 HQL expresses them as dataflow.
 
 ```hql
-import semantic
+import hmd
 
 context =
     cards
@@ -603,7 +603,7 @@ Retrieval is not a terminal operation.
 The result remains ordinary typed data that can continue through filtering, graph traversal, transformation, aggregation and rendering.
 
 ```hql
-import semantic
+import hmd
 
 cards
 | semantic("a creature and its maker")
@@ -738,11 +738,11 @@ with a question; `semantic` ranks them by meaning, against embeddings the vault
 indexes ahead of time:
 
 ```hql
-import semantic
+import hmd
 cards | semantic("a creature and its maker") | take(3) | map(h => h.value.title)
 // ["Frankenstein", "Frankenstein inspires Dune", "Mary Shelley"]
 
-import lexical
+import hmd
 cards | lexical("a creature and its maker") | take(3) | map(h => h.value.title)
 // ["Frankenstein", "Walt Whitman", "Librarian"]
 ```
@@ -752,7 +752,7 @@ rendering continue from it. `expand` grows a graph from the hits, and each node
 records whether it was retrieved or reached:
 
 ```hql
-import semantic
+import hmd
 
 cards
 | semantic("a creature and its maker")
@@ -967,7 +967,7 @@ cards
 The same knowledge can be searched semantically:
 
 ```hql
-import semantic
+import hmd
 
 cards
 | semantic("decisions affecting event delivery")
@@ -977,7 +977,7 @@ cards
 expanded through relationships:
 
 ```hql
-import semantic
+import hmd
 
 cards
 | semantic("event delivery")

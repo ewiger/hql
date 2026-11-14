@@ -137,7 +137,10 @@ fn a_program_file_anchors_discovery_wherever_hql_is_run_from() {
     // The program runs in the vault it was found in, not the working
     // directory's.
     assert_eq!(
-        ok(&sandbox.run(&elsewhere, &["run", script.to_str().unwrap()])),
+        ok(&sandbox.run(
+            &elsewhere,
+            &["--import", "hmd", "run", script.to_str().unwrap()]
+        )),
         "1\n"
     );
 }
@@ -166,20 +169,6 @@ fn a_project_and_a_vault_are_found_apart_and_the_nearest_project_wins() {
 }
 
 #[test]
-fn a_retired_hql_toml_is_refused_naming_its_replacement() {
-    let sandbox = Sandbox::new();
-    let old = sandbox.tree().join("old");
-    sandbox.write(&old.join("hql.toml"), "");
-    let refused = sandbox.run(&old, &["1"]);
-    assert_eq!(refused.status.code(), Some(1));
-    assert!(
-        stderr(&refused).contains("`hql.toml` is retired: move it to `.hql/config.toml`"),
-        "{}",
-        stderr(&refused)
-    );
-}
-
-#[test]
 fn the_hql_home_is_never_a_project() {
     let sandbox = Sandbox::new();
     sandbox.write(&sandbox.home().join(".hql/config.toml"), "");
@@ -200,10 +189,17 @@ fn bare_suppresses_discovery_and_conflicts_with_a_named_project() {
     assert_eq!(field(&report, "mode"), "bare");
     // A vault-dependent operation fails in bare mode rather than reading
     // the working directory as a vault.
-    let bare = sandbox.run(&vault, &["--bare", "cards | count"]);
+    let bare = sandbox.run(&vault, &["--bare", "--import", "hmd", "cards | count"]);
     assert_eq!(bare.status.code(), Some(1));
     assert!(stderr(&bare).contains("needs a vault"), "{}", stderr(&bare));
-    assert_eq!(ok(&sandbox.run(&vault, &["cards | count"])), "1\n");
+    assert_eq!(
+        ok(&sandbox.run(&vault, &["--import", "hmd", "cards | count"])),
+        "1\n"
+    );
+    // Without `hmd`, a vault's cards are not bound: plain HQL has none.
+    let plain = sandbox.run(&vault, &["cards | count"]);
+    assert_eq!(plain.status.code(), Some(1));
+    assert!(stderr(&plain).contains("import hmd"), "{}", stderr(&plain));
 
     let conflict = sandbox.run(&vault, &["--bare", "--project", ".", "context"]);
     assert_eq!(conflict.status.code(), Some(2), "{}", stderr(&conflict));
@@ -504,6 +500,8 @@ fn a_context_selected_for_one_invocation_binds_its_project() {
                 "production",
                 "--vault",
                 production.to_str().unwrap(),
+                "--import",
+                "hmd",
                 "cards | count"
             ]
         )),
@@ -632,7 +630,9 @@ fn a_host_supplies_the_vault_and_keeps_the_user_configuration() {
     let selected = context.vault.as_ref().unwrap();
     assert_eq!(selected.root, hosted);
     assert_eq!(selected.origin, Selection::Host);
-    let vault = context.load().unwrap();
+    let mut vault = context.load().unwrap();
+    // A host that supplies a vault injects `import hmd`.
+    vault.host();
     assert_eq!(vault.cards.len(), 1);
     let outcome = hql::run(
         "import units\n[units.km(2000), cards | count]",

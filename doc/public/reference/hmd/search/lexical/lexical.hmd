@@ -1,7 +1,7 @@
-<!-- hql reference: search/lexical.lexical -->
+<!-- hql reference: hmd/search/lexical.lexical -->
 # `lexical`
 
-In [`search/lexical`](index.hmd).
+In [`hmd/search/lexical`](index.hmd).
 
 ```hql
 fn lexical<T : Doc>(self: Collection<T>, query: String) : Ranking<Card>

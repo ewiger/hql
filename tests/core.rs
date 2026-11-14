@@ -284,12 +284,22 @@ fn a_string_length_is_refused_naming_size() {
 
 #[test]
 fn the_link_operator_builds_an_edge() {
-    assert_eq!(check("@[[alice]] -> @[[bob]]"), Ok(TypeRef::EDGE));
+    // `@[[` is HyperMarkdown's: without `hmd` it is refused, naming it.
+    let refused = check("@[[alice]] -> @[[bob]]").unwrap_err();
+    assert!(
+        refused.message().contains("import hmd"),
+        "{}",
+        refused.message()
+    );
     assert_eq!(
-        check("@[[alice]] -> @[[bob]] { relation: \"parent\" }"),
+        check("import hmd\n@[[alice]] -> @[[bob]]"),
         Ok(TypeRef::EDGE)
     );
-    match eval("@[[alice]] -> @[[bob]]") {
+    assert_eq!(
+        check("import hmd\n@[[alice]] -> @[[bob]] { relation: \"parent\" }"),
+        Ok(TypeRef::EDGE)
+    );
+    match eval("import hmd\n@[[alice]] -> @[[bob]]") {
         Ok(Value::Edge(edge)) => {
             assert_eq!(edge.source, "alice");
             assert_eq!(edge.target, "bob");
@@ -306,8 +316,11 @@ fn a_document_reference_is_written_with_an_at_sign() {
         ("@[[alice#Bio]]", "alice#Bio"),
         ("@[[ A Room of One's Own ]]", "A Room of One's Own"),
     ] {
-        assert_eq!(check(source).unwrap().to_string(), "Option<Card>");
-        match eval(&format!("{source} -> @[[x]]")) {
+        assert_eq!(
+            check(&format!("import hmd\n{source}")).unwrap().to_string(),
+            "Option<Card>"
+        );
+        match eval(&format!("import hmd\n{source} -> @[[x]]")) {
             Ok(Value::Edge(edge)) => assert_eq!(edge.source, target),
             other => panic!("{source}: expected an edge, got {other:?}"),
         }
@@ -361,13 +374,16 @@ fn cards_and_traversal_say_they_need_a_vault_rather_than_finding_nothing() {
 fn generics_are_written_with_angle_brackets() {
     // An angle bracket always means the type world; a square bracket stays
     // value-level. See doc/models/behavior/bind-vs-apply-in-generic-types.hmd.
-    assert_eq!(check("@[[alice]]").unwrap().to_string(), "Option<Card>");
     assert_eq!(
-        check("@[[alice]].header").unwrap().to_string(),
+        check("import hmd\n@[[alice]]").unwrap().to_string(),
+        "Option<Card>"
+    );
+    assert_eq!(
+        check("import hmd\n@[[alice]].header").unwrap().to_string(),
         "Option<Data>"
     );
     assert_eq!(
-        check("x : Option<Card> = @[[alice]]\nx")
+        check("import hmd\nx : Option<Card> = @[[alice]]\nx")
             .unwrap()
             .to_string(),
         "Option<Card>"
@@ -499,7 +515,7 @@ fn a_retired_step_names_what_replaces_it() {
 fn an_unimported_step_reports_the_import_rather_than_a_misspelling() {
     let failed = check("1 | lexical(\"anything\")").expect_err("lexical is not imported");
     assert!(
-        failed.message().contains("write `import lexical`"),
+        failed.message().contains("write `import hmd`"),
         "{}",
         failed.message()
     );
@@ -520,7 +536,7 @@ fn an_import_names_a_registered_extension() {
         "{}",
         failed.message()
     );
-    assert_eq!(check("import lexical\n1"), Ok(TypeRef::INT));
+    assert_eq!(check("import hmd\n1"), Ok(TypeRef::INT));
 }
 
 #[test]

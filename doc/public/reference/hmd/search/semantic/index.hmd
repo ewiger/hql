@@ -1,0 +1,16 @@
+<!-- hql reference: hmd/search/semantic -->
+# `hmd/search/semantic`
+
+```hql
+module hmd.search.semantic
+```
+
+Semantic retrieval: a corpus ranked against a query by vectors a
+language model made ahead of time, read from the index that
+`[semantics] index` in the vault's `.hmd/config.toml` names. The query is
+looked up in the index too; one the index does not hold is an evaluation
+failure. `hmd`'s prelude imports it, so a run that imports `hmd` writes
+`semantic` unqualified.
+
+- [`semantic`](semantic.hmd) — The cards of `self` ranked against `query` by the cosine of their vectors in the vault's index, as a `Ranking<Card>` in descending order of score; a card scoring zero or less is not a hit.
+<!-- hql reference: end -->

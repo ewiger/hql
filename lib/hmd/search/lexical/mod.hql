@@ -1,12 +1,13 @@
-// Every declaration is external: the `lexical` extension implements it.
+// Every declaration is external: the `hmd` package's extension implements it.
 //
 // See doc/wiki/hql/semantic-search.hmd and doc/proposals/HQL-0002/index.hmd.
 
 /// Lexical retrieval: a corpus ranked by the words it shares with a query,
 /// a hashed bag of words compared by cosine. Offline, deterministic and
 /// exact; it models no meaning, so a query and a document that share no
-/// word score zero. Imported where it is used: `import lexical`.
-module lexical
+/// word score zero. `hmd`'s prelude imports it, so a run that imports `hmd`
+/// writes `lexical` unqualified.
+module hmd.search.lexical
 
 import core
 import doc

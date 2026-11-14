@@ -1,0 +1,11 @@
+<!-- hql reference: hmd/search -->
+# `hmd/search`
+
+```hql
+module hmd.search
+```
+
+Retrieval over a vault's cards: `hmd.search.lexical` ranks by the words a
+card shares with a query, `hmd.search.semantic` by vectors from the
+vault's index. `hmd`'s prelude imports both.
+<!-- hql reference: end -->

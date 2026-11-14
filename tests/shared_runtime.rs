@@ -33,7 +33,7 @@ fn concurrent_queries_share_a_vault_and_retrieval_provenance() {
             .map(|_| {
                 scope.spawn(|| {
                     let outcome = hql::run(
-                        "import lexical\ncards | lexical(\"bearer token\")",
+                        "import hmd\ncards | lexical(\"bearer token\")",
                         &vault,
                         hql::reporting::Mode::Strict,
                     );

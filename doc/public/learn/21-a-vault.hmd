@@ -214,7 +214,7 @@ links between them form a graph.
 
 ## The vault itself
 
-`cards` is a binding the standard library makes, `cards = vault.cards`, over
+`cards` is a binding of the builtin package `hmd`, `cards = vault.cards`, over
 `vault`, the value the host seeds when it is given a vault:
 
 ```hql
@@ -225,8 +225,17 @@ links between them form a graph.
 ["tutorial", 15]
 ```
 
-Outside every vault and without `--vault` there is no vault, and naming one
-says so:
+A vault is HyperMarkdown's, and so are `vault` and `cards`: plain HQL has
+neither. They are bound once a run imports `hmd`. The tutorial's project
+imports it for every program, in its `.hql/config.toml`:
+
+```toml
+[modules]
+import = ["hmd"]
+```
+
+A program can import it itself, `import hmd`, and a run can, with
+`--import hmd`. Without it, `cards` names what is missing:
 
 <!-- run: novault -->
 ```hql
@@ -234,10 +243,27 @@ cards | size
 ```
 
 ```text
-check error[unknown-name]: `cards` needs a vault: run inside one or pass --vault <directory>
+check error[unknown-name]: `cards` is HyperMarkdown's: write `import hmd`, or run with `--import hmd`, to bind it
  --> <expression>:1:1
   |
 1 | cards | size
+  | ^^^^^
+```
+
+With `hmd` and outside every vault, without `--vault`, there is no vault, and
+naming one says so:
+
+<!-- run: novault -->
+```hql
+import hmd
+cards | size
+```
+
+```text
+check error[unknown-name]: `cards` needs a vault: run inside one or pass --vault <directory>
+ --> <expression>:2:1
+  |
+2 | cards | size
   | ^^^^^
 ```
 

@@ -66,6 +66,14 @@ impl Vault {
         !self.root.as_os_str().is_empty()
     }
 
+    /// Make `hmd` active for every program run against this vault, as a
+    /// HyperMarkdown host does by injecting `import hmd`.
+    pub fn host(&mut self) {
+        if !self.extensions.hmd_active() {
+            self.extensions.imports.push("hmd".to_owned());
+        }
+    }
+
     /// The project root, when the run has a project.
     #[must_use]
     pub fn project_root(&self) -> Option<&Path> {
@@ -155,9 +163,11 @@ pub fn load_documents(root: &Path) -> io::Result<Vault> {
     load_source(&crate::sources::Filesystem::new(root))
 }
 
-/// Read a directory as a vault, as a host that names it does: its documents
-/// are cards whether or not it holds `.hmd/`, and when it is also a project,
-/// holding `.hql/config.toml`, the run takes that project's configuration.
+/// Read a directory as a vault, as a HyperMarkdown host that names it does:
+/// its documents are cards whether or not it holds `.hmd/`; when it is also a
+/// project, holding `.hql/config.toml`, the run takes that project's
+/// configuration; and `hmd` is active, as a host that supplies a vault
+/// injects `import hmd` (HQL-0059).
 ///
 /// # Errors
 ///
@@ -168,6 +178,7 @@ pub fn load(root: &Path) -> io::Result<Vault> {
     if crate::context::is_project(root) {
         vault.configure_project(root)?;
     }
+    vault.host();
     Ok(vault)
 }
 

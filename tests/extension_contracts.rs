@@ -73,9 +73,9 @@ fn contracts_reject_unknown_duplicate_missing_and_mistyped_arguments() {
         "@[[oauth]] | downlinks(unknown)",
         "cards | expand(1, \"both\")",
         "cards | expand(depth = 1, 2)",
-        "import lexical\ncards | lexical(query = 1)",
-        "import lexical\ncards | lexical(\"owl\", \"robin\")",
-        "import semantic\ncards | semantic(wrong = \"owl\")",
+        "import hmd\ncards | lexical(query = 1)",
+        "import hmd\ncards | lexical(\"owl\", \"robin\")",
+        "import hmd\ncards | semantic(wrong = \"owl\")",
     ] {
         for mode in [Mode::Strict, Mode::Collect] {
             let outcome = hql::run(source, &vault, mode);
@@ -111,10 +111,10 @@ fn every_registered_step_runs_at_its_declared_result_type() {
         "[1] | hmd",
         "cards | Graph | d2",
         "cards | Graph | mermaid",
-        "import lexical\ncards | lexical(query = \"owl\")",
-        "import semantic\ncards | semantic(\"night hunting birds\")",
-        "import lexical\ncards | lexical(\"owl\") | filter(h => true)",
-        "import lexical\nranked = cards | lexical(\"owl\") | filter(h => false)\nranked.query",
+        "import hmd\ncards | lexical(query = \"owl\")",
+        "import hmd\ncards | semantic(\"night hunting birds\")",
+        "import hmd\ncards | lexical(\"owl\") | filter(h => true)",
+        "import hmd\nranked = cards | lexical(\"owl\") | filter(h => false)\nranked.query",
     ] {
         let outcome = hql::run(source, &vault, Mode::Strict);
         assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
@@ -157,15 +157,15 @@ fn an_overloaded_operation_takes_the_first_declaration_a_call_fits() {
         ("ok(2) | map(n => n + 1)", "Result<Int, Never>"),
         ("cards | first | filter(c => c | is(Card))", "Option<Card>"),
         (
-            "import lexical\ncards | lexical(\"owl\") | sort(by = h => h.score)",
+            "import hmd\ncards | lexical(\"owl\") | sort(by = h => h.score)",
             "Seq<Hit<Card>>",
         ),
         (
-            "import lexical\ncards | lexical(\"owl\") | take(1)",
+            "import hmd\ncards | lexical(\"owl\") | take(1)",
             "Ranking<Card>",
         ),
         (
-            "import lexical\ncards | lexical(\"owl\") | reverse",
+            "import hmd\ncards | lexical(\"owl\") | reverse",
             "Seq<Hit<Card>>",
         ),
     ] {

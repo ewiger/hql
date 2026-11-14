@@ -62,7 +62,7 @@ fn birds() -> vault::Vault {
 
 fn top_three(step: &str, query: &str, vault: &vault::Vault) -> Vec<String> {
     let source =
-        format!("import {step}\ncards | {step}(\"{query}\") | take(3) | map(h => h.value.name)");
+        format!("import hmd\ncards | {step}(\"{query}\") | take(3) | map(h => h.value.name)");
     let outcome = run(&source, vault, Mode::Collect);
     let value = outcome
         .value
@@ -140,7 +140,7 @@ fn a_paraphrase_finds_the_cards_that_answer_it_and_shared_spellings_do_not() {
 fn a_score_travels_with_the_model_that_produced_it() {
     let vault = birds();
     let outcome = run(
-        "import semantic\ncards | semantic(\"night hunting birds\")",
+        "import hmd\ncards | semantic(\"night hunting birds\")",
         &vault,
         Mode::Strict,
     );
@@ -165,7 +165,7 @@ fn the_index_agrees_with_this_binary_about_what_a_card_says() {
     // other symptom — the index would score text nobody wrote.
     let vault = birds();
     let outcome = run(
-        "import semantic\ncards | semantic(\"night hunting birds\") | count",
+        "import hmd\ncards | semantic(\"night hunting birds\") | count",
         &vault,
         Mode::Collect,
     );
@@ -190,7 +190,7 @@ fn a_card_the_index_has_not_seen_is_absent_from_the_ranking_and_counted() {
     .expect("a new card");
     let vault = vault::load(&root).expect("the copied vault loads");
     let outcome = run(
-        "import semantic\ncards | semantic(\"night hunting birds\") | count",
+        "import hmd\ncards | semantic(\"night hunting birds\") | count",
         &vault,
         Mode::Collect,
     );
@@ -199,7 +199,7 @@ fn a_card_the_index_has_not_seen_is_absent_from_the_ranking_and_counted() {
     assert_eq!(outcome.value, Some(Value::Int(56)));
     let said = failure(
         &root,
-        "import semantic\ncards | semantic(\"night hunting birds\")",
+        "import hmd\ncards | semantic(\"night hunting birds\")",
     );
     assert!(said.contains("1 card is absent from the index"), "{said}");
 }
@@ -212,7 +212,7 @@ fn a_card_edited_since_the_build_still_ranks_and_says_it_is_stale() {
     fs::write(&path, edited).expect("the edit");
     let vault = vault::load(&root).expect("the copied vault loads");
     let outcome = run(
-        "import semantic\ncards | semantic(\"night hunting birds\") | count",
+        "import hmd\ncards | semantic(\"night hunting birds\") | count",
         &vault,
         Mode::Collect,
     );
@@ -220,7 +220,7 @@ fn a_card_edited_since_the_build_still_ranks_and_says_it_is_stale() {
     assert_eq!(outcome.value, Some(Value::Int(56)));
     let said = failure(
         &root,
-        "import semantic\ncards | semantic(\"night hunting birds\")",
+        "import hmd\ncards | semantic(\"night hunting birds\")",
     );
     assert!(
         said.contains("`barn-owl` has changed since the index was built"),
@@ -235,7 +235,7 @@ fn a_schema_the_reader_does_not_know_is_refused() {
     spoil(&root, "UPDATE index_meta SET schema_version = 2");
     let said = failure(
         &root,
-        "import semantic\ncards | semantic(\"night hunting birds\")",
+        "import hmd\ncards | semantic(\"night hunting birds\")",
     );
     assert!(said.contains("unknown index schema"), "{said}");
 }
@@ -249,7 +249,7 @@ fn a_vector_that_is_not_the_declared_length_is_refused_rather_than_read_past() {
     );
     let said = failure(
         &root,
-        "import semantic\ncards | semantic(\"night hunting birds\")",
+        "import hmd\ncards | semantic(\"night hunting birds\")",
     );
     assert!(said.contains("`barn-owl` has a 40-byte vector"), "{said}");
 }
@@ -260,7 +260,7 @@ fn an_index_built_for_another_corpus_is_refused() {
     spoil(&root, "UPDATE index_meta SET vault = 'somewhere/else'");
     let said = failure(
         &root,
-        "import semantic\ncards | semantic(\"night hunting birds\")",
+        "import hmd\ncards | semantic(\"night hunting birds\")",
     );
     assert!(said.contains("was built for `somewhere/else`"), "{said}");
 }
@@ -271,7 +271,7 @@ fn a_query_the_index_has_no_vector_for_says_so_rather_than_inventing_one() {
     // failure that names the command, not a ranking of nothing.
     let vault = birds();
     let outcome = run(
-        "import semantic\ncards | semantic(\"a question nobody embedded\")",
+        "import hmd\ncards | semantic(\"a question nobody embedded\")",
         &vault,
         Mode::Collect,
     );
@@ -290,7 +290,7 @@ fn a_vault_with_no_index_is_told_to_build_one_rather_than_falling_back() {
     // confusion that renaming the matcher removed.
     let vault = vault::load(Path::new("tests/fixtures/vault")).expect("the fixture vault");
     let outcome = run(
-        "import semantic\ncards | semantic(\"bearer token authorization\")",
+        "import hmd\ncards | semantic(\"bearer token authorization\")",
         &vault,
         Mode::Collect,
     );
@@ -314,7 +314,7 @@ fn an_index_that_does_not_claim_unit_length_vectors_is_refused() {
     spoil(&root, "UPDATE model SET normalized = 0");
     let said = failure(
         &root,
-        "import semantic\ncards | semantic(\"night hunting birds\")",
+        "import hmd\ncards | semantic(\"night hunting birds\")",
     );
     assert!(said.contains("not normalized"), "{said}");
     assert!(said.contains("hql-semantics build"), "{said}");
@@ -328,7 +328,7 @@ fn an_index_scored_by_a_metric_this_reader_does_not_compute_is_refused() {
     spoil(&root, "UPDATE model SET metric = 'euclidean'");
     let said = failure(
         &root,
-        "import semantic\ncards | semantic(\"night hunting birds\")",
+        "import hmd\ncards | semantic(\"night hunting birds\")",
     );
     assert!(said.contains("`euclidean`"), "{said}");
     assert!(said.contains("cosine"), "{said}");
@@ -356,7 +356,7 @@ fn a_vault_that_declares_an_embedder_still_answers_and_its_scores_name_the_index
     .expect("the configuration");
     let vault = vault::load(&root).expect("the copied vault loads");
     let outcome = run(
-        "import semantic\ncards | semantic(\"night hunting birds\")",
+        "import hmd\ncards | semantic(\"night hunting birds\")",
         &vault,
         Mode::Collect,
     );
@@ -385,7 +385,7 @@ fn an_index_outside_the_vault_is_refused() {
     .expect("the configuration");
     let said = failure(
         &root,
-        "import semantic\ncards | semantic(\"night hunting birds\")",
+        "import hmd\ncards | semantic(\"night hunting birds\")",
     );
     assert!(said.contains("outside the vault"), "{said}");
 }

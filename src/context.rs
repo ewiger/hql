@@ -38,9 +38,6 @@ pub const PROJECT_DIRECTORY: &str = ".hql";
 pub const CONFIG_NAME: &str = "config.toml";
 /// A project's configuration file, relative to the project root.
 pub const PROJECT_CONFIG: &str = ".hql/config.toml";
-/// The file a workspace was configured by before HQL-0059; HQL reads no file
-/// of that name, and refuses a directory holding one in place of a project.
-pub const RETIRED_CONFIG: &str = "hql.toml";
 /// The environment variable naming the HQL home in place of `~/.hql`.
 pub const HOME_ENVIRONMENT: &str = "HQL_HOME";
 /// The environment variable naming the system configuration file.
@@ -86,12 +83,6 @@ pub enum ContextError {
     /// An explicitly selected vault holds no `.hmd/`.
     #[error("{}: not a vault: it holds no `{VAULT_MARKER}/`", .0.display())]
     NotAVault(PathBuf),
-    /// A directory configures HQL with the retired `hql.toml`.
-    #[error(
-        "{}: `{RETIRED_CONFIG}` is retired: move it to `{PROJECT_CONFIG}` in the same directory",
-        .0.display()
-    )]
-    Retired(PathBuf),
     /// A configuration file cannot be read, or says something malformed.
     #[error("{}: {message}", path.display())]
     Config {
@@ -191,34 +182,9 @@ enum Level {
     Context,
 }
 
-/// Keys a configuration file once took and takes no longer, each with what
-/// replaces it. A file stating one is refused, naming the replacement.
-const RETIRED_KEYS: &[(&str, &str)] = &[
-    (
-        "extensions",
-        "`[extensions]` is now `[modules]`: `import` and `prelude` are keys of `[modules]`",
-    ),
-    (
-        "semantics",
-        "`[semantics]` is HyperMarkdown's: it is a table of the vault's `.hmd/config.toml`",
-    ),
-    (
-        "sources",
-        "`[sources]` is not read; an endpoint is declared under `[endpoint.<id>]`",
-    ),
-    (
-        "workspace",
-        "`workspace` is now `project`: a context binds a project",
-    ),
-];
-
-/// Check that a table holds only the keys its level takes, refusing a
-/// retired key by naming its replacement.
+/// Check that a table holds only the keys its level takes.
 fn validate(table: &toml::Table, level: Level, path: &Path) -> Result<(), ContextError> {
     for key in table.keys() {
-        if let Some((_, replacement)) = RETIRED_KEYS.iter().find(|(retired, _)| retired == key) {
-            return Err(refuse(path, *replacement));
-        }
         let known = match key.as_str() {
             "packages" | "modules" | "execution" | "report" => true,
             // Reserved for the AI harness (HQL-0022), specified there.
@@ -789,29 +755,14 @@ pub fn is_vault(dir: &Path) -> bool {
 }
 
 /// The nearest project at or above `anchor`, skipping the directory whose
-/// `.hql/` is the HQL home. A directory configured by the retired
-/// `hql.toml` and no project file stops the walk with a refusal, so a
-/// stale file is never silently ignored.
-///
-/// # Errors
-///
-/// [`ContextError::Retired`] for an `hql.toml` met before a project.
-pub fn discover_project(
-    anchor: &Path,
-    home: Option<&HqlHome>,
-) -> Result<Option<PathBuf>, ContextError> {
-    for dir in anchor.ancestors() {
-        if home.is_some_and(|home| home.is_held_by(dir)) {
-            continue;
-        }
-        if is_project(dir) {
-            return Ok(Some(dir.to_path_buf()));
-        }
-        if dir.join(RETIRED_CONFIG).is_file() {
-            return Err(ContextError::Retired(dir.to_path_buf()));
-        }
-    }
-    Ok(None)
+/// `.hql/` is the HQL home.
+#[must_use]
+pub fn discover_project(anchor: &Path, home: Option<&HqlHome>) -> Option<PathBuf> {
+    anchor
+        .ancestors()
+        .filter(|dir| !home.is_some_and(|home| home.is_held_by(dir)))
+        .find(|dir| is_project(dir))
+        .map(Path::to_path_buf)
 }
 
 /// The HQL project a vault selects with `[hql] project` in its
@@ -857,7 +808,7 @@ pub fn selected_project(vault: &Path) -> Result<Option<PathBuf>, ContextError> {
 ///
 /// # Errors
 ///
-/// A malformed `[hql] project`, and a retired `hql.toml` met by a walk.
+/// A malformed `[hql] project`.
 pub fn resolve_project(
     anchor: &Path,
     vault: Option<&Selected>,
@@ -871,14 +822,14 @@ pub fn resolve_project(
             origin: Selection::Vault,
         }));
     }
-    if let Some(root) = discover_project(anchor, home)? {
+    if let Some(root) = discover_project(anchor, home) {
         return Ok(Some(Selected {
             root,
             origin: Selection::Discovered,
         }));
     }
     if let Some(vault) = vault.filter(|vault| vault.origin.is_explicit())
-        && let Some(root) = discover_project(&vault.root, home)?
+        && let Some(root) = discover_project(&vault.root, home)
     {
         return Ok(Some(Selected {
             root,
@@ -1016,8 +967,7 @@ impl ExecutionContext {
     /// # Errors
     ///
     /// Contradictory explicit selections, an explicit project or vault that
-    /// is not one, a retired `hql.toml` met by the walk, and a malformed
-    /// configuration file.
+    /// is not one, and a malformed configuration file.
     pub fn construct(request: &Request, environment: &Environment) -> Result<Self, ContextError> {
         let layers = Layers::load(environment)?;
         let anchor = request.anchor.as_ref().map_or_else(
@@ -1127,9 +1077,6 @@ impl ExecutionContext {
                 return Err(ContextError::NotADirectory(explicit.root));
             }
             if explicit.origin != Selection::Host && !is_project(&explicit.root) {
-                if explicit.root.join(RETIRED_CONFIG).is_file() {
-                    return Err(ContextError::Retired(explicit.root));
-                }
                 return Err(ContextError::NotAProject(explicit.root));
             }
             Some(explicit)
@@ -1548,21 +1495,6 @@ mod tests {
     }
 
     #[test]
-    fn a_retired_hql_toml_is_refused_naming_its_replacement() {
-        let root = tempfile::tempdir().unwrap();
-        write(&root.path().join(RETIRED_CONFIG), "");
-        let refused = ExecutionContext::construct(&Request::default(), &environment(root.path()))
-            .unwrap_err();
-        assert_eq!(refused, ContextError::Retired(root.path().to_path_buf()));
-        assert!(refused.to_string().contains(PROJECT_CONFIG), "{refused}");
-        // Beside a project file it is never reached.
-        project(root.path());
-        assert!(
-            ExecutionContext::construct(&Request::default(), &environment(root.path())).is_ok()
-        );
-    }
-
-    #[test]
     fn the_hql_home_is_never_a_project() {
         let root = tempfile::tempdir().unwrap();
         let root = root.path();
@@ -1646,11 +1578,6 @@ mod tests {
         assert_eq!(
             with(None, Some(root.path().to_path_buf())),
             Err(ContextError::NotAVault(root.path().to_path_buf()))
-        );
-        write(&root.path().join(RETIRED_CONFIG), "");
-        assert_eq!(
-            with(Some(root.path().to_path_buf()), None),
-            Err(ContextError::Retired(root.path().to_path_buf()))
         );
     }
 
@@ -1846,7 +1773,7 @@ mod tests {
     }
 
     #[test]
-    fn a_retired_or_unknown_key_is_refused_naming_what_replaces_it() {
+    fn an_unknown_key_is_refused_naming_it() {
         let root = tempfile::tempdir().unwrap();
         let root = root.path();
         let refusal = |file: &str, text: &str| {
@@ -1857,10 +1784,8 @@ mod tests {
             fs::remove_file(root.join(file)).unwrap();
             refused
         };
-        let refused = refusal("tree/.hql/config.toml", "[extensions]\nimport = [\"x\"]\n");
-        assert!(refused.contains("`[modules]`"), "{refused}");
         let refused = refusal("tree/.hql/config.toml", "[semantics]\nindex = \"i\"\n");
-        assert!(refused.contains(".hmd/config.toml"), "{refused}");
+        assert!(refused.contains("`semantics`"), "{refused}");
         let refused = refusal("tree/.hql/config.toml", "[nonsense]\n");
         assert!(refused.contains("`nonsense`"), "{refused}");
         let refused = refusal("tree/.hql/config.toml", "current-context = \"a\"\n");
@@ -1868,7 +1793,7 @@ mod tests {
         let refused = refusal("home/.hql/config.toml", "[endpoint.a]\nkind = \"csv\"\n");
         assert!(refused.contains("`endpoint`"), "{refused}");
         let refused = refusal("home/.hql/config.toml", "[context.a]\nworkspace = \"/x\"\n");
-        assert!(refused.contains("`project`"), "{refused}");
+        assert!(refused.contains("`workspace`"), "{refused}");
         let refused = refusal("tree/.hql/config.toml", "[modules]\nrots = []\n");
         assert!(refused.contains("`rots`"), "{refused}");
     }

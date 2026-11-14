@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 /// Every module of the builtin packages, by name, in loading order: the
-/// standard package's, then `search`'s, which imports from it.
+/// standard package's, then `hmd`'s, which imports from it.
 ///
 /// Each module is its own import unit: it names, with `import`, every module
 /// whose types or traits it writes, and a module imports only modules listed
@@ -20,7 +20,7 @@ use std::sync::OnceLock;
 /// ([`closure`]).
 ///
 /// A `static`, so it has one address: the binding cache keys by it.
-pub static MODULES: &[(&str, &str)] = &concat::<{ STD.len() + SEARCH.len() }>(STD, SEARCH);
+pub static MODULES: &[(&str, &str)] = &concat::<{ STD.len() + HMD.len() }>(STD, HMD);
 
 /// Every module of the standard package, by name, in loading order: the
 /// folder below `lib/std/` with its segments joined by `.`, each module's
@@ -75,7 +75,6 @@ pub const STD: &[(&str, &str)] = &[
         "io.msg.nats_jetstream",
         include_str!("../lib/std/io/msg/nats_jetstream/mod.hql"),
     ),
-    ("vault", include_str!("../lib/std/vault/mod.hql")),
     (
         "crypto.digest",
         include_str!("../lib/std/crypto/digest/mod.hql"),
@@ -85,12 +84,28 @@ pub const STD: &[(&str, &str)] = &[
     ("crypto", include_str!("../lib/std/crypto/mod.hql")),
 ];
 
-/// Every module of the `search` package, by name, in loading order, laid out
-/// below `lib/search/` as the standard package's are below `lib/std/`.
-pub const SEARCH: &[(&str, &str)] = &[
-    ("lexical", include_str!("../lib/search/lexical/mod.hql")),
-    ("semantic", include_str!("../lib/search/semantic/mod.hql")),
+/// Every module of the `hmd` package, HyperMarkdown in HQL (HQL-0059), by
+/// name, in loading order, laid out below `lib/hmd/` as the standard
+/// package's are below `lib/std/`. Its prelude is [`HMD_PRELUDE`], which
+/// applies only while the package is active.
+pub const HMD: &[(&str, &str)] = &[
+    ("hmd", include_str!("../lib/hmd/mod.hql")),
+    ("hmd.vault", include_str!("../lib/hmd/vault/mod.hql")),
+    ("hmd.search", include_str!("../lib/hmd/search/mod.hql")),
+    (
+        "hmd.search.lexical",
+        include_str!("../lib/hmd/search/lexical/mod.hql"),
+    ),
+    (
+        "hmd.search.semantic",
+        include_str!("../lib/hmd/search/semantic/mod.hql"),
+    ),
 ];
+
+/// The `hmd` package's implicit import list, `lib/hmd/prelude.hql`: every
+/// unit of a run imports it while `hmd` is active, unless the run declines
+/// preludes.
+pub const HMD_PRELUDE: &str = include_str!("../lib/hmd/prelude.hql");
 
 /// Two module tables as one, in order.
 const fn concat<const N: usize>(
@@ -111,12 +126,18 @@ const fn concat<const N: usize>(
 }
 
 /// A builtin module as diagnostics name it: its package, then its name,
-/// `std/core` or `search/lexical`.
+/// `std/core` or `hmd/search.lexical`.
 #[must_use]
 pub fn path(module: &str) -> String {
-    let package = if SEARCH.iter().any(|(name, _)| *name == module) {
-        "search"
-    } else if STD.iter().any(|(name, _)| *name == module) {
+    // A module of `hmd` carries its package's name already: `hmd.vault` is
+    // `hmd/vault`, and the root module `hmd` is the package itself.
+    if HMD.iter().any(|(name, _)| *name == module) {
+        return match module.strip_prefix("hmd.") {
+            Some(rest) => format!("hmd/{rest}"),
+            None => "hmd".to_owned(),
+        };
+    }
+    let package = if STD.iter().any(|(name, _)| *name == module) {
         "std"
     } else {
         // A loaded package's module, named by its package.
@@ -800,13 +821,14 @@ mod tests {
     }
 
     #[test]
-    fn the_search_package_follows_the_standard_one_and_names_its_modules() {
+    fn the_hmd_package_follows_the_standard_one_and_names_its_modules() {
         assert_eq!(&MODULES[..STD.len()], STD);
-        assert_eq!(&MODULES[STD.len()..], SEARCH);
+        assert_eq!(&MODULES[STD.len()..], HMD);
         assert_eq!(path("core"), "std/core");
-        assert_eq!(path("lexical"), "search/lexical");
+        assert_eq!(path("hmd.search.lexical"), "hmd/search.lexical");
+        assert_eq!(path("hmd"), "hmd");
         let contracts = contracts().unwrap();
-        for module in ["lexical", "semantic"] {
+        for module in ["hmd.search.lexical", "hmd.search.semantic"] {
             let (_, declared) = contracts.iter().find(|(name, _)| *name == module).unwrap();
             assert_eq!(declared.len(), 1, "{module}");
             assert!(

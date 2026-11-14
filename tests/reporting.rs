@@ -277,7 +277,11 @@ fn a_tap_observes_the_channel_as_it_is_written() {
     hql::io::tap_diagnostics(move |diagnostic| {
         tapped.lock().unwrap().push(diagnostic.kind);
     });
-    let outcome = run("x = @[[nowhere]]\n1 / 0", &Vault::empty(), Mode::Strict);
+    let outcome = run(
+        "import hmd\nx = @[[nowhere]]\n1 / 0",
+        &Vault::empty(),
+        Mode::Strict,
+    );
     // The run did not own the channel, so it left it open; the host closes
     // it, and its contents are what the run returned.
     let closed = hql::io::close_diagnostics();

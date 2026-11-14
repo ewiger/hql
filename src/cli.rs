@@ -1455,6 +1455,11 @@ fn dispatch(
                         return Ok(1);
                     }
                 };
+                // `hql render` is a HyperMarkdown host: it injects `import
+                // hmd` into every cell (HQL-0059).
+                let mut hosted = vault.clone();
+                hosted.host();
+                let vault = &hosted;
                 // A document reads beside itself and writes nothing outside.
                 let root = directory_of(file);
                 crate::io::set_host(crate::io::Policy::Document { root: root.clone() }, root);
@@ -1828,8 +1833,7 @@ fn document_vault(
     let same_vault = canonical(context.vault()) == Some(found.clone());
     let own_project = match &selected {
         Some(project) => Some(project.clone()),
-        None => crate::context::discover_project(directory, context.layers.home.as_ref())
-            .map_err(|error| error.to_string())?,
+        None => crate::context::discover_project(directory, context.layers.home.as_ref()),
     };
     let same_project = canonical(context.project_root()) == canonical(own_project.as_deref());
     if same_vault && same_project && cli.options.project.is_none() {

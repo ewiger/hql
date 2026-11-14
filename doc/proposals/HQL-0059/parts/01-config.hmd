@@ -32,6 +32,7 @@ HQL configuration file and takes none of these keys.
 | `[execution] max_elements`, `max_bytes` | yes | no | no | project only |
 | `[report] mode`, `level` | yes | yes | yes | ranked, one wins |
 | `env` | yes | no | no | project only |
+| `[ai]` | yes | no | no | reserved for the AI harness (HQL-0022) |
 | `[endpoint.<id>]` | yes | no | no | project only |
 | `[keyvault.<id>]` | yes | no | no | project only |
 | `[format.<Type>]` | yes | no | no | project only |
@@ -238,14 +239,11 @@ backend = "localhost"
 
 ## Not HQL configuration
 
-- `[semantics]`: the semantic index and its embedder are HyperMarkdown's,
-  in `.hmd/config.toml` ([[HQL-0059]], "The semantic index is
-  HyperMarkdown's").
-- `[extensions]`: its two keys are `[modules] import` and
-  `[modules] prelude`. A file stating `[extensions]` is refused, naming
-  the `[modules]` key that replaces each.
-- `[sources]`: refused, naming `[endpoint.<id>]`.
-- `workspace`, in a named context: refused, naming `project`.
+`[semantics]` is HyperMarkdown's: the semantic index and its embedder are
+configured in the vault's `.hmd/config.toml` ([[HQL-0059]], "The semantic
+index is HyperMarkdown's"). `[extensions]`, `[sources]` and a named
+context's `workspace` are not keys of any file, and are refused as every
+unknown key is.
 
 ## Environment variables
 

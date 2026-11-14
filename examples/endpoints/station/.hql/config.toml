@@ -75,3 +75,7 @@ name = "Species Name"
 
 [endpoint.ledger_open.fields.count]
 name = "Total"
+
+# Its documents are a vault read through `hmd` (HQL-0059).
+[modules]
+import = ["hmd"]

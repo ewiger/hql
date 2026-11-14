@@ -209,7 +209,7 @@ fn expand_traverses_at_least_one_step() {
 fn a_graph_says_why_each_node_is_present() {
     let vault = fixture();
     let (text, _) = written(
-        "import lexical\ncards | lexical(\"bearer token authorization\") | take(2) | expand(depth = 1) | text",
+        "import hmd\ncards | lexical(\"bearer token authorization\") | take(2) | expand(depth = 1) | text",
         &vault,
     );
     assert!(text.contains("(retrieved "), "{text}");

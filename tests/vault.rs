@@ -198,7 +198,7 @@ fn uplinks_and_downlinks_traverse_one_edge_set_in_two_directions() {
 
 #[test]
 fn lexical_ranks_by_shared_words_and_retains_the_retrieval() {
-    let ranked = value("import lexical\ncards | lexical(\"bearer token authorization\")");
+    let ranked = value("import hmd\ncards | lexical(\"bearer token authorization\")");
     let Value::Ranking(ranking) = &ranked else {
         panic!("expected a ranking, got {ranked:?}")
     };
@@ -215,7 +215,7 @@ fn lexical_ranks_by_shared_words_and_retains_the_retrieval() {
 
     assert_eq!(
         text(
-            "import lexical\ncards | lexical(\"bearer token authorization\") | take(1) | map(h => h.value.name)"
+            "import hmd\ncards | lexical(\"bearer token authorization\") | take(1) | map(h => h.value.name)"
         ),
         "[\"oauth\"]"
     );
@@ -223,7 +223,7 @@ fn lexical_ranks_by_shared_words_and_retains_the_retrieval() {
 
 #[test]
 fn a_new_order_is_not_the_retrieval_order_so_a_sorted_ranking_is_a_sequence() {
-    let query = "import lexical\nranked = cards | lexical(\"bearer token authorization\")\n";
+    let query = "import hmd\nranked = cards | lexical(\"bearer token authorization\")\n";
     let hits = TypeRef::hit(TypeRef::CARD);
     assert_eq!(
         hql::check_in(&format!("{query}ranked | take(1)"), &fixture()),
@@ -286,7 +286,7 @@ fn a_test_no_value_can_pass_and_the_retired_name_are_refused() {
         "{always_false}"
     );
     let renamed = hql::check_in(
-        "import lexical\ncards | lexical(\"owl\") | map(h => h.card)",
+        "import hmd\ncards | lexical(\"owl\") | map(h => h.card)",
         &vault,
     )
     .unwrap_err();
@@ -297,7 +297,7 @@ fn a_test_no_value_can_pass_and_the_retired_name_are_refused() {
 
 #[test]
 fn an_unrelated_card_is_absent_from_a_ranking_rather_than_last_in_it() {
-    let ranked = value("import lexical\ncards | lexical(\"bearer token authorization\")");
+    let ranked = value("import hmd\ncards | lexical(\"bearer token authorization\")");
     let Value::Ranking(ranking) = &ranked else {
         panic!("expected a ranking")
     };
@@ -308,7 +308,7 @@ fn an_unrelated_card_is_absent_from_a_ranking_rather_than_last_in_it() {
 #[test]
 fn the_whole_pipeline_runs_and_says_why_each_node_is_present() {
     let projected = value(
-        "import lexical\n\
+        "import hmd\n\
          cards\n\
          | lexical(\"bearer token authorization\")\n\
          | take(2)\n\
@@ -437,13 +437,19 @@ fn cards_is_the_vaults_cards_in_the_order_a_sorted_walk_reaches_them() {
 
 #[test]
 fn without_a_vault_there_is_no_vault_and_no_cards() {
-    let failure = hql::check("vault.cards").expect_err("no vault");
+    let failure = hql::check("vault.cards").expect_err("no hmd");
+    assert!(
+        failure.message().contains("`vault` is HyperMarkdown's"),
+        "{}",
+        failure.message()
+    );
+    let failure = hql::check("import hmd\nvault.cards").expect_err("no vault");
     assert!(
         failure.message().contains("`vault` needs a vault"),
         "{}",
         failure.message()
     );
-    let failure = hql::check("cards").expect_err("no vault");
+    let failure = hql::check("import hmd\ncards").expect_err("no vault");
     assert!(
         failure.message().contains("--vault"),
         "{}",

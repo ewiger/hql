@@ -1,7 +1,7 @@
-<!-- hql reference: search/semantic.semantic -->
+<!-- hql reference: hmd/search/semantic.semantic -->
 # `semantic`
 
-In [`search/semantic`](index.hmd).
+In [`hmd/search/semantic`](index.hmd).
 
 ```hql
 fn semantic<T : Doc>(self: Collection<T>, query: String) : Ranking<Card>

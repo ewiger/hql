@@ -22,7 +22,7 @@ declares `Ranking` and `Hit`
 [HQL-0002](../../doc/proposals/HQL-0002/index.hmd)).
 
 ```hql
-import lexical
+import hmd
 cards | lexical("night hunting birds") | take(3)
 ```
 

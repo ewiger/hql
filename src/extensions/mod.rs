@@ -471,7 +471,7 @@ pub enum Origin {
 /// cross-checks each provided contract against them.
 #[derive(Debug)]
 pub struct Extension {
-    /// The descriptor's `id`: the package's name, `std` or `search`.
+    /// The descriptor's `id`: the package's name, `std` or `hmd`.
     pub(crate) id: &'static str,
     /// The descriptor's `abi`: how its code reaches the process.
     pub(crate) abi: u32,
@@ -507,6 +507,11 @@ pub(crate) fn canonical(path: &str) -> &str {
 /// The import a diagnostic tells a program to write for a module: its kept
 /// one-word form where it has one, else its canonical path.
 fn import_of(module: &str) -> &str {
+    // A module of `hmd` is reached by activating the package, whose prelude
+    // imports it.
+    if is_hmd(module) {
+        return "hmd";
+    }
     SHORT_NAMES
         .iter()
         .find(|(_, held)| *held == module)
@@ -637,19 +642,22 @@ pub(crate) static STD: Extension = Extension {
     metadata: None,
 };
 
-/// The search package's extension: retrieval over a vault's cards.
-pub(crate) static SEARCH: Extension = Extension {
-    id: "search",
+/// The `hmd` package's extension (HQL-0059): HyperMarkdown in HQL, and
+/// among it retrieval over a vault's cards. `hmd`, `hmd.vault` and
+/// `hmd.search` declare nothing external, so only the two retrieval modules
+/// are provided.
+pub(crate) static HMD: Extension = Extension {
+    id: "hmd",
     abi: ABI,
     origin: Origin::Internal,
     version: env!("CARGO_PKG_VERSION"),
     provides: &[
         Provided {
-            module: "lexical",
+            module: "hmd.search.lexical",
             steps: lexical::STEPS,
         },
         Provided {
-            module: "semantic",
+            module: "hmd.search.semantic",
             steps: semantic::STEPS,
         },
     ],
@@ -662,7 +670,7 @@ pub(crate) static SEARCH: Extension = Extension {
 /// `hql builtins` whether or not the program has imported the module that
 /// declares it, so a missing import reports the import rather than a
 /// misspelling.
-pub(crate) static REGISTERED: &[&Extension] = &[&STD, &SEARCH];
+pub(crate) static REGISTERED: &[&Extension] = &[&STD, &HMD];
 
 impl Extension {
     /// Whether the descriptor provides a module.
@@ -796,7 +804,78 @@ impl Default for Config {
     }
 }
 
+/// Whether a module path names the `hmd` package's root module or one of its
+/// modules: what importing activates the package (HQL-0059).
+#[must_use]
+pub fn is_hmd(path: &str) -> bool {
+    path == "hmd" || path.starts_with("hmd.")
+}
+
+thread_local! {
+    /// Whether `hmd` is active for the program being checked on this thread:
+    /// what a step's check reads when its meaning is HyperMarkdown's, as a
+    /// configured endpoint of kind `vault` is.
+    static HMD_ACTIVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Record whether `hmd` is active for the program about to be checked.
+pub(crate) fn set_checking_hmd(active: bool) {
+    HMD_ACTIVE.with(|held| held.set(active));
+}
+
+/// Whether `hmd` is active for the program being checked.
+pub(crate) fn checking_hmd() -> bool {
+    HMD_ACTIVE.with(std::cell::Cell::get)
+}
+
+/// The modules `lib/hmd/prelude.hql` imports: what every unit of a run
+/// imports while `hmd` is active.
+pub(crate) fn hmd_prelude() -> &'static [&'static str] {
+    static PRELUDE: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    PRELUDE.get_or_init(|| {
+        crate::library::HMD_PRELUDE
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("import "))
+            .map(|name| name.split_whitespace().next().unwrap_or(name))
+            .collect()
+    })
+}
+
 impl Config {
+    /// Whether `hmd` is active under this configuration: a configured
+    /// import, `[modules] import` or `--import`, names a module of it.
+    #[must_use]
+    pub fn hmd_active(&self) -> bool {
+        self.imports.iter().any(|import| is_hmd(import))
+    }
+
+    /// The configuration a program runs under: this one, with `hmd` active
+    /// when the program imports a module of it, and then, unless preludes
+    /// are declined, with `hmd`'s prelude among the imports of every unit.
+    /// A package whose module a unit imports is active for the whole run,
+    /// as its prelude is part of the run's environment (HQL-0024, part 3).
+    #[must_use]
+    pub(crate) fn activated(&self, program: &crate::ast::Program) -> Self {
+        let imported = program.statements.iter().any(|statement| {
+            matches!(statement, crate::ast::Stmt::Import { path, .. } if is_hmd(&path.join(".")))
+        });
+        if !imported && !self.hmd_active() {
+            return self.clone();
+        }
+        let mut config = self.clone();
+        if !config.hmd_active() {
+            config.imports.push("hmd".to_owned());
+        }
+        if config.prelude {
+            for module in hmd_prelude() {
+                if !config.imports.iter().any(|held| held == module) {
+                    config.imports.push((*module).to_owned());
+                }
+            }
+        }
+        config
+    }
+
     /// Read `[modules]` and `[packages]` from a project's `.hql/config.toml`.
     ///
     /// A file that is absent or says nothing about extensions leaves the
@@ -856,9 +935,9 @@ pub enum Availability {
     /// `core` and `collections`, which are never imported because they are
     /// never absent.
     Core,
-    /// In the prelude this vault keeps.
+    /// In a prelude the run keeps.
     Prelude,
-    /// Named by the project's `.hql/config.toml`.
+    /// Named by `[modules] import` or `--import`.
     Configured,
     /// Registered, and written out by any program that wants it.
     Absent,
@@ -871,7 +950,7 @@ impl Availability {
         match self {
             Self::Core => "always available",
             Self::Prelude => "prelude",
-            Self::Configured => "imported by this vault",
+            Self::Configured => "imported by this project",
             Self::Absent => "imported where it is used",
         }
     }
@@ -894,6 +973,9 @@ pub(crate) struct Resolution {
     environment: binding::Frozen,
     /// Each visible builtin module, under the local name it is bound to.
     imported: Vec<Imported>,
+    /// Whether the run's configuration makes `hmd` active, so that `vault`,
+    /// its bindings and document references belong to the program.
+    hmd: bool,
 }
 
 /// A builtin module bound into a source unit under a local name: its last
@@ -932,6 +1014,7 @@ impl Resolution {
         let mut resolution = Self {
             environment,
             imported: Vec::new(),
+            hmd: false,
         };
         let names = ALWAYS
             .iter()
@@ -958,6 +1041,16 @@ impl Resolution {
     /// rather than in the line a reader is looking at.
     pub(crate) fn new(config: &Config) -> Result<Self, Diagnostic> {
         binding::Runtime::process(config).map(|runtime| runtime.resolution.clone())
+    }
+
+    /// Record whether the run's configuration makes `hmd` active.
+    pub(crate) fn set_hmd(&mut self, active: bool) {
+        self.hmd = active;
+    }
+
+    /// Whether `hmd` is active for the run this resolution starts.
+    pub(crate) fn hmd_active(&self) -> bool {
+        self.hmd
     }
 
     /// The frozen environment this resolution runs against.
@@ -1630,11 +1723,7 @@ mod tests {
                 Purity::Pure
             };
             assert_eq!(entry.purity, expected, "{}", entry.name);
-            assert!(
-                matches!(entry.extension, "std" | "search"),
-                "{}",
-                entry.name
-            );
+            assert!(matches!(entry.extension, "std" | "hmd"), "{}", entry.name);
             assert!(!entry.signature.is_empty());
             assert!(!entry.description.is_empty(), "{}", entry.name);
         }
@@ -1651,7 +1740,10 @@ mod tests {
             .unwrap();
         assert_eq!((markdown.module, markdown.extension), ("format", "std"));
         let lexical = listed.iter().find(|entry| entry.name == "lexical").unwrap();
-        assert_eq!((lexical.module, lexical.extension), ("lexical", "search"));
+        assert_eq!(
+            (lexical.module, lexical.extension),
+            ("hmd.search.lexical", "hmd")
+        );
         assert_eq!(providers("count"), ["collections"]);
         assert!(providers("nonesuch").is_empty());
         assert!(extension("std").is_some());
@@ -1667,7 +1759,7 @@ mod tests {
                 .iter()
                 .map(|extension| (extension.id, extension.abi))
                 .collect::<Vec<_>>(),
-            [("std", ABI), ("search", ABI)]
+            [("std", ABI), ("hmd", ABI)]
         );
         // `core` and `collections` share one table, and each lists what it
         // declares: `Date` is `core`'s, `count` is `collections`'s, and
@@ -1716,12 +1808,14 @@ mod tests {
 
         let missing = resolution.step("lexical", &(0..1)).unwrap_err();
         assert!(
-            missing.message().contains("import lexical"),
+            missing.message().contains("write `import hmd`"),
             "{}",
             missing.message()
         );
 
-        resolution.import("lexical", None, &(0..1)).unwrap();
+        resolution
+            .import("hmd.search.lexical", None, &(0..1))
+            .unwrap();
         assert!(resolution.step("lexical", &(0..1)).is_ok());
         assert!(resolution.qualified("lexical", "lexical", &(0..1)).is_ok());
         assert!(resolution.qualified("lexical", "rank", &(0..1)).is_err());
@@ -1742,15 +1836,19 @@ mod tests {
     #[test]
     fn importing_the_same_module_twice_is_not_a_collision() {
         let mut resolution = bare(true);
-        resolution.import("lexical", None, &(0..1)).unwrap();
-        resolution.import("lexical", None, &(0..1)).unwrap();
+        resolution
+            .import("hmd.search.lexical", None, &(0..1))
+            .unwrap();
+        resolution
+            .import("hmd.search.lexical", None, &(0..1))
+            .unwrap();
         assert!(resolution.step("lexical", &(0..1)).is_ok());
     }
 
     #[test]
     fn a_vault_may_import_for_every_program_and_may_decline_the_prelude() {
         let config = Config {
-            imports: vec!["lexical".to_owned()],
+            imports: vec!["hmd.search.lexical".to_owned()],
             prelude: false,
             module_roots: Vec::new(),
             package_paths: Vec::new(),
@@ -1770,8 +1868,8 @@ mod tests {
         assert_eq!(by_name("core"), Availability::Core);
         assert_eq!(by_name("collections"), Availability::Core);
         assert_eq!(by_name("format"), Availability::Absent);
-        assert_eq!(by_name("lexical"), Availability::Configured);
-        assert_eq!(by_name("semantic"), Availability::Absent);
+        assert_eq!(by_name("hmd.search.lexical"), Availability::Configured);
+        assert_eq!(by_name("hmd.search.semantic"), Availability::Absent);
         assert_eq!(by_name("graph"), Availability::Absent);
 
         let kept = catalogue(&Config::default());
@@ -1783,14 +1881,21 @@ mod tests {
     }
 
     #[test]
-    fn a_vault_may_import_a_package_which_imports_every_module_it_provides() {
+    fn importing_hmd_activates_it_and_its_prelude_reaches_every_unit() {
         let config = Config {
-            imports: vec!["search".to_owned(), "logging".to_owned()],
+            imports: vec!["hmd".to_owned(), "logging".to_owned()],
             prelude: true,
             module_roots: Vec::new(),
             package_paths: Vec::new(),
         };
+        assert!(config.hmd_active());
+        let empty = crate::ast::Program {
+            statements: Vec::new(),
+            docs: crate::docs::Docs::default(),
+        };
+        let config = config.activated(&empty);
         let resolution = Resolution::new(&config).expect("the configuration resolves");
+        assert!(resolution.hmd_active());
         assert!(resolution.step("lexical", &(0..1)).is_ok());
         assert!(resolution.step("semantic", &(0..1)).is_ok());
         assert!(resolution.has("logging"));
@@ -1803,8 +1908,8 @@ mod tests {
                 .unwrap()
                 .availability
         };
-        assert_eq!(by_name("lexical"), Availability::Configured);
-        assert_eq!(by_name("semantic"), Availability::Configured);
+        assert_eq!(by_name("hmd.search.lexical"), Availability::Configured);
+        assert_eq!(by_name("hmd.search.semantic"), Availability::Configured);
         assert_eq!(by_name("io.logging"), Availability::Configured);
         assert_eq!(by_name("io.net"), Availability::Absent);
     }
@@ -1852,7 +1957,7 @@ mod tests {
     fn a_missing_import_names_the_module_declaring_the_step() {
         let bare = bare(true);
         for (step, written) in [
-            ("lexical", "write `import lexical`"),
+            ("lexical", "write `import hmd`"),
             ("http", "write `import net`"),
             ("Logger", "write `import logging`"),
             ("walk", "write `import io.fs`"),

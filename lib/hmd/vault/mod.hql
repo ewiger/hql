@@ -1,9 +1,10 @@
 // See doc/issues/archive/0010-yield-and-bind.hmd and doc/models/behavior/queries.hmd.
 
-/// The current vault: the source a program runs against. A host with a
-/// vault binds it as `vault` in the program module; a program running
-/// without one has no `vault` binding, and no module sees it.
-module vault
+/// The current vault: the HyperMarkdown vault a program reads (HQL-0059).
+/// A host with a vault binds it as `vault` in the program module once
+/// `hmd` is imported; a program running without one, or without `hmd`, has
+/// no `vault` binding, and no module sees it.
+module hmd.vault
 
 import core
 import doc

@@ -255,15 +255,17 @@ nav:
           - std/io/transaction: reference/std/io/transaction.md
           - std/io/msg/nats: reference/std/io/msg/nats.md
           - std/io/msg/nats_jetstream: reference/std/io/msg/nats_jetstream.md
-          - std/vault: reference/std/vault.md
           - std/crypto/digest: reference/std/crypto/digest.md
           - std/encoding: reference/std/encoding.md
           - std/bytes: reference/std/bytes.md
           - std/crypto: reference/std/crypto.md
           - std/validators: reference/std/validators.md
-      - search:
-          - search/lexical: reference/search/lexical.md
-          - search/semantic: reference/search/semantic.md
+      - hmd:
+          - hmd: reference/hmd.md
+          - hmd/vault: reference/hmd/vault.md
+          - hmd/search: reference/hmd/search.md
+          - hmd/search/lexical: reference/hmd/search/lexical.md
+          - hmd/search/semantic: reference/hmd/search/semantic.md
 
 # A primitive's reference page is reached from its module's page, not from the
 # nav.

@@ -4,6 +4,7 @@
 # The book's own modules, `club.reading` and `club.titles`, are files under
 # `lib/`.
 [modules]
+import = ["hmd"]
 roots = ["lib"]
 
 # Read by the `ai` extension only, which the book describes as design; the

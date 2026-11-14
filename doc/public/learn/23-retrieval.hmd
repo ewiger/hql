@@ -2,8 +2,8 @@
 
 `filter` answers a question with a yes or no per card. Retrieval answers a
 question in words with a **ranking**: every card that matches, best first,
-each with a score. HQL has two retrievals, each a module a program
-imports.
+each with a score. HQL has two retrievals over a vault's cards, both
+HyperMarkdown's, in the builtin package `hmd`.
 
 ## Lexical retrieval
 
@@ -11,7 +11,7 @@ imports.
 needs nothing built in advance:
 
 ```hql
-import lexical
+import hmd
 cards | lexical("desert spice") | take(3)
 ```
 
@@ -19,19 +19,24 @@ cards | lexical("desert spice") | take(3)
 [dune (0.2928), frankenstein-inspires-dune (0.2778), frankenstein (0.2471)]
 ```
 
-`import lexical` makes the module's step available to the program. Without
-it, the name is not a step, and the error says which import provides it:
+Both retrievals are modules of the builtin package `hmd`,
+`hmd.search.lexical` and `hmd.search.semantic`, and `hmd`'s prelude imports
+them: `import hmd` makes `lexical` and `semantic` steps of the program. The
+tutorial's project imports `hmd` for every program, so the `import hmd`
+above restates it. Without `hmd`, the name is not a step, and the error says
+which import provides it:
 
+<!-- run: novault -->
 ```hql
-cards | lexical("desert spice")
+["desert spice"] | lexical("desert spice")
 ```
 
 ```text
-check error[unknown-name]: `lexical` is declared in the module `lexical`: write `import lexical`
- --> <expression>:1:9
+check error[unknown-name]: `lexical` is declared in the module `hmd.search.lexical`: write `import hmd`
+ --> <expression>:1:20
   |
-1 | cards | lexical("desert spice")
-  |         ^^^^^^^^^^^^^^^^^^^^^^^
+1 | ["desert spice"] | lexical("desert spice")
+  |                    ^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ## A ranking holds hits
@@ -40,7 +45,7 @@ A ranking is a sequence of **hits**. A hit holds the card it retrieved, as
 `value`, and its `score`:
 
 ```hql
-import lexical
+import hmd
 cards
 | lexical("desert spice")
 | take(2)
@@ -56,7 +61,7 @@ itself, so every hit carries the retrieval that produced it — the model, the
 index, the metric, and whether the search was approximate:
 
 ```hql
-import lexical
+import hmd
 ranked = cards | lexical("desert")
 {model: ranked.retrieval.model, metric: ranked.retrieval.metric, approximate: ranked.retrieval.approximate}
 ```
@@ -76,7 +81,7 @@ applies. `expand` grows a graph from the best hits, and the nodes it adds say
 they were reached, not retrieved:
 
 ```hql
-import lexical
+import hmd
 cards
 | lexical("a creature and its maker")
 | take(2)
@@ -118,7 +123,7 @@ relation card that names it, and Mary Shelley, though none of the three
 contains the word "creature":
 
 ```hql
-import semantic
+import hmd
 cards | semantic("a creature and its maker") | take(3) | map(h => h.value.title)
 ```
 
@@ -130,7 +135,7 @@ The same question, by spelling, finds Frankenstein and then two cards that
 share only its small words:
 
 ```hql
-import lexical
+import hmd
 cards | lexical("a creature and its maker") | take(3) | map(h => h.value.title)
 ```
 
@@ -142,7 +147,7 @@ A semantic ranking reports the model that embedded the cards, so two indexes
 built by two models are never compared by score:
 
 ```hql
-import semantic
+import hmd
 ranked = cards | semantic("a creature and its maker")
 {model: ranked.retrieval.model, metric: ranked.retrieval.metric, approximate: ranked.retrieval.approximate}
 ```
@@ -158,7 +163,7 @@ holds the three questions this book asks. A question it does not hold is a
 diagnostic naming the build command, not a ranking of nothing:
 
 ```hql
-import semantic
+import hmd
 cards | semantic("night hunting birds") | take(1)
 ```
 

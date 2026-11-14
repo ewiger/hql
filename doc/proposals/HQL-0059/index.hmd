@@ -85,9 +85,8 @@ An HQL project is not a vault and does not contain document namespace semantics.
 `.hql/config.toml` takes the keys [part 1](parts/01-config.hmd) lists: the
 keys `hql.toml` held, with `[extensions]` renamed to `[modules] import` and
 `[modules] prelude`, and without `[semantics]`, which is HyperMarkdown's
-("The semantic index is HyperMarkdown's" below). `hql.toml` is not a
-configuration file and not a marker: HQL reads no file of that name, and a
-directory holding one is not a project.
+("The semantic index is HyperMarkdown's" below). HQL reads no file named
+`hql.toml`.
 
 A relative path in `.hql/config.toml` resolves against the project root,
 the directory holding `.hql/`, never against `.hql/` itself: a
@@ -328,17 +327,18 @@ packages; the builtin `search` package is retired, and its modules join
 
 `hmd` provides:
 
-- `Card`
-- `cards`
+- the vault: the module `hmd.vault`, the host binding `vault`, and `cards`
+  and `graph` over it
 - the meaning of `@[[...]]`
-- `uplinks`
-- `downlinks`
-- HMD namespace operations
-- HMD document traversal
 - retrieval over a vault's cards: the module `hmd.search`, with
   `hmd.search.lexical` and `hmd.search.semantic`, formerly the builtin
   `search` package
 - other HyperMarkdown-specific functionality
+
+The `Card` and `Doc` types, and `uplinks`, `downlinks` and `expand`, stay in
+`std`'s `doc` and `graph` modules: they are operations over any document
+and any graph, and `graph` and `knowledge` do not depend on HyperMarkdown
+("The vault is HyperMarkdown's, in the `hmd` namespace" below).
 
 Plain HQL MUST NOT expose these concepts.
 
@@ -550,9 +550,8 @@ research ─────┘
 
 ## Backwards Compatibility
 
-HQL is before 1.0, and this proposal breaks without a transition period.
-Each break is refused with a message naming its replacement, never
-silently ignored:
+HQL is before 1.0, and this proposal breaks outright: no alias, shim or
+message recognises an old form, which is simply unknown. What breaks:
 
 | Before | Now |
 | --- | --- |
@@ -567,7 +566,7 @@ silently ignored:
 | `~/.hql/lib/`, `~/.hql/src/`, `~/.hql/registry/` | `~/.hql/packages/`, `~/.hql/cache/src/`, `~/.hql/cache/registry/` |
 | `cards`, `vault`, `knowledge`, `graph` bound in every run with a vault | bound once `hmd` is active |
 | the builtin package `search`, modules `lexical` and `semantic` | `hmd.search.lexical`, `hmd.search.semantic` |
-| `@[[x]]` resolved by HQL by name | resolved by HyperMarkdown's crate, and a check error without `hmd` |
+| `@[[x]]` resolved without `hmd` | a check error without `hmd` |
 
 A directory marked only by `hql.toml` that held documents loaded them as
 cards; it now needs `.hmd/` to be a vault and `.hql/config.toml` to be a

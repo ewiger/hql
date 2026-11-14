@@ -1200,6 +1200,7 @@ impl Runtime {
 
     fn build(environment: Frozen, config: &Config) -> Result<Self, Diagnostic> {
         let mut resolution = Resolution::bare(environment, config.prelude);
+        resolution.set_hmd(config.hmd_active());
         for name in &config.imports {
             let configured = |message: String| {
                 Diagnostic::name(
@@ -1213,9 +1214,13 @@ impl Runtime {
             // A project's import list names builtin modules, or packages,
             // which import every module they provide; a workspace module is
             // imported where it is used.
+            // A module the runtime implements, `hmd` or `hmd.vault`, binds no
+            // operation: importing it is what activates its package, which
+            // [`Config::activated`] has already read.
             let bound = resolution
                 .import(name, None, &(0..0))
                 .map_err(|failed| configured(failed.message()))?
+                || resolution.is_runtime_module(name)
                 || resolution
                     .import_package(name, &(0..0))
                     .map_err(|failed| configured(failed.message()))?;
