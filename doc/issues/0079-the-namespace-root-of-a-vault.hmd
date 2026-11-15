@@ -1,0 +1,71 @@
+# 0079 — HQL reads cards from the vault root, not the namespace root
+
+Status: todo
+Related: [[HQL-0059]], [[0011-wire-the-semantic-search-toolchain|0011]]
+
+A HyperMarkdown vault has two roots. The **vault root** is the directory
+holding `.hmd/`. The **namespace root** is the directory its cards live
+under: `wiki` in `.hmd/config.toml`, a path against the vault root, default
+`doc/wiki`. A card is a document below the namespace root, and its path is
+relative to the namespace root.
+
+HQL uses one directory for both. `vault::load_documents` walks the vault
+root and reads no `wiki` key, so in a vault whose `wiki` is not `.`:
+
+```text
+repo/                     the vault root
+├── .hmd/config.toml      wiki = "doc/wiki"
+├── README.md
+└── doc/wiki/
+    ├── owl.hmd
+    └── heron.hmd
+```
+
+| | HyperMarkdown | HQL |
+| --- | --- | --- |
+| namespace root | `repo/doc/wiki/` | `repo/` |
+| cards | `owl`, `heron` | `README`, `doc/wiki/owl`, `doc/wiki/heron` |
+| path of `owl` | `owl.hmd` | `doc/wiki/owl.hmd` |
+
+HQL-0059 states the two roots apart, as `hmd_project_root` and
+`hmd_namespace_root` of the execution context, and states that HQL does not
+reinterpret a vault. The loader predates it. Every vault in `examples/` and
+`tests/fixtures/` has its cards directly under the vault root, so no test
+shows the difference.
+
+## What follows from it
+
+- `cards` holds documents HyperMarkdown does not count as cards, and
+  `hmd lint` and `hql` disagree about what a name resolves to.
+- The VS Code extension passes the namespace root as `--vault`. HQL then
+  looks for `.hmd/config.toml` in that directory, finds none, and reads
+  neither `[hql] project` nor `[semantics]`.
+- `hmd-semantics`, in the HyperMarkdown repository, copies HQL's loader so
+  that the text it embeds is the text HQL hashes. It has the same walk, and
+  must change in the same step, with both committed indexes rebuilt.
+- HQL also takes `.md` and `.markdown` files as cards. HyperMarkdown takes
+  `.hmd` only. Whether that stays is part of this issue.
+
+## Work
+
+1. Depend on HyperMarkdown's Rust crate `hypermarkdown` once it is on
+   crates.io, and load a vault through it: `Config::read` for `wiki`,
+   `Vault::open` for the pages, `Vault::resolve` for `@[[..]]`. That is the
+   resolution HQL-0059 requires, and it brings the namespace root with it.
+2. `--vault <dir>` names the vault root. A directory given that holds no
+   `.hmd/` and lies inside a vault is refused, naming the vault root above
+   it.
+3. Card paths, `file_of`, the index's `path` column and the `vault` name in
+   `index_meta` are relative to the namespace root.
+4. Change `hmd-semantics` to the same walk, and rebuild
+   `tests/fixtures/birds/.hmd/index.sqlite`, `examples/tutorial/.hmd/index.sqlite`
+   and the copy of the birds fixture in the HyperMarkdown repository.
+5. A corpus case under `examples/projects/` with a vault whose `wiki` is a
+   subdirectory.
+
+## Done when
+
+- In a vault with `wiki = "doc/wiki"`, `cards | count` counts the documents
+  under `doc/wiki/` and no other, and `hmd lint` and `hql` resolve every
+  reference of the vault to the same card.
+- A card run from the VS Code extension reads its vault's `[hql] project`.
