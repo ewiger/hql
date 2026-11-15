@@ -4,10 +4,15 @@ Status: todo
 Related: [[HQL-0059]], [[0011-wire-the-semantic-search-toolchain|0011]]
 
 A HyperMarkdown vault has two roots. The **vault root** is the directory
-holding `.hmd/`. The **namespace root** is the directory its cards live
-under: `wiki` in `.hmd/config.toml`, a path against the vault root, default
-`doc/wiki`. A card is a document below the namespace root, and its path is
-relative to the namespace root.
+holding `.hmd/`: it holds the configuration and the index. The **namespace
+root** is the directory its cards live under, named by `wiki` in
+`.hmd/config.toml`: the **cards location**, where inside the vault the cards
+start, a path against the vault root, default `doc/wiki`. A card is a
+document below the namespace root, and its path is relative to the namespace
+root.
+
+HyperMarkdown decided on 2026-11-15 that `wiki` stays in the format with
+that meaning (its issue 0011), so the change is HQL's to make.
 
 HQL uses one directory for both. `vault::load_documents` walks the vault
 root and reads no `wiki` key, so in a vault whose `wiki` is not `.`:
