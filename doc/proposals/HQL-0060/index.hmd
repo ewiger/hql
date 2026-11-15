@@ -243,6 +243,9 @@ Name collisions follow the rules of today; no new precedence is introduced.
 
 The prelude is an ordinary list of import statements, run before each unit.
 
+- `lib/std/prelude.hql` MUST begin with `from core import *` and
+  `from collections import *`. The rule that makes `core` and `collections`
+  always available (`Availability::Core`) MUST be removed.
 - `lib/std/prelude.hql` MUST import each of its modules with
   `from <module> import *`, so every prelude function stays reachable
   unqualified and by receiver call.
@@ -251,6 +254,8 @@ The prelude is an ordinary list of import statements, run before each unit.
   selectors, aliases and names bound twice exactly. No module, package or
   function receives a resolution rule of its own.
 - `prelude = false` under `[modules]` MUST keep withholding the whole list.
+  With `core` and `collections` in the list, `prelude = false` withholds
+  their functions too; a unit that sets it imports them itself.
 
 ### 8. Errors
 
@@ -301,6 +306,8 @@ was not before.
   `module.function` today, MUST also bind the names a `from` statement
   selects.
 - `lib/std/prelude.hql`, `lib/hmd/prelude.hql`: rewritten as `from … import *`.
+- `src/extensions/mod.rs`: `Availability::Core` removed; `core` and
+  `collections` reach a unit through the prelude only.
 - `src/library.rs`: the prelude loader accepts `from` statements.
 
 ## Test Plan
@@ -347,3 +354,4 @@ cargo test --test book
 - 2026-11-15: receiver selection is by type, `T.*` and `T.f`, in place of `.*`
 - 2026-11-15: aliases bind receivers or functions by their form, and rename groups by a `*` pattern
 - 2026-11-15: a type selector matches the type of the module's `for` clause exactly, with no supertype or subtype
+- 2026-11-15: `core` and `collections` are ordinary prelude lines; the always-available rule is removed
