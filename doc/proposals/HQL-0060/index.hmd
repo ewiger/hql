@@ -257,6 +257,13 @@ The prelude is an ordinary list of import statements, run before each unit.
   With `core` and `collections` in the list, `prelude = false` withholds
   their functions too; a unit that sets it imports them itself.
 
+A configured import, `[modules] import` in `.hql/config.toml` or `--import`
+on the command line, MUST be read as an import statement added to each unit:
+
+- an entry `m` MUST mean `import m`, qualified only;
+- an entry in the `from` form, `"from stats import *"`, MUST mean that
+  statement, under the same rules.
+
 ### 8. Errors
 
 The check error for a bare name that an imported module declares MUST name
@@ -355,3 +362,4 @@ cargo test --test book
 - 2026-11-15: aliases bind receivers or functions by their form, and rename groups by a `*` pattern
 - 2026-11-15: a type selector matches the type of the module's `for` clause exactly, with no supertype or subtype
 - 2026-11-15: `core` and `collections` are ordinary prelude lines; the always-available rule is removed
+- 2026-11-15: a configured import is an import statement; a bare module name is `import m`
