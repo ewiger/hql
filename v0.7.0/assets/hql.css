@@ -1,0 +1,55 @@
+/* The sibling site's amber, as one variable. Two values because the light
+   scheme needs the darker end of the ramp to stay legible on white, and the
+   dark scheme the brighter end. */
+[data-md-color-scheme="default"] {
+  --hql-amber: #d98f00;
+}
+
+[data-md-color-scheme="slate"] {
+  --hql-amber: #ffc233;
+}
+
+/* A red link marks a card worth writing later, not a build failure. */
+.hmd-redlink {
+  border-bottom: 1px dashed currentColor;
+  opacity: 0.75;
+  cursor: help;
+}
+
+[data-md-color-scheme="default"] .hmd-redlink {
+  color: #b3261e;
+}
+
+[data-md-color-scheme="slate"] .hmd-redlink {
+  color: #f2b8b5;
+}
+
+/* A single glyph beside the site name wants to be a little larger than a
+   wordmark to sit optically level with it. */
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/* The cover opts in to the hero treatment by tagging its own heading, so no
+   chapter picks one up by accident. */
+.md-typeset h1.hql-hero {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--md-default-fg-color);
+}
+
+.md-typeset h1.hql-hero + p {
+  font-size: 1.15rem;
+  line-height: 1.5;
+  padding-bottom: 1.1rem;
+  border-bottom: 2px solid var(--hql-amber);
+  margin-bottom: 1.6rem;
+}
+
+/* HQL is mostly read as code, so code is where the accent is spent: a rule
+   down the gutter, not a tint over the text. */
+.md-typeset pre > code {
+  border-left: 3px solid var(--hql-amber);
+}
