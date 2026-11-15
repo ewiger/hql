@@ -1,4 +1,4 @@
-// Module `shelf`: a workspace module whose declarations carry doc strings,
+// Module `shelf`: a project module whose declarations carry doc strings,
 // under the module root `examples/doc-strings/lib`. The sessions beside it
 // print them with `hql help`; until doc strings are parsed, `///` is an
 // ordinary comment and the module checks as it is.

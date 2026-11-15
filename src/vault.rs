@@ -2,10 +2,11 @@
 //! the document graph their references write.
 //!
 //! An extension owns type knowledge and operations, never the data. This
-//! module coordinates source, document, knowledge, and extension assembly.
+//! module coordinates source, document and knowledge assembly. A vault is
+//! HyperMarkdown's and holds nothing of an HQL project: the project's
+//! configuration is the [`crate::environment::RunEnvironment`]'s (HQL-0059).
 
 use crate::document::Card;
-use crate::extensions::Config;
 use crate::extensions::semantic::Semantics;
 use crate::graph::Edge;
 use std::collections::BTreeMap;
@@ -16,8 +17,12 @@ use std::sync::Arc;
 /// A namespace of documents, the cards built from them, and their edges.
 #[derive(Debug, Clone)]
 pub struct Vault {
-    /// Where the vault was loaded from; also the index name a retrieval reports.
+    /// The vault root, holding `.hmd/`; also the index name a retrieval
+    /// reports.
     pub root: PathBuf,
+    /// The namespace root, where the cards start: a document's path is
+    /// relative to it.
+    pub namespace: PathBuf,
     /// Every card, in canonical name order.
     pub cards: Vec<Arc<Card>>,
     /// Lookup by name.
@@ -26,54 +31,22 @@ pub struct Vault {
     pub edges: Vec<Edge>,
     /// What loading wanted to say without refusing to load.
     pub warnings: Vec<crate::diagnostics::Diagnostic>,
-    /// What the vault's `hql.toml` says about extensions.
-    pub extensions: Config,
-    /// What it says about its embedding index.
+    /// What the vault's `.hmd/config.toml` says about its embedding index.
     pub semantics: Semantics,
-    /// Which renderer writes a type in a presentation format.
-    pub formats: crate::extensions::format::Renderers,
-    /// The endpoints its `hql.toml` configures, by id.
-    pub endpoints: crate::endpoints::Endpoints,
 }
 
 impl Vault {
-    /// An empty vault, which is what a program outside every vault gets.
-    #[must_use]
-    pub fn empty() -> Self {
-        Self {
-            root: PathBuf::new(),
-            cards: Vec::new(),
-            by_name: BTreeMap::new(),
-            edges: Vec::new(),
-            warnings: Vec::new(),
-            extensions: Config::default(),
-            semantics: Semantics::default(),
-            formats: crate::extensions::format::Renderers::default(),
-            endpoints: crate::endpoints::Endpoints::default(),
-        }
-    }
-
-    /// Whether a vault was supplied at all.
-    #[must_use]
-    pub fn is_present(&self) -> bool {
-        !self.root.as_os_str().is_empty()
-    }
-
     /// The name this vault reports as the index a retrieval used.
     #[must_use]
     pub fn index_name(&self) -> String {
-        if self.is_present() {
-            self.root.display().to_string()
-        } else {
-            "<no vault>".to_owned()
-        }
+        self.root.display().to_string()
     }
 
-    /// Where a document of this vault is on disk: the root joined with its
-    /// path, which is its place in the vault.
+    /// Where a document of this vault is on disk: the namespace root joined
+    /// with its path, which is its place in the vault.
     #[must_use]
     pub fn file_of(&self, document: &crate::document::Document) -> PathBuf {
-        self.root.join(&document.path)
+        self.namespace.join(&document.path)
     }
 
     /// Resolve a document reference by name.
@@ -103,38 +76,39 @@ impl Vault {
 
 /// The nearest directory at or above `start` that is a vault root, if any.
 ///
-/// The walk is HyperMarkDown's: it stops at the first directory holding
-/// `.hmd/`, or `hql.toml` for a vault that only HQL configures.
+/// The walk is HyperMarkdown's: it stops at the first directory holding
+/// `.hmd/`. A project's `.hql/` marks no vault.
 #[must_use]
 pub fn discover(start: &Path) -> Option<PathBuf> {
-    start
-        .ancestors()
-        .find(|dir| is_root(dir))
-        .map(Path::to_path_buf)
+    crate::context::discover_vault(start)
 }
 
-/// Whether a directory marks a vault root.
+/// Whether a directory marks a vault root: it holds `.hmd/`.
 #[must_use]
 pub fn is_root(dir: &Path) -> bool {
-    dir.join(".hmd").is_dir() || dir.join(crate::reporting::CONFIG_FILE).is_file()
+    crate::context::is_vault(dir)
 }
 
-/// Load every Markdown and HyperMarkDown document under a directory.
+/// Read every Markdown and HyperMarkdown document under a vault's namespace
+/// root as its cards, with the vault's own index configuration.
 ///
 /// # Errors
 ///
-/// Returns the underlying I/O failure when the root cannot be read.
-pub fn load(root: &Path) -> io::Result<Vault> {
-    load_source(&crate::sources::Filesystem::new(root))
+/// Returns the underlying I/O failure when the root cannot be read, and a
+/// malformed `.hmd/config.toml`.
+pub fn load_documents(root: &Path) -> io::Result<Vault> {
+    assemble(&crate::sources::Filesystem::new(root)?)
 }
 
-/// Load a source through document and knowledge assembly.
+/// Assemble the vault of a source: its documents as cards, their edges, and
+/// its index configuration.
 ///
 /// # Errors
 /// Returns a source read failure before assembly starts.
-pub fn load_source(source: &dyn crate::sources::VaultSource) -> io::Result<Vault> {
+pub fn assemble(source: &dyn crate::sources::VaultSource) -> io::Result<Vault> {
     let snapshot = source.read()?;
     let root = snapshot.root.clone();
+    let namespace = source.namespace().unwrap_or_else(|| root.clone());
     let store = crate::document::DocumentStore::from_source(snapshot);
     let names = store
         .documents
@@ -158,15 +132,9 @@ pub fn load_source(source: &dyn crate::sources::VaultSource) -> io::Result<Vault
         .collect();
     let edges = crate::knowledge::build_edges(&cards);
     Ok(Vault {
-        extensions: source.extensions(),
         semantics: source.semantics(),
-        formats: source
-            .formats()
-            .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?,
-        endpoints: source
-            .endpoints()
-            .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?,
         root,
+        namespace,
         cards,
         by_name,
         edges,

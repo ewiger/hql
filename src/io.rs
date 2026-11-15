@@ -675,12 +675,57 @@ pub fn close_diagnostics() -> Vec<crate::diagnostics::Diagnostic> {
     })
 }
 
-/// A path as the host reads it: relative to the source unit.
+thread_local! {
+    /// The source directories of the project modules whose code is
+    /// running, innermost last: a module's function resolves relative paths
+    /// against its own directory, wherever it is called from (HQL-0059).
+    static SOURCES: RefCell<Vec<PathBuf>> = const { RefCell::new(Vec::new()) };
+}
+
+/// A module's source directory entered for as long as the guard lives.
+pub(crate) struct EnteredSource;
+
+impl Drop for EnteredSource {
+    fn drop(&mut self) {
+        SOURCES.with(|sources| {
+            sources.borrow_mut().pop();
+        });
+    }
+}
+
+/// Enter a module's source directory: relative paths resolve against it
+/// until the guard is dropped.
+pub(crate) fn enter_source(directory: &Path) -> EnteredSource {
+    SOURCES.with(|sources| sources.borrow_mut().push(directory.to_path_buf()));
+    EnteredSource
+}
+
+/// The source directory of the unit whose code is running: the innermost
+/// module's, else the host's base, which is the program's file's directory,
+/// the document's, or the working directory for a program with no file.
+/// Always absolute.
+pub(crate) fn source_directory() -> PathBuf {
+    let directory = SOURCES
+        .with(|sources| sources.borrow().last().cloned())
+        .unwrap_or_else(|| HOST.with(|host| host.borrow().base.clone()));
+    if directory.is_absolute() {
+        return directory;
+    }
+    std::env::current_dir().map_or(directory.clone(), |cwd| {
+        crate::context::absolute(&cwd, &directory)
+    })
+}
+
+/// A path as the host reads it: relative to the source directory of the
+/// unit naming it.
 fn resolved(path: &Path) -> PathBuf {
     if path.is_absolute() {
         return path.to_path_buf();
     }
-    HOST.with(|host| host.borrow().base.join(path))
+    match SOURCES.with(|sources| sources.borrow().last().cloned()) {
+        Some(directory) => directory.join(path),
+        None => HOST.with(|host| host.borrow().base.join(path)),
+    }
 }
 
 /// A database file a read may open, under the host's policy, as a file is.

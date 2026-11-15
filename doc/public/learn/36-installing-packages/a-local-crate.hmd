@@ -1,0 +1,176 @@
+# A local crate
+
+A **local crate** is a package's crate in a directory on this machine: one
+being written, or one checked out to be changed. This page follows one from
+its first build to an installed package. The crate is `hello`, the worked
+example of [[34-writing-an-extension|chapter 34]], copied beside a project:
+
+```text
+~/code/
+├── hello/               the crate: Cargo.toml, src/, modules/
+└── reading-club/        the project
+    └── .hql/
+        └── config.toml
+```
+
+Every command below runs in `~/code/reading-club`.
+
+## Listing the crate
+
+`[packages] paths` in the project's `.hql/config.toml` names the crate's
+directory:
+
+```toml
+[packages]
+paths = ["../hello"]
+```
+
+A path is read against the project root, the directory holding `.hql/`, so
+`../hello` is `~/code/hello` from any working directory. A listed crate is a
+package dependency of the project that is never installed, declared under
+`dependencies` or pinned in `lock.toml`.
+
+## The first run builds it
+
+No command builds a listed crate. The first program run in the project
+does, before the program is checked:
+
+```sh
+hql eval 'import hello
+hello.greet("Ada")'
+```
+
+```text
+hql: building package `hello` from /home/ada/code/hello
+   Compiling hql-ext-hello v0.1.0 (/home/ada/code/hello)
+    Finished `release` profile [optimized] target(s) in 1m 01s
+"Hello, Ada!"
+```
+
+The build runs `cargo` in the crate, against the `hql` that is running, and
+keeps its result under the crate's own `target/hql/hello/`: the library, a
+copy of the module root and a `package.toml`, laid out as an installed
+package is. The project's `.hql/` gains nothing. The first build compiles
+the `hql` crate and its dependencies, which takes about a minute.
+
+The second run finds the build current and starts no compiler:
+
+```sh
+hql eval 'import hello
+hello.greet("Ada")'
+```
+
+```text
+"Hello, Ada!"
+```
+
+## An edit rebuilds it
+
+A build is current while it is newer than the crate's `Cargo.toml`, every
+file under `src/` and every file under the module root. Changing one of
+them makes the next run build again. Here the greeting in `src/lib.rs`
+changes from `Hello` to `Good evening`:
+
+```sh
+hql eval 'import hello
+hello.greet("Ada")'
+```
+
+```text
+hql: building package `hello` from /home/ada/code/hello
+   Compiling hql-ext-hello v0.1.0 (/home/ada/code/hello)
+    Finished `release` profile [optimized] target(s) in 0.47s
+"Good evening, Ada!"
+```
+
+Only the crate itself is compiled again. A change to a contract under
+`modules/`, a new declaration or a changed signature, is picked up the same
+way, and a contract the Rust no longer implements refuses the package with
+the declaration's name.
+
+A build that fails does not stop `hql` from starting. The package is
+refused, and an `import` of one of its modules reports why:
+
+```text
+check error[unknown-name]: no module named `hello`: ...
+```
+
+## What the project sees
+
+`hql doctor` reports the packages a program in the current directory runs
+with, the listed crate among them:
+
+```text
+package  ok      hello 0.1.0 (hello)
+```
+
+`hql package list` lists installed packages only, and a listed crate is not
+one, so it prints nothing here.
+
+## Installing the crate
+
+`install --path` copies the build into the project and records it:
+
+```sh
+hql package install --path ../hello
+```
+
+```text
+    Finished `release` profile [optimized] target(s) in 0.12s
+installed hello 0.1.0 (hello) in /home/ada/code/reading-club/.hql/packages/hello
+```
+
+```sh
+hql package list
+```
+
+```text
+hello 0.1.0 (hello) [project]
+```
+
+`.hql/config.toml` now declares the package beside the path:
+
+```toml
+[packages]
+dependencies = ["hello"]
+paths = ["../hello"]
+```
+
+and `.hql/lock.toml` pins it to the directory it was built from:
+
+```toml
+[[package]]
+name = "hello"
+version = "0.1.0"
+source = "path"
+path = "/home/ada/code/hello"
+```
+
+## Which one runs
+
+With the crate both listed and installed, the listed crate is the one a
+program reaches: a run discovers packages from `[packages] paths` first,
+the project's `.hql/packages/` second and the HQL home's third, and the
+same package found twice is the first found. Edits to the crate still take
+effect on the next run.
+
+Removing the `paths` entry leaves the installed copy, which no edit to the
+crate changes:
+
+```toml
+[packages]
+dependencies = ["hello"]
+```
+
+The installed package is the build made when it was installed. `hql package
+rebuild hello` builds it again from the directory its pin names.
+
+| The project has | A program runs | An edit to the crate |
+| --- | --- | --- |
+| the crate under `paths` | the crate's own build | rebuilds on the next run |
+| the crate under `paths`, and the package installed | the crate's own build | rebuilds on the next run |
+| the package installed | the copy under `.hql/packages/` | has no effect until `hql package rebuild` |
+
+A path pin names a directory on the machine that wrote it.
+[A shared project](a-shared-project.hmd) is about what that means for a
+project more than one person runs.

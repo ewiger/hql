@@ -1,0 +1,14 @@
+// status: valid-now
+// feature: `hmd` imported with no vault from a host or `--vault`: `cards` is refused, naming `--vault`
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql --import hmd run examples/projects/queries/invalid-cards-without-hmd.hql
+check error[unknown-name]: `cards` needs a vault: run inside one or pass --vault <directory>
+ --> examples/projects/queries/invalid-cards-without-hmd.hql:9:1
+  |
+9 | cards | count
+  | ^^^^^
+

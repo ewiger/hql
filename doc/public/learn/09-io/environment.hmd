@@ -121,7 +121,7 @@ var("HOME")
 ```
 
 ```text
-check error[unknown-name]: `var` is provided by the `io.env` extension: write `import io.env`
+check error[unknown-name]: `var` is declared in the module `io.env`: write `import io.env`
  --> <expression>:1:1
   |
 1 | var("HOME")
@@ -151,10 +151,10 @@ read through a **grant** the host fixes before evaluation:
 
 | Host | Variables granted |
 | --- | --- |
-| `hql eval`, `hql run`, `hql repl` | every variable, or the names `env = [...]` lists in the workspace's `hql.toml` |
+| `hql eval`, `hql run`, `hql repl` | every variable, or the names `env = [...]` lists in the project's `.hql/config.toml` |
 | `hql render` | none |
 
-In `hql.toml`, `env` is a list of names and `PREFIX_*` patterns, a `*`
+In `.hql/config.toml`, `env` is a list of names and `PREFIX_*` patterns, a `*`
 matching any suffix:
 
 ```toml
@@ -163,7 +163,7 @@ env = ["SHOP_*"]
 
 A variable outside the grant reads as `none`. A withheld variable and an
 unset one are indistinguishable, so a program cannot tell which names exist
-beyond its grant. In that workspace, with `SHOP_REGION` set:
+beyond its grant. In that project, with `SHOP_REGION` set:
 
 ```text
 $ cat region.hql

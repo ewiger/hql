@@ -6,11 +6,10 @@
 
 use hql::reporting::Mode;
 use hql::transclude::{self, Emit, OUTPUT_CLOSE, OUTPUT_OPEN};
-use hql::vault;
 use std::path::Path;
 
-fn fixture() -> vault::Vault {
-    vault::load(Path::new("tests/fixtures/vault")).expect("the fixture vault loads")
+fn fixture() -> hql::environment::RunEnvironment {
+    hql::environment::load(Path::new("tests/fixtures/vault")).expect("the fixture vault loads")
 }
 
 fn board() -> String {
@@ -148,10 +147,11 @@ fn a_fence_that_is_not_hql_is_left_alone() {
 
 #[test]
 fn the_birds_example_wiki_resolves_and_renders_every_query() {
-    let vault = vault::load(Path::new("examples/birds/wiki")).expect("the example wiki");
-    assert!(vault.warnings.is_empty(), "{:?}", vault.warnings);
+    let vault = hql::environment::load(Path::new("examples/birds/wiki")).expect("the example wiki");
+    assert!(vault.warnings().is_empty(), "{:?}", vault.warnings());
+    let documents = vault.vault.as_ref().expect("the example wiki is a vault");
     let mut blocks = 0;
-    for card in &vault.cards {
+    for card in vault.cards() {
         for reference in &card.document.references {
             assert!(
                 vault.resolve(&reference.target).is_some(),
@@ -160,7 +160,7 @@ fn the_birds_example_wiki_resolves_and_renders_every_query() {
                 reference.target
             );
         }
-        let source = std::fs::read_to_string(vault.file_of(&card.document)).unwrap();
+        let source = std::fs::read_to_string(documents.file_of(&card.document)).unwrap();
         let rendered = transclude::render(&source, &vault, Mode::Strict, Emit::After);
         assert!(
             rendered.diagnostics.is_empty(),
@@ -186,8 +186,8 @@ fn the_birds_example_wiki_resolves_and_renders_every_query() {
 
 #[test]
 fn the_todo_example_board_renders_its_lists() {
-    let vault = vault::load(Path::new("examples/todo/wiki")).expect("the example wiki");
-    assert!(vault.warnings.is_empty(), "{:?}", vault.warnings);
+    let vault = hql::environment::load(Path::new("examples/todo/wiki")).expect("the example wiki");
+    assert!(vault.warnings().is_empty(), "{:?}", vault.warnings());
     let source = std::fs::read_to_string("examples/todo/wiki/todo.hmd").unwrap();
     let built = transclude::render(&source, &vault, Mode::Strict, Emit::Replace);
     assert!(built.complete, "{:?}", built.diagnostics);

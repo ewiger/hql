@@ -100,7 +100,20 @@ thread_local! {
 }
 
 /// The built-in lattice alone, which every program starts from.
+/// The lattice every program starts from once packages are activated: the
+/// built-in one with the types the loaded packages' modules declare.
+static EXTENDED: OnceLock<Arc<Lattice>> = OnceLock::new();
+
+/// Make `lattice` what every program starts from: the built-in lattice with
+/// the types of the process's packages. The first call is the process's.
+pub(crate) fn extend_base(lattice: Arc<Lattice>) {
+    let _ = EXTENDED.set(lattice);
+}
+
 fn base() -> Result<Arc<Lattice>, TypeError> {
+    if let Some(extended) = EXTENDED.get() {
+        return Ok(Arc::clone(extended));
+    }
     static BASE: OnceLock<Result<Arc<Lattice>, TypeError>> = OnceLock::new();
     BASE.get_or_init(|| {
         super::builtin::build().map(|system| {

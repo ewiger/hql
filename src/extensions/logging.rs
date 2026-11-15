@@ -1,4 +1,4 @@
-//! The `logging` extension: structured events a `Logger` writes to one
+//! The `io.logging` module's operations, in `std`: structured events a `Logger` writes to one
 //! endpoint, by the rules of `sink`.
 //!
 //! A logger adds no output of its own. It names a producer, holds a

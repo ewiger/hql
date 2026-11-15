@@ -14,7 +14,7 @@ type Event {
 }
 ```
 
-<!-- run: with Event --vault examples/pipelines/shop -->
+<!-- run: with Event --project examples/pipelines/shop -->
 ```hql
 rows : Seq<Event> = source("silver_replayed")
 rows | filter(r => r.kind == "order_placed") | map(r => r.amount) | sum
@@ -33,7 +33,7 @@ rows, and each has its own step.
 A row delivered twice, identical in every field, is removed by `distinct`,
 which keeps each value once at its first position:
 
-<!-- run: with Event --vault examples/pipelines/shop -->
+<!-- run: with Event --project examples/pipelines/shop -->
 ```hql
 rows : Seq<Event> = source("silver_replayed")
 rows | distinct | map(r => r.id)
@@ -55,7 +55,7 @@ Two rows with one key are the same fact, and one of them is the one to
 keep. Which one is a rule the pipeline states. For a correction, the latest
 by `at`:
 
-<!-- run: with Event --vault examples/pipelines/shop -->
+<!-- run: with Event --project examples/pipelines/shop -->
 ```hql
 rows : Seq<Event> = source("silver_replayed")
 rows
@@ -91,7 +91,7 @@ wanted is named by what makes it the one to keep rather than by its position
 after a sort. Keeping the first version instead, the fact as first reported,
 is `min_by`:
 
-<!-- run: with Event --vault examples/pipelines/shop -->
+<!-- run: with Event --project examples/pipelines/shop -->
 ```hql
 rows : Seq<Event> = source("silver_replayed")
 rows
@@ -116,7 +116,7 @@ share decides between them, and [[windows|Windows]] writes one with
 
 The sum, over the deduplicated rows:
 
-<!-- run: with Event --vault examples/pipelines/shop -->
+<!-- run: with Event --project examples/pipelines/shop -->
 ```hql
 rows : Seq<Event> = source("silver_replayed")
 rows
@@ -180,7 +180,7 @@ writes to the lakehouse, so it is shown checked: `Step` is what `hql check`
 prints for a pipeline that ends in `target`, a program whose result is what
 it wrote:
 
-<!-- run: check with Event --vault examples/pipelines/shop -->
+<!-- run: check with Event --project examples/pipelines/shop -->
 ```hql
 rows : Seq<Event> = source("silver_replayed")
 rows
@@ -200,7 +200,7 @@ refuses it, as [[14-etl-pipelines|chapter 14]] showed for a sum. It
 deduplicates within each micro-batch instead, and `sort` makes each batch a
 `List` of the declared record, which is what `sink` writes as rows:
 
-<!-- run: check with Event --vault examples/pipelines/shop -->
+<!-- run: check with Event --project examples/pipelines/shop -->
 ```hql
 events : Stream<Event> = tap("orders_raw")
 events

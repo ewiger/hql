@@ -7,18 +7,18 @@ pages after it cover receiver modules, visibility, and how a name resolves.
 
 ## A module is a file under a module root
 
-A workspace module is an HQL file under a **module root**, named by its
+A project module is an HQL file under a **module root**, named by its
 position under the root: `lib/club/reading.hql` is the module `club.reading`,
-and `lib/club/mod.hql` would be `club`. The roots come from `hql.toml`:
+and `lib/club/mod.hql` would be `club`. The roots come from `.hql/config.toml`:
 
 ```toml
 [modules]
 roots = ["lib"]
 ```
 
-or from `--modules lib` on the command line. The tutorial vault configures
+or from `--modules lib` on the command line. The tutorial's project configures
 `lib/` as its root, and keeps the book's modules there. Roots outside every
-workspace come from the user's `~/.hql/modules/`, from `[modules] roots` in
+project come from the user's `~/.hql/modules/`, from `[modules] roots` in
 `~/.hql/config.toml`, and from `$HQL_PATH`; the
 [[13-working-with-hql#the-execution-context|execution context]] lists
 them all. A module provided under two roots is an error, whichever layers
@@ -143,6 +143,7 @@ The [[reference]] has a page per standard module.
 | [Receiver modules](receiver-modules.hmd) | `module m for T`, functions taking `self`, and `value.f()` calls |
 | [Visibility](visibility.hmd) | public and `private` declarations, and a module's contract |
 | [How names resolve](names.hmd) | import units, a unit's own names, ambiguity, and modules as closures |
+| [Modules and packages](packages.hmd) | modules, packages, extensions and libraries; builtin and installable packages |
 
 ## What is next
 

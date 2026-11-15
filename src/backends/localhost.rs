@@ -8,10 +8,10 @@
 
 use super::{Backend, Execution};
 use crate::diagnostics::Diagnostic;
+use crate::environment::RunEnvironment;
 use crate::execution::Program;
 use crate::reporting::Mode;
 use crate::types::Value;
-use crate::vault::Vault;
 
 /// The in-memory evaluator, as a backend.
 pub(super) struct Localhost;
@@ -24,10 +24,10 @@ impl Backend for Localhost {
     fn run(
         &self,
         program: &Program,
-        vault: &Vault,
+        env: &RunEnvironment,
         bound: Vec<(String, Value)>,
         mode: Mode,
     ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
-        crate::evaluation::evaluate_with(program, vault, bound, mode)
+        crate::evaluation::evaluate_with(program, env, bound, mode)
     }
 }

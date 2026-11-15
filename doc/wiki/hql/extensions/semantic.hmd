@@ -5,12 +5,14 @@ tags: [hql, extensions, retrieval, embeddings]
 
 `semantic` ranks a corpus against a query by the meaning a language model found
 in both. The model is not in this binary and will not be: an index is built
-ahead of time by [`contrib/semantics/`](../../../../contrib/semantics/README.md),
-and this module reads it. It is a module of the builtin `search` package,
-implemented by its internal extension, `search`.
+ahead of time by HyperMarkdown's [`hmd-semantics`](https://github.com/ewiger/hypermarkdown/tree/main/tools/hmd-semantics),
+and this module reads it. It is the module `hmd.search.semantic` of the
+builtin `hmd` package, implemented by its internal extension, `hmd`
+([[HQL-0059]]); the index lives in the vault's `.hmd/` and is configured in
+the vault's `.hmd/config.toml`.
 
 ```hql
-import semantic
+import hmd
 
 cards
 | semantic("night hunting birds")
@@ -25,15 +27,16 @@ spellings are all it has.
 
 ## The index
 
-A vault names its index, and the path resolves inside the vault root:
+A vault names its index in its `.hmd/config.toml`, and the path resolves
+inside the vault root:
 
 ```toml
 [semantics]
-index = ".hql/index.sqlite"
+index = ".hmd/index.sqlite"
 ```
 
 With no index configured, `semantic` is an error naming both the missing
-configuration and `hql-semantics build`. It never falls back to [[lexical]]: a
+configuration and `hmd-semantics build`. It never falls back to [[lexical]]: a
 silent fallback restores exactly the confusion that renaming the matcher
 removed, and a `Hit` would once again claim a model that had not run.
 
@@ -49,7 +52,7 @@ than read past.
 A consumer with no model cannot embed a document, and it cannot embed a question
 either. So the producer embeds the queries too, and `semantic` looks one up. A
 query the index has no vector for is a failure naming
-`hql-semantics build --query "…"`, and never a ranking of nothing.
+`hmd-semantics build --query "…"`, and never a ranking of nothing.
 
 That is a real limit: this implementation answers the questions its index was
 built for. It is the price of keeping the model out of the binary, and it is

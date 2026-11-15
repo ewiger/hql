@@ -1,0 +1,109 @@
+# Static and dynamic libraries
+
+Compiled code reaches a running program in one of two ways: it is put
+into the program's file when the program is built, or it is read from a
+file of its own when the program runs. Rust does the first by default. A
+package is the second.
+
+## Static linking
+
+A Rust program is made of crates. Cargo compiles each crate once into an
+**`rlib`**, an archive of compiled code, and the **linker** then copies
+what the program uses out of every `rlib` into one executable file.
+
+```text
+hql (the crate)   ─┐
+regex             ─┤
+serde_json        ─┼─ linker ─→  hql   one file, nothing else needed
+…every other crate ─┘
+```
+
+This is **static linking**. The `hql` binary holds its own code and the
+code of every crate it depends on. The builtin packages are part of it:
+the extension of `std` is Rust inside the `hql` crate, linked in like the
+rest. Static linking is why `hql` installs as a single file.
+
+It is also why a builtin package cannot be added to. The set of crates is
+fixed when the binary is built. Adding `ml` to `std` would mean building
+`hql` again with `ml`'s crates in it, for everyone, whether they use it or
+not.
+
+## A dynamic library
+
+A **dynamic library** is compiled code in a file of its own, in a format
+the operating system can load into a process that is already running:
+`.dylib` on macOS, `.so` on Linux, `.dll` on Windows. The loading program
+names a file, and the system maps it into the program's memory. The
+program then asks for a function in it by name, a **symbol**, and gets
+back an address it can call.
+
+In a crate's `Cargo.toml`, `crate-type = ["cdylib"]` asks the compiler for
+this kind of file:
+
+```sh
+cargo build --release
+ls -lh target/release/libhql_ext_hello.dylib
+nm -gU target/release/libhql_ext_hello.dylib
+```
+
+```text
+-rwxr-xr-x  754K  libhql_ext_hello.dylib
+0000000000002ca0 T _hql_extension_v1
+```
+
+`nm -gU` lists the symbols a library exports. This one exports a single
+function, `hql_extension_v1`. Every other function of the crate is inside
+the file and has no exported name.
+
+## A library carries its own copy of `hql`
+
+The `hello` crate depends on the `hql` crate. A `cdylib` is linked the way
+an executable is: the linker copies in what the crate uses from every
+crate it depends on. So the library holds its own compiled copy of the
+parts of `hql` it uses: `Value`, `Diagnostic`, the code that builds a
+record. That is most of its 754K; the package's own functions are a few
+hundred lines.
+
+```text
+the hql process
+├── hql                          the binary
+│   ├── the hql crate
+│   ├── std's extension
+│   └── the running program
+└── libhql_ext_hello.dylib       the library
+    ├── the hql crate            a second compilation of the same source
+    ├── hello's five functions
+    └── hql_extension_v1
+```
+
+The library is not linked against the `hql` binary, and it does not call
+into it by name. The two files are two separate compilations of the same
+source that happen to be in one process. Three things follow, and the rest
+of the chapter is their consequences.
+
+**The two copies must be the same compilation.** A `Value` built in the
+library is read by the binary. Both must agree on what a `Value` is, byte
+for byte ([[the-version-rule|the version rule]]).
+
+**Each copy has its own state.** A global variable of the `hql` crate
+exists twice. The running program's is the binary's. A native therefore
+reaches the program through the context it is handed and through nothing
+else ([[34-writing-an-extension/lambdas-and-context#why-everything-goes-through-the-context|chapter 34]]).
+
+**The library is never unloaded.** The binary keeps pointers to the
+library's functions and tables for as long as it runs, so the library
+stays in memory until the process ends.
+
+## What a library is not
+
+| | A package's library | Another process | A WebAssembly module |
+| --- | --- | --- | --- |
+| Runs in | the `hql` process | a process of its own | a sandbox inside the process |
+| A call costs | a function call | a message each way | a boundary crossing |
+| May do | anything `hql` may: files, network, memory | what its own process may | what the host grants |
+| A crash | ends `hql` | ends the other process | is contained |
+
+A package's library is native code with the rights of the `hql` process.
+That is what makes it fast and unrestricted, and it is why a package is
+installed deliberately, from a source you chose
+([[37-the-registry-and-publishing|chapter 37]]).

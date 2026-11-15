@@ -4,9 +4,20 @@
 //! a time value crosses.
 
 use hql::reporting::Mode;
-use hql::vault;
 use std::fs;
 use std::process::Command;
+
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
 
 fn shown(source: &str) -> String {
     hql::eval(&format!("import time\n{source}"))
@@ -386,7 +397,7 @@ fn a_declared_field_reads_its_text_and_is_written_as_it() {
     )
     .unwrap();
     hql::io::set_host(hql::io::Policy::Open, root.to_path_buf());
-    let vault = vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     let run = |source: &str| {
         let outcome = hql::run(source, &vault, Mode::Strict);
         outcome
@@ -444,11 +455,11 @@ fn every_format_writes_a_time_value_as_its_iso_text() {
 fn an_sqlite_table_keeps_a_time_value_as_its_text() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(
-        directory.path().join("hql.toml"),
+        project_config(directory.path()),
         "[endpoint.log]\nkind = \"sqlite\"\npath = \"log.sqlite\"\ntable = \"log\"\n",
     )
     .unwrap();
-    let vault = vault::load(directory.path()).unwrap();
+    let vault = hql::environment::load(directory.path()).unwrap();
     let declared =
         "type LogRow {\n    id : Int\n    on : Date\n    at : Instant\n    took : Duration\n}\n";
     let written = hql::run(

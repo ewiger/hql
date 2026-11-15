@@ -7,8 +7,8 @@ meaning, and the agents that read them.
 
 ## A vault is a folder
 
-A **vault** is a directory of Markdown and HyperMarkDown documents. The tutorial
-vault looks like this:
+A **vault** is a directory of Markdown and HyperMarkDown documents, marked as
+one by an `.hmd/` directory at its root. The tutorial vault looks like this:
 
 ```text
 examples/tutorial/
@@ -29,8 +29,28 @@ examples/tutorial/
 ├── club.hmd
 ├── frankenstein-inspires-dune.hmd
 ├── librarian.hmd
-└── hql.toml
+├── .hmd/config.toml
+└── .hql/config.toml
 ```
+
+`.hmd/` makes the directory a vault. `.hql/config.toml` makes it an HQL
+project too, which configures the programs run in it; the two are separate,
+and a vault need not be a project
+([[13-working-with-hql#projects-and-vaults|chapter 13]]).
+
+The vault's `.hmd/config.toml` says where its cards start, with the key
+`wiki`: a path against the vault root, `doc/wiki` when the file does not set
+it. The tutorial keeps its cards at the vault root, so it says so:
+
+```toml
+wiki = "."
+```
+
+That directory is the **namespace root**. A document is a card exactly when
+it lies below it, and a card's path is written from it, so `books/dune.hmd`
+above. A file of the vault outside it, a `README.md` beside `.hmd/` in a
+vault whose `wiki` is `doc/wiki`, is not a card. A card is a `.hmd` file, or a
+`.md` or `.markdown` file whose body is plain Markdown.
 
 Each document is a **card**. A card has a header of metadata and a body
 someone wrote:
@@ -51,10 +71,12 @@ metadata:
 A novel by [[frank-herbert]]. A desert planet, a spice, and a family that inherits both.
 ```
 
-A program run inside a vault runs against it: `hql` takes the nearest
-directory at or above the program's file that holds `.hmd/` or `hql.toml`,
-or at or above the working directory for an expression or standard input.
-`--vault <directory>` names one instead, and `--bare` runs with none:
+A program run inside a vault reads it: `hql` takes the nearest directory at
+or above the program's file that holds `.hmd/`, or at or above the working
+directory for an expression or standard input. `--vault <directory>` names
+one instead, and `--bare` runs with none. The cards are read through the
+builtin package `hmd`, which the tutorial's project imports for every
+program ("The vault itself" below):
 
 ```sh
 hql --vault examples/tutorial eval 'cards | size'
@@ -214,7 +236,7 @@ links between them form a graph.
 
 ## The vault itself
 
-`cards` is a binding the standard library makes, `cards = vault.cards`, over
+`cards` is a binding of the builtin package `hmd`, `cards = vault.cards`, over
 `vault`, the value the host seeds when it is given a vault:
 
 ```hql
@@ -225,8 +247,21 @@ links between them form a graph.
 ["tutorial", 15]
 ```
 
-Outside every vault and without `--vault` there is no vault, and naming one
-says so:
+A vault is HyperMarkdown's, and so are `vault` and `cards`. They are bound
+while the package `hmd` is **active**, and a run that has a vault activates
+it: the vault found at or above the program, or the one `--vault` names. A
+program in a vault writes `cards` with no import.
+
+A run with no vault activates `hmd` by importing it: `import hmd` in the
+program, `--import hmd` on the command line, or `[modules] import` in the
+project's `.hql/config.toml`:
+
+```toml
+[modules]
+import = ["hmd"]
+```
+
+With no vault and no import, `cards` names what is missing:
 
 <!-- run: novault -->
 ```hql
@@ -234,10 +269,27 @@ cards | size
 ```
 
 ```text
-check error[unknown-name]: `cards` needs a vault: run inside one or pass --vault <directory>
+check error[unknown-name]: `cards` is HyperMarkdown's: write `import hmd`, or run with `--import hmd`, to bind it
  --> <expression>:1:1
   |
 1 | cards | size
+  | ^^^^^
+```
+
+With `hmd` imported and no vault, `cards` has nothing to read, and the
+check says so:
+
+<!-- run: novault -->
+```hql
+import hmd
+cards | size
+```
+
+```text
+check error[unknown-name]: `cards` needs a vault: run inside one or pass --vault <directory>
+ --> <expression>:2:1
+  |
+2 | cards | size
   | ^^^^^
 ```
 

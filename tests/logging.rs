@@ -7,6 +7,18 @@ use std::path::Path;
 use std::process::{Command, Output, Stdio};
 use tempfile::tempdir;
 
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
+
 fn hql_in(dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_hql"))
         .current_dir(dir)
@@ -95,7 +107,7 @@ fn logs_in_a_channel_are_data_a_program_queries() {
 fn a_cell_logs_to_its_own_channel_and_saves_only_its_result() {
     let dir = tempdir().unwrap();
     // A document renders only in a vault.
-    std::fs::write(dir.path().join("hql.toml"), "").unwrap();
+    std::fs::write(project_config(dir.path()), "").unwrap();
     fs::write(
         dir.path().join("doc.md"),
         "```hql\nimport logging\nlog = Logger(cell.logs, name = \"r\")\n\

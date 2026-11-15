@@ -55,8 +55,8 @@ pub(crate) fn is_constructor_name(name: &str) -> bool {
 /// the extension providing the module, as `Logger` of `io.logging` is.
 pub(crate) fn is_table_constructor(module: &str, name: &str) -> bool {
     is_constructor_name(name)
-        && crate::extensions::builtin_module(module)
-            .and_then(|extension| extension.step(name))
+        && crate::extensions::provider_of(module)
+            .and_then(|extension| extension.implementation(module, name))
             .is_none()
 }
 
@@ -629,7 +629,7 @@ pub(crate) fn evaluate(
         let input = inputs
             .pop()
             .ok_or_else(|| Diagnostic::runtime(span.clone(), "Graph needs an argument"))?;
-        return crate::extensions::graph::construct(cx.vault(), input, &span);
+        return crate::extensions::graph::construct(cx.environment().vault.as_ref(), input, &span);
     }
     let element = |index: usize| expected.args.get(index).cloned().unwrap_or(TypeRef::NEVER);
     let elements = |index: usize| {

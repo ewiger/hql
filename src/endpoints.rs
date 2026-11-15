@@ -1,5 +1,5 @@
 //! The endpoints a run context configures under `[endpoint.<id>]` in
-//! `hql.toml`: what each is, its schema boundary (HQL-0035), and the
+//! `.hql/config.toml`: what each is, its schema boundary (HQL-0035), and the
 //! bounds on what one evaluation holds of it. A program names one by its
 //! id; `source` and `tap` read it, `target` and `sink` write it.
 
@@ -40,20 +40,20 @@ const SECRET_KEYS: [&str; 5] = ["password", "token", "secret", "api_key", "dsn"]
 pub enum Kind {
     /// Documents under a directory, read as cards: `kind = "vault"`.
     Vault {
-        /// The directory, resolved against the configuring vault.
+        /// The directory, resolved against the configuring project.
         root: PathBuf,
     },
     /// A file of documents in one format: `csv`, `json` (the elements of
     /// one array), `json_lines` or `yaml`.
     File {
-        /// The file, resolved against the configuring vault.
+        /// The file, resolved against the configuring project.
         path: PathBuf,
         /// The format its bytes are read in, `Csv`.
         format: &'static str,
     },
     /// One table of an SQLite database, a row per element.
     Sqlite {
-        /// The database file, resolved against the configuring vault.
+        /// The database file, resolved against the configuring project.
         path: PathBuf,
         /// The table read.
         table: String,
@@ -504,9 +504,18 @@ impl Configured {
         let Kind::Vault { root } = &self.kind else {
             return Err(format!("endpoint `{}` is not a vault", self.id));
         };
+        // The directory is read as a host that names it reads it: where it
+        // is also a project, a malformed configuration refuses the load.
+        let load = || {
+            let vault = crate::vault::load_documents(root)?;
+            if crate::context::is_project(root) {
+                crate::environment::RunEnvironment::bare().configure_project(root)?;
+            }
+            Ok(Arc::new(vault))
+        };
         self.loaded
             .get_or_init(|| {
-                crate::vault::load(root).map(Arc::new).map_err(|error| {
+                load().map_err(|error: std::io::Error| {
                     format!("endpoint `{}` ({}): {error}", self.id, root.display())
                 })
             })
@@ -524,7 +533,7 @@ pub struct Bounds {
 }
 
 /// The endpoints a run context configures: `[endpoint.<id>]` in the
-/// vault's `hql.toml`, and the bounds `[execution] max_elements` and
+/// project's `.hql/config.toml`, and the bounds `[execution] max_elements` and
 /// `max_bytes`.
 #[derive(Debug, Clone, Default)]
 pub struct Endpoints {
@@ -534,11 +543,11 @@ pub struct Endpoints {
 }
 
 impl Endpoints {
-    /// Read the endpoints a vault's `hql.toml` configures; none without one.
+    /// Read the endpoints a project's `.hql/config.toml` configures; none without one.
     ///
     /// # Errors
     /// Names the first entry that is malformed: an id off `[a-z][a-z0-9_]*`,
-    /// the reserved id `vault`, a `[sources]` table, a literal secret, an
+    /// the reserved id `vault`, a literal secret, an
     /// unknown kind, a missing or unknown key.
     pub fn read(root: &Path) -> Result<Self, String> {
         // Only a missing file means no endpoints; one that cannot be read is
@@ -565,12 +574,6 @@ impl Endpoints {
             bounds: bounds(parsed.get("execution"))?,
             ..Self::default()
         };
-        if parsed.get("sources").is_some() {
-            return Err(
-                "`[sources]` is not read; an endpoint is declared under `[endpoint.<id>]`"
-                    .to_owned(),
-            );
-        }
         let Some(section) = parsed.get("endpoint") else {
             return Ok(endpoints);
         };

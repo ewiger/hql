@@ -7,7 +7,7 @@
 // records why each node is present, so the graph does not claim that the
 // neighbours matched.
 
-import lexical
+import hmd
 
 question = "bearer token authorization"
 

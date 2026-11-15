@@ -40,6 +40,11 @@ The [windows](windows/README.md) cases rank and compare rows within their
 partition with `over`, and order ties with `then`, from
 [HQL-0050](../doc/proposals/HQL-0050/index.hmd).
 
+The [packages](packages/README.md) project lists the crate of the `hello`
+package under `[packages] paths`, so a program there imports a module whose
+functions are loaded from a library. The book's part on extending HQL runs
+in it, from [HQL-0057](../doc/proposals/HQL-0057/index.hmd).
+
 The [crypto](crypto/README.md) cases are design input for
 [HQL-0053](../doc/proposals/HQL-0053/index.hmd): `Bytes`, keys read from
 PEM, signatures over text and canonical JSON, HMAC, Argon2id password
@@ -88,7 +93,7 @@ order, match a glob and test a path with `io.fs`, from
 [HQL-0040](../doc/proposals/HQL-0040/index.hmd).
 
 The [data sources](sources/README.md) cases read the sources a vault's
-`hql.toml` configures by id with `source("id")`: two vaults side by side, a
+`.hql/config.toml` configures by id with `source("id")`: two vaults side by side, a
 CSV file and a JSON array, typed from the configuration before anything is
 read, from [HQL-0012](../doc/proposals/HQL-0012/index.hmd).
 
@@ -109,9 +114,15 @@ The [env](env/README.md) cases read invocation arguments and environment
 variables with `io.env`, each defaulted where it is absent, from
 [HQL-0041](../doc/proposals/HQL-0041/parts/05-env.hmd) part 5.
 
-The [contexts](contexts/README.md) cases run in two workspaces whose
-`hql.toml` gives a program a module root, an extension imported for every
+The [contexts](contexts/README.md) cases run in two projects whose
+`.hql/config.toml` gives a program a module root, an extension imported for every
 program, or no prelude, from [HQL-0025](../doc/proposals/HQL-0025/index.hmd).
+
+The [projects](projects/README.md) cases tell a project from a vault:
+a run with no vault refusing `cards` and `@[[..]]`, a vault and
+`import hmd` binding them, a module reading the file beside itself through its source
+directory, and a project whose declared package is not installed, from
+[HQL-0059](../doc/proposals/HQL-0059/index.hmd).
 
 The [doc strings](doc-strings/README.md) sessions print `///` doc strings
 with `:help`, `:type` and `hql help`: a program's own function, overloads

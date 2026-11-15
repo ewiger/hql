@@ -10,6 +10,18 @@
 use std::path::Path;
 use std::process::{Command, Output};
 
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
+
 /// `hql` run in `directory` with only `variables` in its environment.
 fn hql_in(directory: &Path, variables: &[(&str, &str)], arguments: &[&str]) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_hql"));
@@ -45,10 +57,10 @@ fn standalone(variables: &[(&str, &str)], extra: &[&str], program: &str) -> Stri
     stdout(&output).trim_end().to_owned()
 }
 
-/// The value `program` gives in a workspace whose `hql.toml` is `config`.
+/// The value `program` gives in a project whose `.hql/config.toml` is `config`.
 fn in_workspace(config: &str, variables: &[(&str, &str)], program: &str) -> Output {
     let directory = tempfile::tempdir().unwrap();
-    std::fs::write(directory.path().join("hql.toml"), config).unwrap();
+    std::fs::write(project_config(directory.path()), config).unwrap();
     let path = directory.path().join("p.hql");
     std::fs::write(&path, format!("import io.env\n{program}\n")).unwrap();
     hql_in(
@@ -125,7 +137,7 @@ fn a_grant_that_is_not_a_list_of_strings_is_refused() {
 #[test]
 fn render_reads_no_variable_and_every_argument() {
     let directory = tempfile::tempdir().unwrap();
-    std::fs::write(directory.path().join("hql.toml"), "").unwrap();
+    std::fs::write(project_config(directory.path()), "").unwrap();
     let path = directory.path().join("notes.hmd");
     std::fs::write(
         &path,
@@ -177,7 +189,7 @@ fn arg_and_args_read_the_invocations_pairs() {
     assert_eq!(standalone(&[], &[], "args() | entries | size"), "0");
     // An argument is granted where no variable is.
     let directory = tempfile::tempdir().unwrap();
-    std::fs::write(directory.path().join("hql.toml"), "env = []\n").unwrap();
+    std::fs::write(project_config(directory.path()), "env = []\n").unwrap();
     let path = directory.path().join("p.hql");
     std::fs::write(&path, "import io.env\nenv.arg(\"who\")\n").unwrap();
     let output = hql_in(

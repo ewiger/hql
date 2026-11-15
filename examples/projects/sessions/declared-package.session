@@ -1,0 +1,9 @@
+// status: valid-now
+// feature: a project that declares a package in `[packages] dependencies` and pins it in `lock.toml` fails every run while the package is not installed, naming `hql package install`
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql --project examples/projects/pinned run examples/projects/queries/invalid-package-not-installed.hql
+hql: package `ml` is a dependency in examples/projects/pinned/.hql/config.toml and is not installed: run `hql package install`

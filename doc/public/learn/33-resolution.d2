@@ -1,0 +1,31 @@
+# How an import reaches the code that runs.
+# Rendered to 33-resolution.svg with `d2 --layout elk 33-resolution.d2 33-resolution.svg`.
+
+direction: down
+
+program: "program\nimport hello\nhello.greet(\"Ada\")" {
+  shape: page
+}
+
+module: "module hello\nwhat an import names"
+
+package: "package hello\nprovides the module" {
+  direction: right
+  style.fill: "#eef6ee"
+  contract: "contract\nmodules/hello/mod.hql\nfn greet(name: String) : String"
+  extension: "extension\none Rust function\nper declared name"
+  contract -> extension: "bound before\nany program runs"
+}
+
+builtin: "compiled into hql\nstd, search" {
+  style.fill: "#f6efe6"
+}
+
+library: "library\nlibhql_ext_hello.dylib\nloaded at start" {
+  style.fill: "#f6efe6"
+}
+
+program -> module: "names"
+module -> package: "one provider"
+package.extension -> builtin: "a builtin package"
+package.extension -> library: "an installed package"

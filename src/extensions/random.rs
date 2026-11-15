@@ -82,6 +82,12 @@ impl Source {
     }
 }
 
+/// 64 bits drawn at a call site from the evaluation seed: what a step
+/// without a `seed` of its own draws from.
+pub(crate) fn draw_bits(span: &Range<usize>) -> u64 {
+    Source::Evaluation(site(span)).with(Generator::next_u64)
+}
+
 /// Report a seed this evaluation drew from entropy, so `--seed` repeats it.
 fn report(seed: Option<i64>) {
     if let Some(seed) = seed {

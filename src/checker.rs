@@ -6,23 +6,23 @@ use crate::ast::{
 use crate::builtins;
 use crate::declarations::Declarations;
 use crate::diagnostics::Diagnostic;
+use crate::environment::RunEnvironment;
 use crate::execution::{Checked, Program as TypedProgram};
 use crate::extensions::{CheckCx, Operation, Purity, Resolution};
 use crate::types::{TypeRef, collections};
-use crate::vault::Vault;
 use std::collections::HashMap;
 use std::ops::Range;
 
-/// Infer the type of a whole program against a vault.
+/// Infer the type of a whole program against a run environment.
 ///
 /// # Errors
 ///
 /// Returns the first syntax, type or name failure.
-pub(crate) fn check(program: &Program, vault: &Vault) -> Result<TypedProgram, Diagnostic> {
+pub(crate) fn check(program: &Program, env: &RunEnvironment) -> Result<TypedProgram, Diagnostic> {
     // A whole program starts from the built-in lattice; a cell of a document
     // keeps what the cells before it declared.
     crate::types::program::reset();
-    check_with(program, vault, &[])
+    check_with(program, env, &[])
 }
 
 /// Check a program with further names in scope, each at its type: the values
@@ -33,13 +33,15 @@ pub(crate) fn check(program: &Program, vault: &Vault) -> Result<TypedProgram, Di
 /// Returns the first syntax, type or name failure.
 pub(crate) fn check_with<'a>(
     program: &'a Program,
-    vault: &'a Vault,
+    env: &'a RunEnvironment,
     bound: &[(String, TypeRef)],
 ) -> Result<TypedProgram, Diagnostic> {
-    let mut scope = globals(vault);
+    let config = env.extensions.activated(program);
+    crate::extensions::set_checking_hmd(config.hmd_active());
+    let mut scope = globals(env, &config);
     scope.extend(bound.iter().cloned());
     let _hidden = crate::declarations::HiddenTypes::enter();
-    Checker::new(vault, scope, Resolution::new(&vault.extensions)?).program(program)
+    Checker::new(env, scope, Resolution::new(&config)?).program(program)
 }
 
 /// Check every statement, continuing past one that fails.
@@ -49,28 +51,30 @@ pub(crate) fn check_with<'a>(
 /// than on a cascade from this one.
 pub(crate) fn check_collecting(
     program: &Program,
-    vault: &Vault,
+    env: &RunEnvironment,
 ) -> (Option<TypedProgram>, Vec<Diagnostic>) {
     crate::types::program::reset();
-    check_collecting_with(program, vault, &[])
+    check_collecting_with(program, env, &[])
 }
 
 /// [`check_collecting`] with further names in scope.
 pub(crate) fn check_collecting_with<'a>(
     program: &'a Program,
-    vault: &'a Vault,
+    env: &'a RunEnvironment,
     bound: &[(String, TypeRef)],
 ) -> (Option<TypedProgram>, Vec<Diagnostic>) {
-    let resolution = match Resolution::new(&vault.extensions) {
+    let config = env.extensions.activated(program);
+    crate::extensions::set_checking_hmd(config.hmd_active());
+    let resolution = match Resolution::new(&config) {
         Ok(resolution) => resolution,
-        // A vault that cannot resolve its own configuration has nothing to
+        // A run that cannot resolve its own configuration has nothing to
         // say about the program: every statement would fail for one reason.
         Err(diagnostic) => return (None, vec![diagnostic]),
     };
     let mut checker = Checker::new(
-        vault,
+        env,
         {
-            let mut scope = globals(vault);
+            let mut scope = globals(env, &config);
             scope.extend(bound.iter().cloned());
             scope
         },
@@ -434,17 +438,22 @@ fn mentions_any(ty: &TypeRef, test: &dyn Fn(crate::types::TypeConstructor) -> bo
 
 /// The names the program module starts with: the host's bindings, `vault`
 /// among them, and the program module's bindings over it, `cards` among
-/// them. No module sees any of them.
-fn globals(vault: &Vault) -> HashMap<String, TypeRef> {
-    let mut scope = base(vault);
-    for (name, library) in library(vault) {
+/// them. No module sees any of them. `vault` and its bindings are
+/// HyperMarkdown's, bound only while `hmd` is active (HQL-0059).
+fn globals(env: &RunEnvironment, config: &crate::extensions::Config) -> HashMap<String, TypeRef> {
+    let mut scope = base(env);
+    if !config.hmd_active() {
+        scope.remove(VAULT);
+        return scope;
+    }
+    for (name, library) in library(env) {
         scope.insert(name, library.result);
     }
     scope
 }
 
 /// What a host seeds before the library: `vault`, when there is one.
-fn base(vault: &Vault) -> HashMap<String, TypeRef> {
+fn base(env: &RunEnvironment) -> HashMap<String, TypeRef> {
     let mut scope: HashMap<String, TypeRef> = crate::extensions::io::BINDINGS
         .iter()
         .map(|(name, endpoint)| ((*name).to_owned(), endpoint.type_of()))
@@ -453,7 +462,7 @@ fn base(vault: &Vault) -> HashMap<String, TypeRef> {
     if matches!(crate::io::policy(), crate::io::Policy::Document { .. }) {
         scope.insert("cell".to_owned(), TypeRef::CELL);
     }
-    if vault.is_present() {
+    if env.has_vault() {
         scope.insert(VAULT.to_owned(), TypeRef::VAULT);
     }
     scope
@@ -462,8 +471,8 @@ fn base(vault: &Vault) -> HashMap<String, TypeRef> {
 /// The program module's bindings over `vault`, each checked as its own
 /// program in a scope that holds only the host's. Without a vault there are
 /// none.
-pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
-    if !vault.is_present() {
+pub(crate) fn library(env: &RunEnvironment) -> Vec<(String, TypedProgram)> {
+    if !env.has_vault() {
         return Vec::new();
     }
     crate::library::bindings()
@@ -473,7 +482,7 @@ pub(crate) fn library(vault: &Vault) -> Vec<(String, TypedProgram)> {
                 statements: vec![Stmt::Expr(value)],
                 docs: crate::docs::Docs::default(),
             };
-            let typed = Checker::new(vault, base(vault), Resolution::new(&vault.extensions).ok()?)
+            let typed = Checker::new(env, base(env), Resolution::new(&env.extensions).ok()?)
                 .program(&program)
                 .ok()?;
             Some((name, typed))
@@ -643,10 +652,14 @@ pub(crate) const CONSTRUCTED: &str = "%constructed";
 pub(crate) const VAULT: &str = "vault";
 
 struct Checker<'a> {
-    vault: &'a Vault,
+    env: &'a RunEnvironment,
     scope: HashMap<String, TypeRef>,
     /// Which extensions this program has imported.
     resolution: Resolution,
+    /// What every unit of the run starts with, before its own imports: the
+    /// effective prelude and the configured imports. A project module this
+    /// unit loads starts from it.
+    start: Resolution,
     /// What this program has declared.
     declarations: Declarations,
     checked: Checked,
@@ -699,9 +712,9 @@ struct Checker<'a> {
     trait_bounds: Vec<Bounded>,
     /// Each generic function's trait bounds, checked at every call.
     trait_bounded: HashMap<String, Vec<Bounded>>,
-    /// The workspace modules this unit imported, each under its local name.
-    modules: Vec<(String, std::sync::Arc<crate::modules::WorkspaceModule>)>,
-    /// Every workspace module loaded for the program, by canonical name,
+    /// The project modules this unit imported, each under its local name.
+    modules: Vec<(String, std::sync::Arc<crate::modules::ProjectModule>)>,
+    /// Every project module loaded for the program, by canonical name,
     /// shared with the checkers of the modules it loads.
     module_cache: ModuleCache,
     /// The modules being loaded, outermost first, for the cycle diagnostic.
@@ -760,7 +773,7 @@ type Variables = Vec<(String, TypeRef)>;
 type Parameter = (TypeRef, Option<TypeRef>);
 
 type ModuleCache = std::sync::Arc<
-    std::sync::Mutex<HashMap<String, std::sync::Arc<crate::modules::WorkspaceModule>>>,
+    std::sync::Mutex<HashMap<String, std::sync::Arc<crate::modules::ProjectModule>>>,
 >;
 
 /// A trait's contract: its type parameters and its functions, with `Self`
@@ -1148,10 +1161,15 @@ fn operator_trait(operator: crate::ast::Arith) -> (&'static str, &'static str) {
 impl<'a> Checker<'a> {
     /// A checker for one import unit, starting from a scope and the modules
     /// visible before the unit's own imports.
-    fn new(vault: &'a Vault, scope: HashMap<String, TypeRef>, resolution: Resolution) -> Self {
+    fn new(
+        env: &'a RunEnvironment,
+        scope: HashMap<String, TypeRef>,
+        resolution: Resolution,
+    ) -> Self {
         Checker {
-            vault,
+            env,
             scope,
+            start: resolution.clone(),
             resolution,
             declarations: Declarations::default(),
             checked: Checked::default(),
@@ -2828,7 +2846,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// Whether a name is a workspace module imported here and not a binding.
+    /// Whether a name is a project module imported here and not a binding.
     fn is_module(&self, name: &str) -> bool {
         !self.scope.contains_key(name) && self.modules.iter().any(|(held, _)| held == name)
     }
@@ -3014,7 +3032,7 @@ impl<'a> Checker<'a> {
             .iter()
             .filter(|argument| argument.name.is_none())
             .count();
-        // `geo.area(c)`: a function of a workspace module, applied.
+        // `geo.area(c)`: a function of a project module, applied.
         if let Kind::Ident(module) = &receiver.kind
             && self.is_module(module)
         {
@@ -3278,7 +3296,7 @@ impl<'a> Checker<'a> {
         Ok(())
     }
 
-    /// `import a.b [as c]` of a workspace module: load it once, and bind its
+    /// `import a.b [as c]` of a project module: load it once, and bind its
     /// functions, traits and implementations under the local name.
     fn import_module(
         &mut self,
@@ -3359,17 +3377,18 @@ impl<'a> Checker<'a> {
         self.checked.modules.push(crate::execution::LoadedModule {
             local: local.to_owned(),
             program: std::sync::Arc::clone(&module.program),
+            source_dir: module.source_dir.clone(),
         });
         self.modules.push((local.to_owned(), module));
         Ok(())
     }
 
-    /// Find, parse and check a workspace module, once per program.
+    /// Find, parse and check a project module, once per program.
     fn load_module(
         &mut self,
         name: &str,
         span: &Range<usize>,
-    ) -> Result<std::sync::Arc<crate::modules::WorkspaceModule>, Diagnostic> {
+    ) -> Result<std::sync::Arc<crate::modules::ProjectModule>, Diagnostic> {
         if let Some(module) = self
             .module_cache
             .lock()
@@ -3378,7 +3397,7 @@ impl<'a> Checker<'a> {
         {
             return Ok(std::sync::Arc::clone(module));
         }
-        let roots = &self.vault.extensions.module_roots;
+        let roots = &self.env.extensions.module_roots;
         let written = crate::library::written(name);
         let located = match written {
             // A written module of the standard library comes before the
@@ -3393,7 +3412,7 @@ impl<'a> Checker<'a> {
         let Some(path) = located else {
             let hint = if roots.is_empty() {
                 "; no module root is configured: pass `--modules <dir>` or set `[modules] \
-                 roots` in hql.toml"
+                 roots` in .hql/config.toml"
                     .to_owned()
             } else {
                 format!(
@@ -3405,6 +3424,14 @@ impl<'a> Checker<'a> {
                         .join(", ")
                 )
             };
+            // A package that would have provided the module and was
+            // refused: the refusal is why the import finds nothing.
+            if let Some(refused) = crate::package::refusal(name) {
+                return Err(Diagnostic::name(
+                    span.clone(),
+                    format!("no module named `{name}`: {}", refused.reason),
+                ));
+            }
             return Err(Diagnostic::name(
                 span.clone(),
                 format!("no module named `{name}`{hint}"),
@@ -3466,16 +3493,19 @@ impl<'a> Checker<'a> {
             loading: std::sync::Arc::clone(&self.loading),
             module_file: true,
             // A module is a closure: it sees no host binding and none of the
-            // program's, and only the standard prelude among implicit imports.
-            // A package's own prelude does not apply to its own modules, so a
-            // written module of the standard library names every import.
+            // program's. A project module starts as every unit of the run
+            // does, with the effective prelude and the configured imports
+            // (HQL-0024, part 3). A package's own prelude does not apply to
+            // its own modules, so a written module of the standard library
+            // names every import.
             ..Checker::new(
-                self.vault,
+                self.env,
                 HashMap::new(),
-                Resolution::bare(
-                    self.resolution.environment(),
-                    self.vault.extensions.prelude && written.is_none(),
-                ),
+                if written.is_some() {
+                    Resolution::bare(self.resolution.environment(), false)
+                } else {
+                    self.start.clone()
+                },
             )
         };
         let checked = {
@@ -3576,13 +3606,20 @@ impl<'a> Checker<'a> {
             .filter(|(name, _)| !core.contains_key(*name) && !private.contains(name.as_str()))
             .map(|(name, info)| (name.clone(), info.clone()))
             .collect();
-        let module = std::sync::Arc::new(crate::modules::WorkspaceModule {
+        let module = std::sync::Arc::new(crate::modules::ProjectModule {
             name: name.to_owned(),
             receiver: checker.receiver.clone(),
             functions,
             bindings,
             private_types,
             program: std::sync::Arc::new(typed),
+            source_dir: written
+                .is_none()
+                .then(|| path.parent().map(std::path::Path::to_path_buf))
+                .flatten()
+                .map(|directory| {
+                    std::sync::Arc::new(std::fs::canonicalize(&directory).unwrap_or(directory))
+                }),
             traits,
             impls: checker.impls.clone(),
         });
@@ -5349,6 +5386,15 @@ impl<'a> Checker<'a> {
                 }
                 Ok(TypeRef::DATA)
             }
+            // `@[[` is a token of the core grammar, and its meaning is
+            // HyperMarkdown's: without `hmd` active it means nothing (HQL-0059).
+            Kind::DocRef(name) if !self.resolution.hmd_active() => Err(Diagnostic::name(
+                span,
+                format!(
+                    "`@[[{name}]]` is a HyperMarkdown document reference: write `import hmd`, \
+                     or run with `--import hmd`, to resolve it"
+                ),
+            )),
             // A reference may not resolve — a forward link to a document
             // nobody has written is ordinary — so it is optional by type.
             Kind::DocRef(_) => Ok(TypeRef::optional(TypeRef::CARD)),
@@ -5380,6 +5426,19 @@ impl<'a> Checker<'a> {
                             "`{name}` is not bound in a module: the host seeds it into the \
                              program module alone, so a module takes what it needs from a \
                              program as a parameter"
+                        ),
+                    )
+                } else if (name == VAULT
+                    || crate::library::bindings()
+                        .iter()
+                        .any(|(bound, _)| bound == name))
+                    && !self.resolution.hmd_active()
+                {
+                    Diagnostic::name(
+                        span,
+                        format!(
+                            "`{name}` is HyperMarkdown's: write `import hmd`, or run with \
+                             `--import hmd`, to bind it"
                         ),
                     )
                 } else if name == VAULT
@@ -5745,7 +5804,11 @@ impl<'a> Checker<'a> {
                 if let Some(constructor) = crate::constructors::named(name) {
                     return crate::constructors::check(self, constructor, arguments, None, span);
                 }
+                // A record type a package declares with a constructor of its
+                // own, `fn Dataset(…) : Dataset`, is constructed by that
+                // operation, which is reached as a step below.
                 if crate::types::program::is_record_valued(name)
+                    && !crate::extensions::constructs(name)
                     && let Some(shape) = crate::types::program::record(name)
                 {
                     return self.construct_record(name, &shape, arguments, span);
@@ -6392,7 +6455,7 @@ impl Checker<'_> {
                 _ => None,
             });
         let mut row = id
-            .map(|id| crate::extensions::io::configured_element(&id, self.vault))
+            .map(|id| crate::extensions::io::configured_element(&id, self.env))
             .transpose()
             .map_err(|message| Diagnostic::typing(target.span.clone(), message))?
             .flatten()
@@ -6670,7 +6733,7 @@ impl Checker<'_> {
                             return Err(unknown());
                         };
                         let (kind, system) =
-                            crate::extensions::io::configured_system(id, self.vault)?;
+                            crate::extensions::io::configured_system(id, self.env)?;
                         Ok(vec![Participant {
                             names: vec![id.to_owned()],
                             kind,
@@ -7161,7 +7224,7 @@ impl Checker<'_> {
                 _ => crate::extensions::io::literal_endpoint_id(endpoint).map(|id| {
                     (
                         id.to_owned(),
-                        crate::extensions::io::configured_system(id, self.vault).is_ok_and(
+                        crate::extensions::io::configured_system(id, self.env).is_ok_and(
                             |(kind, _)| matches!(kind.as_str(), "sqlite" | "postgres" | "spark"),
                         ),
                     )
@@ -7503,8 +7566,8 @@ fn translatable(
 }
 
 impl CheckCx for Checker<'_> {
-    fn vault(&self) -> &Vault {
-        self.vault
+    fn environment(&self) -> &RunEnvironment {
+        self.env
     }
 
     fn configured_binding(&self, name: &str) -> Option<String> {
@@ -7680,8 +7743,7 @@ impl CheckCx for Checker<'_> {
             .ok_or_else(|| {
                 Diagnostic::name(
                     argument.value.span.clone(),
-                    crate::types::builtin::withdrawn(name)
-                        .unwrap_or_else(|| format!("unknown type `{name}`")),
+                    format!("unknown type `{name}`"),
                 )
             })?;
         self.checked

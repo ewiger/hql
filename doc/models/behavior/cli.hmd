@@ -23,7 +23,7 @@ binary can reach is logic that cannot be tested.
 | `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
 | `hql builtins` | list the steps a pipeline may use, grouped by provider, each with its signature, purity and shape, then the combiners a fold names with the laws each holds |
 | `hql config` | the reporting mode, the shown level and the execution backend in force, and where each came from |
-| `hql doctor` | check the semantic-search chain in order — vault, `hql.toml`, index, model, query vectors, card coverage — printing one line per part; it stops at the first missing part, names the command to run next, and exits `1` when any part is missing |
+| `hql doctor` | check the semantic-search chain in order — vault, `.hql/config.toml`, index, model, query vectors, card coverage — printing one line per part; it stops at the first missing part, names the command to run next, and exits `1` when any part is missing |
 
 `-` reads standard input wherever a file is taken, so `hql` composes in a
 pipeline. A first argument that is not a command name is a program:
@@ -36,7 +36,10 @@ and a result of type `Unit` is written as nothing.
 
 | Option | Effect |
 | --- | --- |
-| `--vault <DIR>` | the namespace `cards`, traversal and retrieval run against; without it, the nearest directory at or above the current one that holds `.hmd/` or `hql.toml` |
+| `--vault <DIR>` | the HyperMarkdown vault `hmd` reads, a directory holding `.hmd/`; without it, the nearest such directory at or above the anchor. A run with a vault has `hmd` active. Selects no project |
+| `--project <DIR>` | the HQL project, a directory holding `.hql/config.toml`; without it, the nearest such directory at or above the anchor, skipping the HQL home's own directory |
+| `--bare` | no project and no discovery; user and system configuration still apply |
+| `--import <MODULE>` | a module imported into every unit, the command-line layer of `[modules] import`; `--import hmd` makes HyperMarkdown available in a run with no vault |
 | `--envelope text\|json` | what the answer is wrapped in: the value alone on stdout, written in the `--to` format, or one JSON document with the type, the value and the run's diagnostics |
 | `--diagnostics-format text\|json` | the format diagnostics are delivered to stderr in: `DiagnosticText`, or one JSON document per diagnostic per line; see [reporting](reporting.hmd) |
 | `--to <format>` | the [presentation format](../../wiki/hql/presentation.hmd) a result is written in when the program did not format it: `hql` (the default), `text`, `markdown`, `hmd`, `json`, `yaml`, `csv`, `d2`, `mermaid`; `none` evaluates and writes no value |
@@ -47,22 +50,29 @@ and a result of type `Unit` is written as nothing.
 | `--report strict\|collect` | how much continuation the run asks its phases for; see [reporting](reporting.hmd) |
 | `--backend <name>` | the execution backend that runs a checked program; see *Backends* below |
 
-The vault is found the way `hmd` finds a project: walking up from the current
-directory, the first directory holding `.hmd/` — or `hql.toml`, for a vault
-only HQL configures — is the root. `--vault` overrides the walk, and what it
-names is a vault: a directory holding neither `.hmd/` nor `hql.toml` is
-refused. Outside every vault there is no vault, and a program that does not
-name one still runs, so `hql eval '1 + 1'` needs none.
+A project and a vault are found apart ([[HQL-0059]]). The project is the
+nearest directory at or above the anchor, the program's source directory,
+that holds `.hql/config.toml`; the vault is the nearest that holds `.hmd/`,
+the walk HyperMarkdown makes. `--project` and `--vault` replace the walks,
+and each refuses a directory without its marker; where only `--vault` is
+given, the project is the nearest at or above the vault. Outside every vault
+there is no vault, and a program that does not read one still runs, so
+`hql eval '1 + 1'` needs none. A vault's cards reach a program only through
+the builtin package `hmd`: `vault`, `cards` and `graph` are bound, and
+`@[[..]]` resolves, only in a run that imports it.
 
-A document is different: it is a card of a vault. `hql render` finds a
-document's vault by the same walk, started from the document rather than the
-working directory, so a document renders from anywhere; `--vault` still
-overrides it. A document in no vault is `load failure[missing-vault]`: no
-cell runs, and the exit status is `1`. `cards`, `downlinks` and `expand` say they need
-one rather than quietly finding nothing. The language requires one too:
-card-ness is a place in a namespace, and a vault is a directory marked as one by
-`.hmd/` or `hql.toml`. The config file inside `.hmd/` is optional and defaults
-for it are assumed.
+A document is different: it is a card of a vault. `hql render` is a
+HyperMarkdown host: it finds a document's vault by the same walk, started from
+the document rather than the working directory, so a document renders from
+anywhere, and it imports `hmd` into every cell. The project of its cells is
+the one the vault's `.hmd/config.toml` names with `[hql] project`, else the
+nearest at or above the document. `--vault` still overrides the vault. A
+document in no vault is `load failure[missing-vault]`: no cell runs, and the
+exit status is `1`. `cards`, `downlinks` and `expand` say they need one
+rather than quietly finding nothing. The language requires one too:
+card-ness is a place in a namespace, and a vault is a directory marked as
+one by `.hmd/`. The config file inside `.hmd/` is optional and defaults for
+it are assumed.
 See [[card-type|Card]] and
 [[requirements/semantic-search|the semantic-search requirements]].
 
@@ -74,7 +84,7 @@ program runs and never its answer, so it is host configuration and never
 syntax, resolved with the precedence [[reporting]] uses:
 
 1. the query — `--backend <name>`
-2. the vault — `hql.toml`, `[execution] backend = "<name>"`
+2. the vault — `.hql/config.toml`, `[execution] backend = "<name>"`
 3. the user — `HQL_BACKEND` in the environment
 4. the default — `localhost`
 
@@ -94,7 +104,7 @@ variable that supplied it. `hql render` runs its cells on `localhost`.
 ## Configured endpoints
 
 A vault declares the endpoints its programs read and write under `[endpoint.<id>]`
-in `hql.toml` ([[HQL-0012]]). A program
+in `.hql/config.toml` ([[HQL-0012]]). A program
 names a source by its id, `source("field_notes")`, and nothing else: paths,
 hosts and credentials are configuration. Paths resolve against the vault
 root.
@@ -168,28 +178,28 @@ never truncated.
 
 ## Extensions
 
-`hql builtins` groups steps by the extension that provides them and says, of
-each extension, whether this vault has it: the core is always available, the
-prelude arrives unless the vault declines it, and everything else is written
-out where it is used. Every *registered* extension is listed, not only what the
-vault resolves — otherwise a reader told to write `import semantic` would have
-nowhere to look it up.
+`hql builtins` groups steps by the module declaring them and says, of each,
+the package providing it and whether this run has it: the core is always
+available, the prelude arrives unless the project declines it, and everything
+else is written out where it is used. Every *registered* module is listed,
+not only what the run resolves — otherwise a reader told to write
+`import hmd` would have nowhere to look it up.
 
-A vault configures its own imports in `hql.toml`, beside
+A project configures its own imports in `.hql/config.toml`, beside
 [[reporting|the reporting mode]]:
 
 ```toml
-[extensions]
-import  = ["semantic"]   # imported for every program this vault runs
+[modules]
+import  = ["hmd"]        # imported into every unit this project runs
 prelude = false          # optional; omits graph, present and format
 ```
 
 `import` here saves writing the same line at the head of every query in one
-vault; a query that travels between vaults carries its own `import` statement
-instead — see [[expressions|the grammar]]. A configured import that names no
-registered extension, or that collides with something already imported, fails
-every program in the vault rather than failing quietly, and the diagnostic says
-it came from `hql.toml`.
+project; a query that travels between projects carries its own `import`
+statement instead — see [[expressions|the grammar]]. A configured import that
+names no registered module or package, or that collides with something
+already imported, fails every program in the project rather than failing
+quietly, and the diagnostic says it came from `.hql/config.toml`.
 
 It also chooses, per type and [[presentation|presentation format]],
 the renderer that writes it, over built-in defaults:
@@ -200,8 +210,8 @@ markdown = "mermaid"     # a Graph written as Markdown is a Mermaid block
 ```
 
 A renderer or format this binary does not have, or a renderer named for a
-format or type it does not write, fails loading the vault, so the mistake is
-reported before any query reaches it.
+format or type it does not write, fails loading the project, so the mistake
+is reported before any query reaches it.
 
 ## Streams
 

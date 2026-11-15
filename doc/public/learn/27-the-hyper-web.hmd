@@ -75,7 +75,7 @@ relative to one index and means nothing against another's.
 
 <!-- run: skip -->
 ```hql
-import semantic
+import hmd
 
 here  = cards | semantic("a creature and its maker") | take(3)
 there = source("lit").cards | semantic("a creature and its maker") | take(3)

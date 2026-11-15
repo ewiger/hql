@@ -22,7 +22,7 @@ type Event {
 }
 ```
 
-<!-- run: with Event --vault examples/pipelines/shop -->
+<!-- run: with Event --project examples/pipelines/shop -->
 ```hql
 current  : Seq<Event> = source("ledger")
 incoming : Seq<Event> = source("silver_replayed")
@@ -58,7 +58,7 @@ records how far the consumer has read, so each run of the load is given only
 what was published since the run before, and the program is the plain
 append:
 
-<!-- run: check with Event --vault examples/pipelines/shop -->
+<!-- run: check with Event --project examples/pipelines/shop -->
 ```hql
 events : Stream<Event> = tap("billing")
 events | sink("orders_silver")

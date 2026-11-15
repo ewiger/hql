@@ -6,11 +6,23 @@
 //! temporary directory, and the PostgreSQL cases against an environment
 //! variable that is never set, so nothing connects.
 
+use hql::environment::RunEnvironment;
 use hql::reporting::Mode;
-use hql::vault::{self, Vault};
 use std::fs;
 use std::path::Path;
 use tempfile::{TempDir, tempdir};
+
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
 
 const CONFIG: &str = r#"
 [endpoint.ledger]
@@ -70,17 +82,17 @@ root = "notes"
 
 const ORDER: &str = "type Order { id : Int, customer : String, total : Decimal, paid : Bool }\n";
 
-fn configured() -> (TempDir, Vault) {
+fn configured() -> (TempDir, RunEnvironment) {
     let dir = tempdir().unwrap();
-    fs::write(dir.path().join("hql.toml"), CONFIG).unwrap();
+    fs::write(project_config(dir.path()), CONFIG).unwrap();
     fs::write(dir.path().join("counts.csv"), "species,count\nwren,3\n").unwrap();
     fs::create_dir(dir.path().join("notes")).unwrap();
-    let vault = vault::load(dir.path()).unwrap();
+    let vault = hql::environment::load(dir.path()).unwrap();
     (dir, vault)
 }
 
 /// A program's value as compact JSON.
-fn value(source: &str, vault: &Vault) -> String {
+fn value(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
     outcome
@@ -89,7 +101,7 @@ fn value(source: &str, vault: &Vault) -> String {
         .unwrap_or_default()
 }
 
-fn refusal(source: &str, vault: &Vault) -> String {
+fn refusal(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(outcome.failed(), "{source} ran");
     outcome
@@ -100,7 +112,7 @@ fn refusal(source: &str, vault: &Vault) -> String {
         .join("\n")
 }
 
-fn checked(source: &str, vault: &Vault) -> String {
+fn checked(source: &str, vault: &RunEnvironment) -> String {
     match hql::check_in(source, vault) {
         Ok(ty) => ty.to_string(),
         Err(error) => panic!("{source}: {error:?}"),
@@ -108,7 +120,7 @@ fn checked(source: &str, vault: &Vault) -> String {
 }
 
 /// The ledger's table, written through the configured endpoint.
-fn seeded(dir: &Path, vault: &Vault) {
+fn seeded(dir: &Path, vault: &RunEnvironment) {
     value(
         &format!(
             "{ORDER}\
@@ -352,7 +364,7 @@ const ACCOUNT: &str =
     "type Account { id : Int, owner : String, balance : Int, status? : String }\n";
 
 /// The accounts table, written through the configured endpoint.
-fn ledger(vault: &Vault) {
+fn ledger(vault: &RunEnvironment) {
     value(
         &format!(
             "{ACCOUNT}\
@@ -365,7 +377,7 @@ fn ledger(vault: &Vault) {
     );
 }
 
-fn balances(vault: &Vault) -> String {
+fn balances(vault: &RunEnvironment) -> String {
     value(
         &format!(
             "{ACCOUNT}rows : Seq<Account> = source(\"accounts\")\nrows | map(a => [a.id, a.balance])"
@@ -649,7 +661,7 @@ const TRANSFER: &str = "type Transfer { id : Int, from_id : Int, to_id : Int, am
 
 /// The ledger: accounts and an empty transfers table, through the
 /// configured endpoints.
-fn seeded_ledger(vault: &Vault) {
+fn seeded_ledger(vault: &RunEnvironment) {
     ledger(vault);
     value(
         &format!(
@@ -899,7 +911,7 @@ fn two_withdrawals_racing_for_one_balance_commit_once() {
                 let program = program(id);
                 let root = dir.path().to_path_buf();
                 threads.spawn(move || {
-                    let vault = vault::load(&root).unwrap();
+                    let vault = hql::environment::load(&root).unwrap();
                     let outcome = hql::run(&program, &vault, Mode::Strict);
                     // A run that ended without reaching the gate opens it,
                     // so the other is never left waiting.
@@ -1103,7 +1115,7 @@ fn a_scope_is_checked_for_its_participants_its_handle_and_its_arguments() {
 
 /// A program's value as compact JSON, and the warnings its run reports,
 /// each as its kind and message.
-fn warned(source: &str, vault: &Vault) -> (String, Vec<String>) {
+fn warned(source: &str, vault: &RunEnvironment) -> (String, Vec<String>) {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
     let warnings = outcome

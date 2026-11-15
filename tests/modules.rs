@@ -2,19 +2,19 @@
 //! is a closure over its own imports, and a `private` declaration is never
 //! exported (HQL-0028).
 
-use hql::{check_in, reporting::Mode, run, vault::Vault};
+use hql::{check_in, environment::RunEnvironment, reporting::Mode, run};
 use std::path::Path;
 
 /// A module root holding each `(name, source)` file, and a vault that
 /// discovers modules under it.
-fn workspace(files: &[(&str, &str)]) -> (tempfile::TempDir, Vault) {
+fn workspace(files: &[(&str, &str)]) -> (tempfile::TempDir, RunEnvironment) {
     let root = tempfile::tempdir().unwrap();
     for (name, source) in files {
         let path = root.path().join(name);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, source).unwrap();
     }
-    let mut vault = Vault::empty();
+    let mut vault = RunEnvironment::bare();
     vault
         .extensions
         .module_roots
@@ -174,7 +174,7 @@ fn a_module_sees_no_host_binding() {
     ] {
         std::fs::write(root.path().join(name), source).unwrap();
     }
-    let mut vault = hql::vault::load(&vault_root).unwrap();
+    let mut vault = hql::environment::load(&vault_root).unwrap();
     vault
         .extensions
         .module_roots

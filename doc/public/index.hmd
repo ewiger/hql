@@ -41,8 +41,9 @@ source(file("sightings.jsonl"), Json)
 <div class="grid cards" markdown>
 
 - **[[install|Install]]** — a release binary or `cargo install hql`.
-- **[[learn|Learn HQL]]** — the book in three parts, the language,
-  data flows, and knowledge and AI, one runnable program at a time.
+- **[[learn|Learn HQL]]** — the book in five parts, the language,
+  data flows, knowledge and AI, the standard library, and extending HQL,
+  one runnable program at a time.
 - **[[reference|Reference]]** — the grammar, the command line, and
   reporting.
 

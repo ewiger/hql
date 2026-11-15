@@ -1,0 +1,141 @@
+# A shared project
+
+A project that several people run, or one person runs on several machines,
+states its packages in two files and builds the rest on each machine. This
+page is what is committed, what a fresh clone does, and how a pinned
+version moves.
+
+## What is committed
+
+| Path | Holds | In version control |
+| --- | --- | --- |
+| `.hql/config.toml` | the declarations: `[packages] dependencies`, names with no version | yes |
+| `.hql/lock.toml` | the pins: one version and one source per declared package | yes |
+| `.hql/packages/` | the installed packages: built libraries | no |
+| `.hql/cache/` | the sources fetched to build from | no |
+
+A library under `.hql/packages/` is built for one `hql`, one compiler and
+one platform
+([[35-how-a-library-is-loaded/the-version-rule|the version rule]]), so it
+is built on each machine and never shared. A `.gitignore`
+beside the two files says so:
+
+```text
+packages/
+cache/
+```
+
+## Declaring a package
+
+`hql package install` writes both files. Here the project takes `ml` from
+the registry ([[37-the-registry-and-publishing|chapter 37]]):
+
+```sh
+hql package install ml
+```
+
+```toml
+# .hql/config.toml
+[packages]
+dependencies = ["ml"]
+```
+
+```toml
+# .hql/lock.toml
+[[package]]
+name = "ml"
+version = "0.1.0"
+source = "registry"
+registry = "official"
+tag = "hql-ext-ml-v0.1.0"
+```
+
+The declaration names the package. The pin names the version and where its
+source is fetched from: the registry and the tag of the release. A version
+written under `dependencies` is refused, since `lock.toml` is the one record
+of versions.
+
+## A fresh clone
+
+A clone has the two files and no `.hql/packages/`. A run in it fails before
+any program is checked:
+
+```sh
+hql eval '1 + 1'
+```
+
+```text
+hql: package `ml` is a dependency in /home/bo/code/reading-club/.hql/config.toml and is not installed: run `hql package install`
+```
+
+The failure is the same for a program that imports nothing of the package:
+a declared dependency is part of the project's environment, and a run does
+not start in half of one.
+
+`hql package install` with no name installs every declared package at the
+version its pin names:
+
+```sh
+hql package install
+```
+
+```text
+installed ml 0.1.0 (ml, ml.metrics) in /home/bo/code/reading-club/.hql/packages/ml
+```
+
+It fetches the pinned source into `.hql/cache/`, builds it with this
+machine's `cargo` against this machine's `hql`, and changes neither
+committed file. A declared package that `lock.toml` does not pin is pinned
+at the newest version this `hql` admits, and that is a change to `lock.toml`
+to commit.
+
+## Moving a pin
+
+| Command | Effect on the pin |
+| --- | --- |
+| `hql package update ml` | moves it to the version the registry now pins, and installs that version |
+| `hql package install ml@0.2.0` | sets it to the version named, and installs that version |
+| `hql package remove ml` | drops the pin, the declaration and the installed package |
+| `hql package rebuild ml` | none: builds the pinned version again, after `hql` was upgraded |
+
+After `update` or `install`, `lock.toml` differs. Committing it is what
+moves every other clone: each runs `hql package install` again and builds
+the new version.
+
+## Path pins stay on one machine
+
+A package installed with `--path` is pinned to the directory it was built
+from, as an absolute path:
+
+```toml
+[[package]]
+name = "hello"
+version = "0.1.0"
+source = "path"
+path = "/home/ada/code/hello"
+```
+
+That directory exists on the machine that wrote the pin. On another, `hql
+package install` finds no crate there and fails. A shared project
+therefore pins from the registry, and uses a path in one of two ways that
+commit nothing machine-specific:
+
+- `[packages] paths` with a path relative to the project root, for a crate
+  kept in the same repository as the project: `paths = ["crates/hello"]`.
+  A listed crate is built on first use on every machine and is never
+  pinned ([A local crate](a-local-crate.hmd)).
+- `hql package install --home --path <dir>`, which installs into the HQL
+  home of one machine and writes the home's `lock.toml`, not the
+  project's.
+
+## The project and the home
+
+A run discovers packages in the project before the HQL home, so the
+project's pinned version is the one its programs use, whatever a machine
+has installed for itself with `--home`. `hql package list` names the level
+of each:
+
+```text
+ml 0.1.0 (ml, ml.metrics) [project]
+hello 0.1.0 (hello) [home]
+```

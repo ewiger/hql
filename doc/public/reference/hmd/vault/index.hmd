@@ -1,0 +1,14 @@
+<!-- hql reference: hmd/vault -->
+# `hmd/vault`
+
+```hql
+module hmd.vault
+```
+
+The current vault: the HyperMarkdown vault a program reads (HQL-0059).
+A host with a vault binds it as `vault` in the program module once
+`hmd` is imported; a program running without one, or without `hmd`, has
+no `vault` binding, and no module sees it.
+
+- [`Vault`](types/Vault.hmd) — A vault: its `name`, its `root`, its `graph` of every card and the links among them, and its `cards`.
+<!-- hql reference: end -->

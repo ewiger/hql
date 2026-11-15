@@ -1,0 +1,3 @@
+# The fixture vault is also a project that always reads it through `hmd`.
+[modules]
+import = ["hmd"]

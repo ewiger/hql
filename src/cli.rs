@@ -4,10 +4,10 @@
 //! only the binary can reach is logic that cannot be tested.
 
 use crate::diagnostics::Diagnostic;
+use crate::environment::RunEnvironment;
 use crate::lexer::Token;
 use crate::reporting::{Level, Mode, Settings, Severity};
 use crate::types::{TypeConstructor, Value};
-use crate::vault::{self, Vault};
 use crate::{render, transclude};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use rustyline::completion::Completer;
@@ -55,26 +55,34 @@ pub struct Cli {
 /// Options every subcommand accepts.
 #[derive(Debug, Clone, Args)]
 pub struct Options {
-    /// The vault to run against; `cards` and traversal need one. Names the
-    /// workspace as `--workspace` does.
-    #[arg(long, global = true, value_name = "DIR", conflicts_with = "workspace")]
-    pub vault: Option<PathBuf>,
-    /// The workspace to run in, a directory holding `.hmd/` or `hql.toml`.
-    /// Without it, the nearest such directory at or above the program's file,
-    /// or above the working directory for an expression or standard input.
+    /// The HyperMarkdown vault `hmd` reads, a directory holding `.hmd/`.
+    /// Without it, the nearest such directory at or above the program's
+    /// file, or above the working directory for an expression or standard
+    /// input. Selects no project.
     #[arg(long, global = true, value_name = "DIR")]
-    pub workspace: Option<PathBuf>,
-    /// Run with no workspace: no `.hmd/` or `hql.toml` is discovered. User
-    /// and system configuration still apply.
-    #[arg(long, global = true, conflicts_with_all = ["workspace", "vault"])]
+    pub vault: Option<PathBuf>,
+    /// The HQL project to run in, a directory holding `.hql/config.toml`.
+    /// Without it, the nearest such directory at or above the program's
+    /// file, or above the working directory for an expression or standard
+    /// input.
+    #[arg(long, global = true, value_name = "DIR")]
+    pub project: Option<PathBuf>,
+    /// Run with no project and no discovery: no `.hql/config.toml` and no
+    /// `.hmd/` is looked for. User and system configuration still apply.
+    #[arg(long, global = true, conflicts_with = "project")]
     pub bare: bool,
+    /// A module imported into every unit of the run, as a line of a prelude
+    /// is: `--import hmd`. May be repeated; the command-line layer of
+    /// `[modules] import`.
+    #[arg(long = "import", global = true, value_name = "MODULE")]
+    pub imports: Vec<String>,
     /// The named context to run under for this invocation, in place of
     /// `$HQL_CONTEXT` and the configured `current-context`.
     #[arg(long, global = true, value_name = "NAME")]
     pub context: Option<String>,
     /// A module root: a directory whose `.hql` files are the modules a program
     /// imports by their position, `lib/a/b.hql` as `import a.b`. May be
-    /// repeated, and adds to the roots the vault's `hql.toml` names.
+    /// repeated, and adds to the roots `[modules] roots` names.
     #[arg(long, global = true, value_name = "DIR")]
     pub modules: Vec<PathBuf>,
     /// What the answer is wrapped in: the value alone, or one JSON document
@@ -125,7 +133,7 @@ pub struct Options {
     #[arg(long, global = true, value_name = "MODE")]
     pub report: Option<String>,
     /// The execution backend that runs a checked program: `localhost`, the
-    /// in-memory evaluator, unless `hql.toml` or `HQL_BACKEND` names
+    /// in-memory evaluator, unless `.hql/config.toml` or `HQL_BACKEND` names
     /// another. The answer does not depend on it.
     #[arg(long, global = true, value_name = "NAME")]
     pub backend: Option<String>,
@@ -168,7 +176,8 @@ enum Command {
         /// A program declaring the type the source is read as, or `-` for
         /// standard input.
         file: String,
-        /// The endpoint's id, `[endpoint.<id>]` in the vault's hql.toml.
+        /// The endpoint's id, `[endpoint.<id>]` in the project's
+        /// `.hql/config.toml`.
         id: String,
         /// The type the source is read as; the source's `element` without it.
         #[arg(long = "as", value_name = "TYPE")]
@@ -230,7 +239,7 @@ enum Command {
         #[command(subcommand)]
         action: Option<ConfigAction>,
     },
-    /// Show the execution context: the mode, the workspace and vault, the
+    /// Show the execution context: the mode, the project and the vault, the
     /// anchor discovery started from, and where each came from.
     Context {
         /// A program file, whose directory is the anchor; the working
@@ -240,6 +249,83 @@ enum Command {
     /// Check the semantic-search chain — vault, configuration, index, model,
     /// query set — and name the first part that is missing.
     Doctor,
+    /// Install, list, rebuild and remove packages: extensions built on
+    /// this machine and loaded when a program imports one of their modules.
+    Package {
+        #[command(subcommand)]
+        action: PackageAction,
+    },
+}
+
+/// What `hql package` does with the packages installed in a project and in
+/// the HQL home.
+#[derive(Debug, Subcommand)]
+enum PackageAction {
+    /// Build a package with `cargo` against this `hql` and install it into
+    /// the project, declaring it in `.hql/config.toml` and pinning it in
+    /// `.hql/lock.toml`: one the registry lists, by name, or a crate on this
+    /// machine, by `--path`. With neither, install every declared package at
+    /// its pinned version.
+    Install {
+        /// A package of the registry, `ml`, or `ml@0.1.0` for a version
+        /// other than the one the registry pins.
+        #[arg(conflicts_with = "path")]
+        name: Option<String>,
+        /// The crate of the package, on this machine.
+        #[arg(long, value_name = "DIR")]
+        path: Option<PathBuf>,
+        /// Install into the HQL home rather than the project.
+        #[arg(long)]
+        home: bool,
+    },
+    /// List the registry's packages whose name, modules or description
+    /// hold a text.
+    Search {
+        /// The text.
+        text: String,
+    },
+    /// Install the version the registry pins, where an installed package
+    /// came from the registry at another; every such package where none is
+    /// named.
+    Update {
+        /// An installed package.
+        name: Option<String>,
+        /// Act on the HQL home rather than the project.
+        #[arg(long)]
+        home: bool,
+    },
+    /// Print the registry in use: where it is read from, when it was
+    /// fetched and how many packages it lists.
+    Registry {
+        /// Fetch the registry now, whatever the cache holds.
+        #[arg(long)]
+        refresh: bool,
+    },
+    /// List the packages installed in the project and in the HQL home, with
+    /// the modules each provides and its level.
+    List,
+    /// Print what an installed package records about itself.
+    Info {
+        /// An installed package.
+        name: String,
+    },
+    /// Build an installed package again from its source, after `hql` or
+    /// the compiler changed; every installed package where none is named.
+    Rebuild {
+        /// An installed package.
+        name: Option<String>,
+        /// Act on the HQL home rather than the project.
+        #[arg(long)]
+        home: bool,
+    },
+    /// Remove an installed package, its declaration and its pin.
+    Remove {
+        /// An installed package.
+        name: String,
+        /// Act on the HQL home rather than the project.
+        #[arg(long)]
+        home: bool,
+    },
 }
 
 /// What `hql config` does with the named contexts of the system and user
@@ -329,7 +415,7 @@ fn reference(
 fn help(
     name: Option<&str>,
     file: Option<&Path>,
-    vault: &Vault,
+    env: &RunEnvironment,
     out: &mut impl Write,
     err: &mut impl Write,
 ) -> Result<u8, String> {
@@ -344,7 +430,7 @@ fn help(
         )),
         None => None,
     };
-    let modules = crate::help::scope(program, &vault.extensions.module_roots);
+    let modules = crate::help::scope(program, &env.extensions.module_roots);
     match crate::help::help(name, &modules) {
         Ok(text) => {
             write!(out, "{text}").map_err(|error| error.to_string())?;
@@ -377,7 +463,7 @@ fn directory_of(file: &str) -> PathBuf {
 }
 
 /// The commands a first argument may name; anything else is a program.
-const COMMANDS: [&str; 13] = [
+const COMMANDS: [&str; 14] = [
     "context",
     "eval",
     "check",
@@ -389,15 +475,17 @@ const COMMANDS: [&str; 13] = [
     "builtins",
     "config",
     "doctor",
+    "package",
     "help",
     "reference",
 ];
 
 /// Options that take a value, so the word after one is not the program.
-const VALUED: [&str; 16] = [
+const VALUED: [&str; 17] = [
     "--context",
     "--vault",
-    "--workspace",
+    "--project",
+    "--import",
     "--now",
     "--zone",
     "--seed",
@@ -553,9 +641,13 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     {
         return config_action(action, &environment, out, err);
     }
+    // The package commands read and write the HQL home alone.
+    if let Command::Package { action } = &cli.command {
+        return package_action(action, &cli.options, &environment, out);
+    }
     let context = crate::context::ExecutionContext::construct(&request(cli), &environment)
         .map_err(|error| error.to_string())?;
-    // What `io.env` reads: the arguments, and the variables the workspace
+    // What `io.env` reads: the arguments, and the variables the project
     // grants; `hql render` grants none, by its host policy.
     let grant = context
         .env_grant()
@@ -568,11 +660,22 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     // The run's diagnostic channel exists before the loader runs, so the
     // loader writes into it as every later phase does.
     let opened = crate::io::open_diagnostics();
-    let result = context.load_workspace().and_then(|vault| {
-        for diagnostic in &vault.warnings {
+    let result = context.load().and_then(|env| {
+        for diagnostic in env.warnings() {
             crate::io::write_diagnostic(diagnostic.clone());
         }
-        dispatch(cli, &context, &vault, out, err)
+        // The packages of the process, before the first program is
+        // checked: the crates the project lists, then those installed in
+        // the project, then those installed in the HQL home (HQL-0059).
+        let levels: Vec<PathBuf> = context
+            .project_root()
+            .map(|root| root.join(crate::context::PROJECT_DIRECTORY))
+            .into_iter()
+            .chain(context.layers.home.as_ref().map(|home| home.path.clone()))
+            .collect();
+        undeclared(&levels)?;
+        crate::package::activate_configured(&env.extensions.package_paths, &levels);
+        dispatch(cli, &context, &env, out, err)
     });
     // Every diagnostic was delivered before the run ends: the channel
     // closes, and only then is the exit status returned.
@@ -582,8 +685,29 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     result
 }
 
+/// Refuse a run whose levels declare a package that is not installed: a
+/// dependency in `[packages] dependencies` is a promise the run's packages
+/// keep, and `hql package install` keeps it.
+fn undeclared(levels: &[PathBuf]) -> Result<(), String> {
+    for level in levels {
+        for name in crate::package::lock::dependencies(level)? {
+            if !crate::package::directory(level, &name)
+                .join(crate::package::manifest::INSTALLED)
+                .is_file()
+            {
+                return Err(format!(
+                    "package `{name}` is a dependency in {} and is not installed: run `hql \
+                     package install`",
+                    level.join(crate::package::lock::CONFIG).display()
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// What the command line states about the execution context: the anchor of
-/// the program file a command reads, and the workspace options.
+/// the program file a command reads, and the project options.
 fn request(cli: &Cli) -> crate::context::Request {
     let file = match &cli.command {
         Command::Run { file }
@@ -593,18 +717,364 @@ fn request(cli: &Cli) -> crate::context::Request {
         Command::Context { file } => file.as_deref(),
         _ => None,
     };
-    let workspace = match (&cli.options.workspace, &cli.options.vault) {
-        (Some(dir), _) => Some((dir.clone(), "--workspace")),
-        (None, Some(dir)) => Some((dir.clone(), "--vault")),
-        (None, None) => None,
-    };
     crate::context::Request {
         anchor: file.and_then(crate::context::Request::anchor_of),
         bare: cli.options.bare,
-        workspace,
+        project: cli.options.project.clone(),
+        vault: cli.options.vault.clone(),
         modules: cli.options.modules.clone(),
+        imports: cli.options.imports.clone(),
         context: cli.options.context.clone(),
         ..crate::context::Request::default()
+    }
+}
+
+/// The level a package command acts on (HQL-0059): the HQL home under
+/// `--home`, else the project's `.hql/`, the one `--project` names or the
+/// nearest at or above the working directory.
+fn package_level(
+    home: bool,
+    options: &Options,
+    environment: &crate::context::Environment,
+) -> Result<PathBuf, String> {
+    let hql_home = crate::context::HqlHome::of(environment)
+        .ok_or("no HQL home is known: set $HQL_HOME or $HOME")?;
+    if home {
+        return Ok(hql_home.path);
+    }
+    let project = match &options.project {
+        Some(root) => {
+            if !crate::context::is_project(root) {
+                return Err(crate::context::ContextError::NotAProject(root.clone()).to_string());
+            }
+            root.clone()
+        }
+        None => crate::context::discover_project(&environment.cwd, Some(&hql_home)).ok_or(
+            "no project holds this directory: run inside one, name one with --project, or \
+             act on the HQL home with --home",
+        )?,
+    };
+    Ok(project.join(crate::context::PROJECT_DIRECTORY))
+}
+
+/// `hql package`: the packages installed in a project and in the HQL home.
+fn package_action(
+    action: &PackageAction,
+    options: &Options,
+    environment: &crate::context::Environment,
+    out: &mut impl Write,
+) -> Result<u8, String> {
+    use crate::package::lock::{self, Lock, Pinned};
+    use crate::package::manifest::{Crate, Installed, Source};
+    use crate::package::registry;
+    let home = crate::context::HqlHome::of(environment)
+        .ok_or("no HQL home is known: set $HQL_HOME or $HOME")?
+        .path;
+    let written = |error: io::Error| error.to_string();
+    // Build a crate into a level, load the result, so that what is reported
+    // installed is what a program can import, and pin it in the level's
+    // lock file.
+    let install = |level: &Path,
+                   crate_dir: &Path,
+                   source: Source,
+                   out: &mut dyn Write|
+     -> Result<u8, String> {
+        let package = Crate::read(crate_dir)?;
+        let destination = crate::package::directory(level, &package.package);
+        let installed = crate::package::build::install(crate_dir, &destination, source.clone())?;
+        let active = crate::package::activate(std::slice::from_ref(&destination));
+        if let Some(refused) = active
+            .refused
+            .iter()
+            .find(|refused| refused.name == installed.name)
+        {
+            return Err(refused.reason.clone());
+        }
+        let mut pins = Lock::read(level)?;
+        pins.pin(Pinned {
+            name: installed.name.clone(),
+            version: installed.version.clone(),
+            source,
+        });
+        pins.write(level)?;
+        writeln!(
+            out,
+            "installed {} {} ({}) in {}",
+            installed.name,
+            installed.version,
+            installed.provides.join(", "),
+            destination.display()
+        )
+        .map_err(written)?;
+        Ok(0)
+    };
+    // Resolve a name in the registry, check that it admits this hql before
+    // anything is fetched, fetch its source into the level and install it.
+    let by_name = |level: &Path,
+                   name: &str,
+                   version: Option<&str>,
+                   out: &mut dyn Write|
+     -> Result<u8, String> {
+        let loaded = registry::load(&home, false)?;
+        let entry = loaded.entry(name)?;
+        entry.admits(crate::ext::HQL)?;
+        let (crate_dir, source) = registry::fetch_source(level, &loaded, entry, version)?;
+        install(level, &crate_dir, source, out)
+    };
+    let held = |level: &Path, name: &str| -> Result<(PathBuf, Installed), String> {
+        let directory = crate::package::directory(level, name);
+        if !directory.is_dir() {
+            return Err(format!(
+                "no package `{name}` is installed in {}: `hql package list` names those that are",
+                level.display()
+            ));
+        }
+        let installed = Installed::read(&directory)?;
+        Ok((directory, installed))
+    };
+    match action {
+        PackageAction::Install {
+            path: Some(path),
+            home: to_home,
+            ..
+        } => {
+            let level = package_level(*to_home, options, environment)?;
+            let crate_dir = path
+                .canonicalize()
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+            let code = install(&level, &crate_dir, Source::Path(crate_dir.clone()), out)?;
+            lock::declare(&level, &Crate::read(&crate_dir)?.package, true)?;
+            Ok(code)
+        }
+        PackageAction::Install {
+            name: Some(written),
+            path: None,
+            home: to_home,
+        } => {
+            let level = package_level(*to_home, options, environment)?;
+            let (name, version) = match written.split_once('@') {
+                Some((name, version)) => (name, Some(version)),
+                None => (written.as_str(), None),
+            };
+            let code = by_name(&level, name, version, out)?;
+            lock::declare(&level, name, true)?;
+            Ok(code)
+        }
+        PackageAction::Install {
+            name: None,
+            path: None,
+            home: to_home,
+        } => {
+            // Every declared dependency, at the version its pin names; one
+            // with no pin at the newest version this hql admits.
+            let level = package_level(*to_home, options, environment)?;
+            let pins = Lock::read(&level)?;
+            for name in lock::dependencies(&level)? {
+                let pinned = pins.get(&name);
+                let current = Installed::read(&crate::package::directory(&level, &name))
+                    .ok()
+                    .filter(|installed| {
+                        installed.stale().is_none()
+                            && pinned.is_some_and(|pin| pin.version == installed.version)
+                    });
+                if let Some(installed) = current {
+                    writeln!(out, "{} {} is installed", installed.name, installed.version)
+                        .map_err(written)?;
+                    continue;
+                }
+                match pinned.map(|pin| &pin.source) {
+                    Some(Source::Path(path)) => {
+                        install(&level, path, Source::Path(path.clone()), out)?;
+                    }
+                    Some(Source::Registry { .. }) => {
+                        let version = pinned.map(|pin| pin.version.as_str());
+                        by_name(&level, &name, version, out)?;
+                    }
+                    None => {
+                        by_name(&level, &name, None, out)?;
+                    }
+                }
+            }
+            Ok(0)
+        }
+        PackageAction::Search { text } => {
+            let registry = registry::load(&home, false)?;
+            for entry in registry.search(text) {
+                writeln!(
+                    out,
+                    "{} {} ({}, {})\n  {}",
+                    entry.name,
+                    entry.pinned(),
+                    entry.kind(),
+                    entry.provides.join(", "),
+                    entry.description
+                )
+                .map_err(written)?;
+            }
+            Ok(0)
+        }
+        PackageAction::Update {
+            name,
+            home: to_home,
+        } => {
+            let level = package_level(*to_home, options, environment)?;
+            let loaded = registry::load(&home, false)?;
+            let names: Vec<String> = match name {
+                Some(name) => vec![name.clone()],
+                None => crate::package::installed(&level)
+                    .iter()
+                    .filter_map(|directory| Installed::read(directory).ok())
+                    .filter(|installed| matches!(installed.source, Source::Registry { .. }))
+                    .map(|installed| installed.name)
+                    .collect(),
+            };
+            for name in &names {
+                let (_, installed) = held(&level, name)?;
+                if matches!(installed.source, Source::Path(_)) {
+                    return Err(format!(
+                        "package `{name}` was installed from a path, which the registry does \
+                         not version: `hql package rebuild {name}` builds it again"
+                    ));
+                }
+                let entry = loaded.entry(name)?;
+                if installed.version == entry.pinned() && installed.stale().is_none() {
+                    writeln!(
+                        out,
+                        "{name} {} is the registry's version",
+                        installed.version
+                    )
+                    .map_err(written)?;
+                } else {
+                    by_name(&level, name, None, out)?;
+                }
+            }
+            Ok(0)
+        }
+        PackageAction::Registry { refresh } => {
+            let loaded = registry::load(&home, *refresh)?;
+            let fetched = jiff::Timestamp::try_from(loaded.fetched)
+                .map_or_else(|_| "an unknown time".to_owned(), |time| time.to_string());
+            writeln!(
+                out,
+                "registry: {}\nfetched: {fetched}\npackages: {}",
+                loaded.origin,
+                loaded.entries.len()
+            )
+            .map_err(written)?;
+            Ok(0)
+        }
+        PackageAction::List => {
+            // Both levels, the project's first, as a run discovers them.
+            let mut levels = Vec::new();
+            if let Ok(project) = package_level(false, options, environment) {
+                levels.push(("project", project));
+            }
+            levels.push(("home", home.clone()));
+            for (label, level) in &levels {
+                for directory in crate::package::installed(level) {
+                    match Installed::read(&directory) {
+                        Ok(installed) => writeln!(
+                            out,
+                            "{} {} ({}) [{label}]{}",
+                            installed.name,
+                            installed.version,
+                            installed.provides.join(", "),
+                            if installed.stale().is_some() {
+                                format!(
+                                    ": built against hql {}, run `hql package rebuild {}`",
+                                    installed.hql, installed.name
+                                )
+                            } else {
+                                String::new()
+                            }
+                        ),
+                        Err(reason) => writeln!(out, "{}: {reason}", directory.display()),
+                    }
+                    .map_err(written)?;
+                }
+            }
+            Ok(0)
+        }
+        PackageAction::Info { name } => {
+            // The package a run would load: the project's, else the home's.
+            let found = package_level(false, options, environment)
+                .ok()
+                .and_then(|level| held(&level, name).ok());
+            let (directory, installed) = match found {
+                Some(found) => found,
+                None => held(&home, name)?,
+            };
+            let source = match &installed.source {
+                Source::Path(path) => format!("path {}", path.display()),
+                Source::Registry { registry, tag } => format!("{tag} of {registry}"),
+            };
+            writeln!(
+                out,
+                "package: {}\ncrate: {} {}\nprovides: {}\nsource: {source}\nbuilt: {} against \
+                 hql {} with rustc {} for {}\nlibrary: {}",
+                installed.name,
+                installed.krate,
+                installed.version,
+                installed.provides.join(", "),
+                installed.built,
+                installed.hql,
+                installed.rustc,
+                installed.target,
+                directory.join(&installed.library).display()
+            )
+            .map_err(written)?;
+            if let Some(stale) = installed.stale() {
+                writeln!(out, "state: {stale}").map_err(written)?;
+            }
+            Ok(0)
+        }
+        PackageAction::Rebuild {
+            name,
+            home: to_home,
+        } => {
+            let level = package_level(*to_home, options, environment)?;
+            let names: Vec<String> = match name {
+                Some(name) => vec![name.clone()],
+                None => crate::package::installed(&level)
+                    .iter()
+                    .filter_map(|directory| Installed::read(directory).ok())
+                    .map(|installed| installed.name)
+                    .collect(),
+            };
+            for name in &names {
+                let (_, installed) = held(&level, name)?;
+                // The source it was built from: the crate on this machine,
+                // or the one fetched into the level when it was installed.
+                let crate_dir = match &installed.source {
+                    Source::Path(path) => path.clone(),
+                    Source::Registry { .. } => {
+                        registry::crate_directory(&level, name, &installed.krate)
+                    }
+                };
+                install(&level, &crate_dir, installed.source.clone(), out)?;
+            }
+            Ok(0)
+        }
+        PackageAction::Remove {
+            name,
+            home: to_home,
+        } => {
+            let level = package_level(*to_home, options, environment)?;
+            let (directory, installed) = held(&level, name)?;
+            std::fs::remove_dir_all(&directory)
+                .map_err(|error| format!("{}: {error}", directory.display()))?;
+            let source = registry::source_directory(&level, name);
+            if source.is_dir() {
+                std::fs::remove_dir_all(&source)
+                    .map_err(|error| format!("{}: {error}", source.display()))?;
+            }
+            let mut pins = Lock::read(&level)?;
+            pins.unpin(name);
+            pins.write(&level)?;
+            lock::declare(&level, name, false)?;
+            writeln!(out, "removed {} {}", installed.name, installed.version).map_err(written)?;
+            Ok(0)
+        }
     }
 }
 
@@ -635,18 +1105,18 @@ fn config_action(
             let mut rows = vec![[
                 "CURRENT".to_owned(),
                 "NAME".to_owned(),
-                "WORKSPACE".to_owned(),
+                "PROJECT".to_owned(),
                 "DEFINED IN".to_owned(),
             ]];
             for (name, named) in &contexts {
                 let marked = current
                     .as_ref()
                     .is_some_and(|current| &current.value == name);
-                let workspace = named.workspace().map_err(|error| error.to_string())?;
+                let project = named.project().map_err(|error| error.to_string())?;
                 rows.push([
                     if marked { "*" } else { "" }.to_owned(),
                     name.clone(),
-                    workspace.map_or_else(|| "-".to_owned(), |root| root.display().to_string()),
+                    project.map_or_else(|| "-".to_owned(), |root| root.display().to_string()),
                     named.path.display().to_string(),
                 ]);
             }
@@ -703,7 +1173,7 @@ fn config_action(
     }
 }
 
-/// A setting the context's configuration layers state, below the workspace
+/// A setting the context's configuration layers state, below the project
 /// and the environment.
 fn configured(
     context: &crate::context::ExecutionContext,
@@ -722,7 +1192,8 @@ fn write_context(
     out: &mut impl Write,
 ) -> Result<(), String> {
     let path = |path: Option<&Path>| path.map(|path| path.display().to_string());
-    let workspace = context.workspace.as_ref();
+    let project = context.project.as_ref();
+    let vault = context.vault.as_ref();
     if options.envelope == Shape::Json {
         let document = serde_json::json!({
             "mode": context.mode().label(),
@@ -730,9 +1201,10 @@ fn write_context(
                 "name": choice.value,
                 "origin": choice.origin.label(),
             })),
-            "workspace": path(context.workspace_root()),
-            "workspace_origin": workspace.map(|workspace| workspace.origin.label()),
+            "project": path(context.project_root()),
+            "project_origin": project.map(|project| project.origin.label()),
             "vault": path(context.vault()),
+            "vault_origin": vault.map(|vault| vault.origin.label()),
             "anchor": context.anchor.display().to_string(),
             "cwd": context.cwd.display().to_string(),
             "hql_home": context.layers.home.as_ref().map(|home| serde_json::json!({
@@ -772,16 +1244,17 @@ fn write_context(
             }),
         ),
         (
-            "workspace",
-            workspace.map_or_else(none, |workspace| {
-                format!(
-                    "{} ({})",
-                    workspace.root.display(),
-                    workspace.origin.label()
-                )
+            "project",
+            project.map_or_else(none, |project| {
+                format!("{} ({})", project.root.display(), project.origin.label())
             }),
         ),
-        ("vault", path(context.vault()).unwrap_or_else(none)),
+        (
+            "vault",
+            vault.map_or_else(none, |vault| {
+                format!("{} ({})", vault.root.display(), vault.origin.label())
+            }),
+        ),
         ("anchor", context.anchor.display().to_string()),
         ("cwd", context.cwd.display().to_string()),
         (
@@ -847,11 +1320,11 @@ fn write_context(
 fn dispatch(
     cli: &Cli,
     context: &crate::context::ExecutionContext,
-    vault: &Vault,
+    env: &RunEnvironment,
     out: &mut impl Write,
     err: &mut impl Write,
 ) -> Result<u8, String> {
-    let root = context.workspace_root();
+    let root = context.project_root();
     let requested = match &cli.options.report {
         Some(name) => Some(Mode::parse(name).ok_or_else(|| {
             format!("unknown report mode `{name}`; expected `strict` or `collect`")
@@ -925,11 +1398,14 @@ fn dispatch(
 
     match &cli.command {
         Command::Builtins => {
-            for provider in crate::extensions::catalogue(&vault.extensions) {
+            // One module per heading, with the extension providing it: a
+            // step is reached by importing its module, never its package.
+            for provider in crate::extensions::catalogue(&env.extensions) {
                 writeln!(
                     out,
-                    "{} {} ({})",
-                    provider.name,
+                    "{} ({} {}, {})",
+                    provider.module,
+                    provider.extension,
                     provider.version,
                     provider.availability.label()
                 )
@@ -972,8 +1448,9 @@ fn dispatch(
             }
             Ok(0)
         }
+        Command::Package { .. } => Err("`hql package` runs before a project is loaded".to_owned()),
         Command::Doctor => {
-            let checks = crate::extensions::semantic::doctor(vault);
+            let checks = crate::extensions::semantic::doctor(env);
             for check in &checks {
                 writeln!(
                     out,
@@ -984,7 +1461,29 @@ fn dispatch(
                 )
                 .map_err(|error| error.to_string())?;
             }
-            Ok(u8::from(checks.iter().any(|check| !check.ok)))
+            // The packages of the process: each one loaded, and each one
+            // found and refused with the reason the load gave.
+            let mut refused = false;
+            if let Some(active) = crate::package::active() {
+                for package in &active.loaded {
+                    writeln!(
+                        out,
+                        "{:<8} {:<7} {} {} ({})",
+                        "package",
+                        "ok",
+                        package.installed.name,
+                        package.installed.version,
+                        package.installed.provides.join(", ")
+                    )
+                    .map_err(|error| error.to_string())?;
+                }
+                for package in &active.refused {
+                    refused = true;
+                    writeln!(out, "{:<8} {:<7} {}", "package", "refused", package.reason)
+                        .map_err(|error| error.to_string())?;
+                }
+            }
+            Ok(u8::from(refused || checks.iter().any(|check| !check.ok)))
         }
         Command::Config { .. } => {
             writeln!(
@@ -996,11 +1495,10 @@ fn dispatch(
                 level.origin,
                 backend.backend.name,
                 backend.origin.label(),
-                if vault.is_present() {
-                    format!("{} ({} cards)", vault.root.display(), vault.cards.len())
-                } else {
-                    "none".to_owned()
-                }
+                env.vault.as_ref().map_or_else(
+                    || "none".to_owned(),
+                    |vault| format!("{} ({} cards)", vault.root.display(), vault.cards.len())
+                )
             )
             .map_err(|error| error.to_string())?;
             Ok(0)
@@ -1011,14 +1509,14 @@ fn dispatch(
         }
         Command::Eval { expression } => {
             crate::io::set_host(crate::io::Policy::Open, PathBuf::from("."));
-            let outcome = crate::run_on(expression, vault, settings.mode, backend);
+            let outcome = crate::run_on(expression, env, settings.mode, backend);
             emit(
                 &outcome,
                 expression,
                 "<expression>",
                 HQL,
                 &cli.options,
-                vault,
+                env,
                 shown,
                 out,
                 err,
@@ -1030,14 +1528,14 @@ fn dispatch(
             if file == "-" {
                 crate::io::set_program_on_stdin();
             }
-            let outcome = crate::run_on(&source, vault, settings.mode, backend);
+            let outcome = crate::run_on(&source, env, settings.mode, backend);
             emit(
                 &outcome,
                 &source,
                 &origin,
                 HQL,
                 &cli.options,
-                vault,
+                env,
                 shown,
                 out,
                 err,
@@ -1045,14 +1543,14 @@ fn dispatch(
         }
         Command::Check { file } => {
             let (source, origin) = read(file)?;
-            let outcome = crate::check_reported(&source, vault, settings.mode);
+            let outcome = crate::check_reported(&source, env, settings.mode);
             emit(
                 &outcome,
                 &source,
                 &origin,
                 TEXT,
                 &cli.options,
-                vault,
+                env,
                 shown,
                 out,
                 err,
@@ -1060,16 +1558,16 @@ fn dispatch(
         }
         Command::Plan { file } => {
             let (source, origin) = read(file)?;
-            let Ok(planned) = crate::plan(&source, vault, backend.backend) else {
+            let Ok(planned) = crate::plan(&source, env, backend.backend) else {
                 // What stopped it is what checking reports.
-                let outcome = crate::check_reported(&source, vault, settings.mode);
+                let outcome = crate::check_reported(&source, env, settings.mode);
                 return emit(
                     &outcome,
                     &source,
                     &origin,
                     TEXT,
                     &cli.options,
-                    vault,
+                    env,
                     shown,
                     out,
                     err,
@@ -1080,7 +1578,7 @@ fn dispatch(
         }
         Command::Boundary { file, id, element } => {
             let (source, _) = read(file)?;
-            match crate::inspect_boundary(&source, vault, id, element.as_deref()) {
+            match crate::inspect_boundary(&source, env, id, element.as_deref()) {
                 Ok(inspected) => {
                     write_boundary(&inspected, &cli.options, out)?;
                     Ok(0)
@@ -1107,11 +1605,11 @@ fn dispatch(
                 // or the nearest at or above the document. In none, no cell
                 // runs.
                 let found;
-                let vault = match document_vault(file, cli, context, vault)? {
-                    Some(Found::Loaded) => vault,
+                let env = match document_vault(file, cli, context, env)? {
+                    Some(Found::Loaded) => env,
                     Some(Found::Own(own)) => {
                         let own = *own;
-                        for diagnostic in &own.warnings {
+                        for diagnostic in own.warnings() {
                             crate::io::write_diagnostic(diagnostic.clone());
                         }
                         found = own;
@@ -1124,12 +1622,17 @@ fn dispatch(
                         return Ok(1);
                     }
                 };
+                // `hql render` is a HyperMarkdown host: it injects `import
+                // hmd` into every cell (HQL-0059).
+                let mut hosted = env.clone();
+                hosted.host();
+                let env = &hosted;
                 // A document reads beside itself and writes nothing outside.
                 let root = directory_of(file);
                 crate::io::set_host(crate::io::Policy::Document { root: root.clone() }, root);
                 let rendered = transclude::render_cell(
                     &source,
-                    vault,
+                    env,
                     settings.mode,
                     (*emit).into(),
                     cell.as_deref(),
@@ -1215,9 +1718,9 @@ fn dispatch(
             Ok(code)
         }
         Command::Reference { dir, check } => reference(dir, *check, out, err),
-        Command::Help { name, file } => help(name.as_deref(), file.as_deref(), vault, out, err),
+        Command::Help { name, file } => help(name.as_deref(), file.as_deref(), env, out, err),
         Command::Repl => repl(
-            &repl_vault(vault, shown, &cli.options, err)?,
+            &repl_session(env, shown, &cli.options, err)?,
             settings.mode,
             backend,
             shown,
@@ -1453,54 +1956,70 @@ fn write_steps(
     Ok(())
 }
 
-/// The vault a document renders in, besides the one the run loaded.
+/// What a document renders against, besides what the run loaded.
 enum Found {
-    /// The vault the run already loaded.
+    /// The vault the run already loaded, under the run's project.
     Loaded,
-    /// The document's own vault, found from it and loaded for it.
-    Own(Box<Vault>),
+    /// The document's own vault and project, found from it and loaded for
+    /// it.
+    Own(Box<RunEnvironment>),
 }
 
-/// The vault of the document `file`: the workspace an explicit selection
-/// names, or the nearest directory at or above the document holding `.hmd/`
-/// or `hql.toml`; standard input's is the run's. `None` where there is none,
-/// and always under `--bare`: the document is a card of no vault.
+/// The vault of the document `file`, and the project its cells run in.
+///
+/// `hql render` is a HyperMarkdown host (HQL-0059): the vault is the one
+/// `--vault` names, else the nearest directory at or above the document
+/// holding `.hmd/`; standard input's is the run's. The project is the one
+/// the vault's `.hmd/config.toml` selects with `[hql] project`, else the
+/// nearest at or above the document. `None` where there is no vault, and
+/// always under `--bare`: the document is a card of no vault.
 fn document_vault(
     file: &str,
     cli: &Cli,
     context: &crate::context::ExecutionContext,
-    loaded: &Vault,
+    loaded: &RunEnvironment,
 ) -> Result<Option<Found>, String> {
     let named = context
-        .workspace
+        .vault
         .as_ref()
-        .is_some_and(|workspace| workspace.origin.is_explicit());
+        .is_some_and(|vault| vault.origin.is_explicit());
     if named || file == "-" {
-        return Ok(loaded.is_present().then_some(Found::Loaded));
+        return Ok(loaded.has_vault().then_some(Found::Loaded));
     }
     if context.bare {
         return Ok(None);
     }
-    let loaded_root = context.workspace_root();
     let document = fs::canonicalize(file).map_err(|error| format!("{file}: {error}"))?;
-    let Some(found) = document.parent().and_then(vault::discover) else {
+    let Some(directory) = document.parent() else {
         return Ok(None);
     };
-    let same = loaded_root
-        .and_then(|root| fs::canonicalize(root).ok())
-        .is_some_and(|root| root == found);
-    if same {
+    let Some(found) = crate::context::discover_vault(directory) else {
+        return Ok(None);
+    };
+    let selected = crate::context::selected_project(&found).map_err(|error| error.to_string())?;
+    let canonical = |path: Option<&Path>| path.and_then(|path| fs::canonicalize(path).ok());
+    let same_vault = canonical(context.vault()) == Some(found.clone());
+    let own_project = match &selected {
+        Some(project) => Some(project.clone()),
+        None => crate::context::discover_project(directory, context.layers.home.as_ref()),
+    };
+    let same_project = canonical(context.project_root()) == canonical(own_project.as_deref());
+    if same_vault && same_project && cli.options.project.is_none() {
         return Ok(Some(Found::Loaded));
     }
-    // The document's own workspace, under the same system and user layers
-    // as the run's.
-    let request = crate::context::Request {
-        anchor: Some(found),
+    // The document's own vault and project, under the same system and user
+    // layers as the run's.
+    let mut request = crate::context::Request {
+        anchor: Some(directory.to_path_buf()),
+        host_vault: Some(found),
         ..request(cli)
     };
+    if request.project.is_none() {
+        request.host_project = own_project;
+    }
     let own = crate::context::ExecutionContext::construct(&request, &context.environment)
         .map_err(|error| error.to_string())?;
-    Ok(Some(Found::Own(Box::new(own.load_workspace()?))))
+    Ok(Some(Found::Own(Box::new(own.load()?))))
 }
 
 /// The load failure of a document in no vault.
@@ -1511,8 +2030,7 @@ fn missing_vault(origin: &str) -> Diagnostic {
         Severity::Failure,
         crate::diagnostics::Disposition::Fatal,
         0..0,
-        "no directory at or above this document holds `.hmd/` or `hql.toml`, so it is a \
-         card of no vault",
+        "no directory at or above this document holds `.hmd/`, so it is a card of no vault",
     )
     .with_help("render it inside a vault, or name one with `--vault <dir>`");
     refused.origin = Some(origin.to_owned());
@@ -1568,7 +2086,7 @@ fn presented(
     value: &Value,
     to: Option<&Presentation>,
     host: TypeConstructor,
-    vault: &Vault,
+    env: &RunEnvironment,
     compact: bool,
 ) -> Result<Option<String>, String> {
     // A program that ends in a write has said everything it had to.
@@ -1590,7 +2108,7 @@ fn presented(
             .map(Some)
             .map_err(|error| error.to_string());
     }
-    crate::extensions::format::render(value, format, 0, None, &vault.formats).map(Some)
+    crate::extensions::format::render(value, format, 0, None, &env.formats).map(Some)
 }
 
 /// Write a stream as it arrives, one piece per value, each flushed so a
@@ -1599,7 +2117,7 @@ fn streamed(
     traversal: &crate::traversal::Traversal,
     to: Option<&Presentation>,
     host: TypeConstructor,
-    vault: &Vault,
+    env: &RunEnvironment,
     compact: bool,
     out: &mut impl Write,
 ) -> Result<(), String> {
@@ -1608,7 +2126,7 @@ fn streamed(
         _ => host,
     };
     let (mut first, mut failed) = (true, None);
-    crate::stream(traversal, vault, |value| {
+    crate::stream(traversal, env, |value| {
         let text = match (&value, to) {
             (Value::Formatted(formatted), None) => Ok(formatted.text.clone()),
             // Each document pretty-printed, one after another, as `jq .`
@@ -1638,7 +2156,7 @@ fn emit(
     origin: &str,
     host: TypeConstructor,
     options: &Options,
-    vault: &Vault,
+    env: &RunEnvironment,
     shown: Severity,
     out: &mut impl Write,
     err: &mut impl Write,
@@ -1654,7 +2172,7 @@ fn emit(
             ));
         }
         if !matches!(to, Some(Presentation::Nothing)) {
-            streamed(traversal, to.as_ref(), host, vault, options.compact, out)?;
+            streamed(traversal, to.as_ref(), host, env, options.compact, out)?;
         }
         deliver(&outcome.diagnostics, source, origin, shown, options, err)?;
         return Ok(u8::from(outcome.failed()));
@@ -1665,7 +2183,7 @@ fn emit(
             let value = match (&outcome.value, &to) {
                 (Some(_), Some(Presentation::Nothing)) | (None, _) => serde_json::Value::Null,
                 (Some(value), Some(_)) => {
-                    presented(value, to.as_ref(), host, vault, options.compact)?
+                    presented(value, to.as_ref(), host, env, options.compact)?
                         .map_or(serde_json::Value::Null, serde_json::Value::String)
                 }
                 (Some(value), None) => value.to_json(),
@@ -1688,7 +2206,7 @@ fn emit(
         }
         Shape::Text => {
             if let Some(value) = &outcome.value {
-                if let Some(text) = presented(value, to.as_ref(), host, vault, options.compact)? {
+                if let Some(text) = presented(value, to.as_ref(), host, env, options.compact)? {
                     writeln!(out, "{text}").map_err(|error| error.to_string())?;
                 }
             } else if outcome.value.is_none()
@@ -1780,18 +2298,20 @@ fn deliver(
     Ok(())
 }
 
-/// The vault a REPL session runs against. Each line typed is its own run,
+/// What a REPL session runs against. Each line typed is its own run,
 /// with its own diagnostic channel; what the loader wrote is delivered once,
 /// before the first, and the host's channel is closed.
-fn repl_vault(
-    vault: &Vault,
+fn repl_session(
+    env: &RunEnvironment,
     shown: Severity,
     options: &Options,
     err: &mut impl Write,
-) -> Result<Vault, String> {
+) -> Result<RunEnvironment, String> {
     deliver(&crate::io::close_diagnostics(), "", "", shown, options, err)?;
-    let mut session = vault.clone();
-    session.warnings.clear();
+    let mut session = env.clone();
+    if let Some(vault) = &mut session.vault {
+        vault.warnings.clear();
+    }
     Ok(session)
 }
 
@@ -1800,7 +2320,7 @@ fn repl_vault(
 /// Bindings persist by replaying the statements that succeeded, which keeps
 /// the session a program rather than a sequence of unrelated runs.
 fn repl(
-    vault: &Vault,
+    env: &RunEnvironment,
     mode: Mode,
     backend: crate::backends::Selection,
     shown: Severity,
@@ -1862,11 +2382,10 @@ fn repl(
                 writeln!(
                     out,
                     "{}",
-                    if vault.is_present() {
-                        format!("{} ({} cards)", vault.root.display(), vault.cards.len())
-                    } else {
-                        "no vault".to_owned()
-                    }
+                    env.vault.as_ref().map_or_else(
+                        || "no vault".to_owned(),
+                        |vault| format!("{} ({} cards)", vault.root.display(), vault.cards.len())
+                    )
                 )
                 .map_err(|error| error.to_string())?;
                 continue;
@@ -1881,7 +2400,7 @@ fn repl(
         if let Some(name) = line.strip_prefix(":help ") {
             let modules = crate::help::scope(
                 (!prelude.is_empty()).then(|| crate::help::Module::program(&prelude.join("\n\n"))),
-                &vault.extensions.module_roots,
+                &env.extensions.module_roots,
             );
             match crate::help::help(name.trim(), &modules) {
                 Ok(text) => write!(out, "{text}").map_err(|error| error.to_string())?,
@@ -1896,7 +2415,7 @@ fn repl(
         {
             let modules = crate::help::scope(
                 (!prelude.is_empty()).then(|| crate::help::Module::program(&prelude.join("\n\n"))),
-                &vault.extensions.module_roots,
+                &env.extensions.module_roots,
             );
             if let Some(text) = crate::help::types(name, &modules) {
                 write!(out, "{text}").map_err(|error| error.to_string())?;
@@ -1922,9 +2441,9 @@ fn repl(
             None => (join(&prelude, line), false),
         };
         let outcome = if typing {
-            crate::check_reported(&source, vault, mode)
+            crate::check_reported(&source, env, mode)
         } else {
-            crate::run_on(&source, vault, mode, backend)
+            crate::run_on(&source, env, mode, backend)
         };
         let origin = format!("<repl:{typed}>");
         let at = source.len() - line.len();
@@ -1941,7 +2460,7 @@ fn repl(
             &origin,
             HQL,
             options,
-            vault,
+            env,
             shown,
             out,
             err,

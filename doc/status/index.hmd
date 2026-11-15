@@ -9,7 +9,7 @@ the work that carries it out in `doc/issues/`.
 | File | Scope |
 | --- | --- |
 | [inconsistencies.md](inconsistencies.md) | Contradictions and stale claims across `doc/**` and `examples/**`, addressed as `INC-NN` |
-| [packages.hmd](packages.hmd) | The packages the binary carries: their extensions, modules and declarations |
+| [packages.hmd](packages.hmd) | Every package this hql knows: the builtin packages under `lib/` and the installable packages of the hql-extensions registry |
 | [consolidation.md](consolidation.md) | Renames and removals a settled decision implies but that are not yet carried through, addressed as `CON-NN` |
 
 Findings carry stable identifiers so a commit, an issue card or a proposal can

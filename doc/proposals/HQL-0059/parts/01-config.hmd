@@ -1,0 +1,259 @@
+# Part 1: `.hql/config.toml`, the complete key set
+
+- **Depends on**: [[HQL-0059]] (projects, the HQL home, packages at two
+  levels), [[HQL-0025]] (layering and named contexts)
+
+## Scope
+
+Every key an HQL configuration file takes, which files take it, and how two
+files that state it combine. Three files share one format:
+
+| File | Level | Found at |
+| --- | --- | --- |
+| the project file | project | `<project>/.hql/config.toml`, by the walk or `--project` |
+| the user file | home | `$HQL_HOME/config.toml`, else `~/.hql/config.toml` |
+| the system file | system | `$HQL_SYSTEM_CONFIG`, else `/etc/hql/config.toml` (`%ProgramData%\hql\config.toml` on Windows) |
+
+A file that is absent contributes nothing. A file that is present and
+malformed, or that holds a key this part does not name, fails every run,
+naming the file and the key. HyperMarkdown's `.hmd/config.toml` is not an
+HQL configuration file and takes none of these keys.
+
+## Keys
+
+| Key | Project | User, system | Named context | Combines |
+| --- | --- | --- | --- | --- |
+| `[packages] dependencies` | yes | yes | no | per level: each level installs its own |
+| `[packages] paths` | yes | yes | yes | gathered, each crate once |
+| `[modules] roots` | yes | yes | yes | gathered, each directory once |
+| `[modules] import` | yes | yes | yes | gathered, each module once |
+| `[modules] prelude` | yes | yes | yes | the last layer that states it |
+| `[execution] backend` | yes | yes | yes | ranked, one wins |
+| `[execution] max_elements`, `max_bytes` | yes | no | no | project only |
+| `[report] mode`, `level` | yes | yes | yes | ranked, one wins |
+| `env` | yes | no | no | project only |
+| `[ai]` | yes | no | no | reserved for the AI harness (HQL-0022) |
+| `[endpoint.<id>]` | yes | no | no | project only |
+| `[keyvault.<id>]` | yes | no | no | project only |
+| `[format.<Type>]` | yes | no | no | project only |
+| `current-context` | no | yes | no | the user file's, else the system file's |
+| `[context.<name>]` | no | yes | no | the user file's replaces the system file's of one name |
+
+**Gathered** keys collect in the layer order system, user, named context,
+the home's `modules/`, project, `$HQL_PATH`, command line. **Ranked** keys
+resolve as the command line, the project file, the environment variable,
+the named context, the user file, the system file, then the default, as
+HQL-0045 orders them. A relative path resolves against the project root in
+the project file, and against the directory holding the file in the user
+and system files.
+
+## `[packages]`
+
+The package dependencies of a level ([[HQL-0057]]).
+
+```toml
+[packages]
+dependencies = ["ml"]          # installed packages, by name; no version
+paths = ["../hql-ext-geo"]     # crates on disk, built on first use
+```
+
+- `dependencies` names packages installed into the same level's
+  `packages/`; `lock.toml` beside the file pins each to one version and
+  source. A version written here is refused: `lock.toml` is the one record
+  of versions. A declared dependency that is not installed fails the run,
+  naming `hql package install`.
+- `paths` names crates on disk. Each is built under its own `target/` on
+  first use and whenever its sources are newer than the library, and is
+  never pinned.
+- The builtin packages `std` and `hmd` are never named here.
+
+## `[modules]`
+
+Where modules come from, and which every unit imports implicitly
+([[HQL-0024]], parts "Imports" and "The standard library").
+
+```toml
+[modules]
+roots = ["lib"]                # module roots of this project's HQL sources
+import = ["hmd", "ml"]         # imported by every unit, as a prelude line is
+prelude = true                 # false withholds every prelude's imports
+```
+
+- `roots` names directories holding HQL modules, read as `lib/std/` is.
+  `$HQL_PATH` and `--modules` add to them.
+- `import` names modules. Each is imported into every unit of the run as
+  a line of a prelude is, under its final segment. Importing a module of a
+  package activates that package, so its `prelude.hql` applies too:
+  `import = ["hmd"]` is how a project with no vault makes HyperMarkdown
+  available to every unit; a run with a vault has `hmd` active already. `--import <module>` is the command-line layer of this key.
+- `prelude = false` keeps every prelude's imports, `std`'s and each active
+  package's, out of the implicit list. The preludes still run.
+
+## `[execution]`
+
+How a checked program runs ([[HQL-0004]], [[HQL-0012]]).
+
+```toml
+[execution]
+backend = "localhost"          # the execution backend; --backend, $HQL_BACKEND
+max_elements = 1000000         # bound on the elements an endpoint read yields
+max_bytes = 104857600          # bound on the bytes an endpoint read takes
+```
+
+- `backend` names a backend the binary has; an unknown name fails the run,
+  naming the known ones.
+- `max_elements` and `max_bytes` are counts. Each bounds every configured
+  endpoint of the project.
+
+## `[report]`
+
+How much a run continues past a failure, and what reaches stderr
+([[HQL-0045]]).
+
+```toml
+[report]
+mode = "collect"               # strict | collect; --report, $HQL_REPORT
+level = "info"                 # debug | info | warning | error; --report-level, $HQL_REPORT_LEVEL
+```
+
+## `env`
+
+The environment variables a program may read through `io.env`
+([[HQL-0041]], part "The environment").
+
+```toml
+env = ["HOME", "AWS_*"]        # names, and PREFIX_* patterns
+```
+
+- Absent, a run grants every variable. Stated, it grants the names and
+  patterns it lists and no other. A document rendered by a host is granted
+  what the host's policy grants.
+- `env` is a top-level key, so it is written before the first table.
+
+## `[endpoint.<id>]`
+
+A configured endpoint, reached as `source("id")`, `target("id")`,
+`tap("id")` or `sink("id")` ([[HQL-0012]], [[HQL-0021]], [[HQL-0035]],
+[[HQL-0046]], [[HQL-0049]]).
+
+```toml
+[endpoint.users]
+kind = "csv"
+path = "data/users.csv"
+element = "UserRow"
+mode = "replace"
+strictness = "compatible"
+
+[endpoint.users.fields.id]
+name = "user_id"
+type = "INTEGER"
+```
+
+- The id matches `[a-z][a-z0-9_]*`. `vault` is not an id.
+- Every endpoint takes `kind` and `element` (the HQL type of one element).
+  Every kind but `vault` also takes `mode`, `strictness` and `fields`.
+- A secret is never written: it is named by a key ending in `_env` that
+  holds the name of an environment variable. A key named `password`,
+  `token`, `secret` or `api_key` holding a literal is refused.
+
+| `kind` | Keys |
+| --- | --- |
+| `csv`, `json`, `json_lines`, `yaml` | `path` |
+| `sqlite` | `path`, `table`, `order` |
+| `postgres` | `dsn_env`, `table`, `order` |
+| `kafka` | `brokers` or `brokers_env`, `topic`, `from`, `idle_ms` |
+| `nats` | `url` or `url_env`, `subject`, `idle_ms` |
+| `nats_jetstream` | `url` or `url_env`, `stream`, `subject`, `from`, `idle_ms`, `consumer` |
+| `spark` | `url` or `url_env`, `token_env`, `table`, `order` |
+| `vault` | `root`; provided by `hmd`, and refused unless `hmd` is active |
+
+| Key | Value |
+| --- | --- |
+| `mode` | `replace` (default), `append` or `create`: what a write does to existing data |
+| `strictness` | `compatible` (default), `strict`, `open` or `warn`: how the boundary meets the external schema |
+| `order` | a list of column names: the order a keyed read yields |
+| `from` | `earliest` (default) or `latest`: where a stream read starts |
+| `idle_ms` | milliseconds above 0: how long a stream read waits before it ends |
+| `fields.<field>` | the schema boundary of one HQL field: `name` or `path`, `type`, `position`, `read`, `write`, `absent`, `lossy`, and a subtable named by the kind for keys the kind owns |
+
+## `[keyvault.<id>]`
+
+A store of named keys, reached through `crypto.keyvault` ([[HQL-0054]]).
+Accepted, not built.
+
+```toml
+[keyvault.team]
+kind = "file"
+path = "keys.age"
+passphrase_env = "HQL_TEAM_VAULT_PASSPHRASE"
+```
+
+| `kind` | Keys |
+| --- | --- |
+| `file` | `path`; `passphrase_env` or `identity_file` |
+| `keychain` | `service`, default `hql.keyvault.<id>` |
+| `ssh_agent` | `socket_env`, default `SSH_AUTH_SOCK` |
+| `aws_kms` | `region` or `region_env`; `endpoint_url` |
+
+`gcp_kms`, `azure_key_vault` and `vault_transit` are reserved and refused.
+A key named `passphrase`, `secret`, `private_key`, `token` or
+`secret_access_key` is refused, naming its `*_env` replacement.
+
+## `[format.<Type>]`
+
+The renderer a type is written with, per presentation format
+([[HQL-0017]]).
+
+```toml
+[format.Graph]
+markdown = "mermaid"
+```
+
+A table per type maps a format to a renderer. An unknown format or
+renderer, or a renderer that does not write that format or that shape, is
+refused when the file loads.
+
+## Named contexts
+
+Reusable environments, defined in the user and system files only
+([[HQL-0025]]).
+
+```toml
+current-context = "work"
+
+[context.work]
+project = "~/code/acme"        # optional: binds a project
+[context.work.modules]
+roots = ["~/lib/acme-hql"]
+[context.work.execution]
+backend = "localhost"
+```
+
+- A context takes `project` and the keys the Keys table marks for it.
+- Selection is `--context`, then `$HQL_CONTEXT`, then `current-context`,
+  then a context named `default`. A selected name that no file defines
+  fails the run.
+- `project` is read against the declaring file. A context selected by
+  `--context` or `$HQL_CONTEXT` whose project contradicts `--project` or
+  `--bare` is an error; under `current-context`, the command line wins.
+
+## Not HQL configuration
+
+`[semantics]` is HyperMarkdown's: the semantic index and its embedder are
+configured in the vault's `.hmd/config.toml` ([[HQL-0059]], "The semantic
+index is HyperMarkdown's"). `[extensions]`, `[sources]` and a named
+context's `workspace` are not keys of any file, and are refused as every
+unknown key is.
+
+## Environment variables
+
+| Variable | Meaning |
+| --- | --- |
+| `HQL_HOME` | the HQL home, else `~/.hql` |
+| `HQL_SYSTEM_CONFIG` | the system file |
+| `HQL_PATH` | module roots, added after the project's |
+| `HQL_CONTEXT` | the named context of one run |
+| `HQL_BACKEND` | `[execution] backend` |
+| `HQL_REPORT`, `HQL_REPORT_LEVEL` | `[report] mode` and `level` |
+| `HQL_REGISTRY`, `HQL_REGISTRY_REPOSITORY` | another registry, another repository of official packages ([[HQL-0057]]) |
+| `HQL_SOURCE` | the `hql` checkout a package builds against |

@@ -1,0 +1,15 @@
+<!-- hql reference: hmd/search/lexical -->
+# `hmd/search/lexical`
+
+```hql
+module hmd.search.lexical
+```
+
+Lexical retrieval: a corpus ranked by the words it shares with a query,
+a hashed bag of words compared by cosine. Offline, deterministic and
+exact; it models no meaning, so a query and a document that share no
+word score zero. `hmd`'s prelude imports it, so a run that imports `hmd`
+writes `lexical` unqualified.
+
+- [`lexical`](lexical.hmd) — The cards of `self` ranked by the words their text shares with `query`, as a `Ranking<Card>`.
+<!-- hql reference: end -->

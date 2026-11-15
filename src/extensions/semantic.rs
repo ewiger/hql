@@ -1,7 +1,8 @@
-//! The `semantic` extension: ranking against vectors a language model made.
+//! The `semantic` module's operation, in `search`: ranking against vectors a language model made.
 //!
-//! The model is not in this binary and never will be. `contrib/semantics/`
-//! embeds a vault ahead of time into an SQLite index, and this module reads it.
+//! The model is not in this binary and never will be. HyperMarkdown's
+//! `hmd-semantics` embeds a vault ahead of time into an SQLite index, and this
+//! module reads it.
 //! That is why a query must be in the index too: a consumer that cannot embed a
 //! document cannot embed a question either, and inventing a vector for one
 //! would be the silent wrongness the whole split exists to avoid.
@@ -16,6 +17,7 @@ use super::spec::{ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypeP
 use super::{EvalCx, Operation, Purity, named_or_first};
 use crate::diagnostics::Diagnostic;
 use crate::document::Card;
+use crate::environment::RunEnvironment;
 use crate::execution::Arg as TypedArg;
 use crate::search::{self, Retrieval};
 use crate::types::Value;
@@ -33,13 +35,17 @@ pub const SCHEMA_VERSION: i64 = 1;
 /// allocation the size of the file.
 const MAX_DIMENSIONS: i64 = 8192;
 /// The command that produces an index, named by every failure that needs one.
-const BUILD: &str = "hql-semantics build";
+const BUILD: &str = "hmd-semantics build";
 /// The only metric this reader computes. `dot` over unit-length vectors is
 /// cosine similarity, and an index declaring anything else is refused rather
 /// than scored by an arithmetic it did not ask for.
 const METRIC: &str = "cosine";
 
-/// What a vault's `hql.toml` says about its index.
+/// The file a vault configures its index in, relative to the vault root: the
+/// index is HyperMarkdown's, kept beside the vault's cards (HQL-0059).
+pub const VAULT_CONFIG: &str = ".hmd/config.toml";
+
+/// What a vault's `.hmd/config.toml` says about its index.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Semantics {
     /// The index path, relative to the vault root.
@@ -47,10 +53,10 @@ pub struct Semantics {
 }
 
 impl Semantics {
-    /// Read `[semantics]` from a vault's configuration file.
+    /// Read `[semantics]` from a vault's `.hmd/config.toml`.
     #[must_use]
     pub fn read(root: &Path) -> Self {
-        let Ok(text) = std::fs::read_to_string(root.join(crate::reporting::CONFIG_FILE)) else {
+        let Ok(text) = std::fs::read_to_string(root.join(VAULT_CONFIG)) else {
             return Self::default();
         };
         let Ok(parsed) = toml::from_str::<toml::Value>(&text) else {
@@ -107,8 +113,8 @@ fn eval_semantic(
         return Err(wrong("semantic", "a collection of cards", &span));
     }
 
-    let path = configured(cx.vault(), &span)?;
-    let index = Index::open(&path, cx.vault(), &span)?;
+    let (vault, path) = configured(cx.environment().vault.as_ref(), &span)?;
+    let index = Index::open(&path, vault, &span)?;
     let asked = index.query(&query, &span)?;
 
     let mut scored = Vec::new();
@@ -182,26 +188,28 @@ pub struct Check {
 /// A card the index has no current vector for is reported after the chain
 /// holds: queries still answer, and the ranking says which cards it skipped.
 #[must_use]
-pub fn doctor(vault: &Vault) -> Vec<Check> {
+pub fn doctor(env: &RunEnvironment) -> Vec<Check> {
     let mut checks = Vec::new();
     let mut check = |part, ok, detail: String| {
         checks.push(Check { part, ok, detail });
         ok
     };
-    if !check(
-        "vault",
-        vault.is_present(),
-        if vault.is_present() {
-            format!("{} ({} cards)", vault.root.display(), vault.cards.len())
-        } else {
-            "no vault: run inside one or pass --vault <directory>".to_owned()
-        },
-    ) {
+    let Some(vault) = &env.vault else {
+        check(
+            "vault",
+            false,
+            "no vault: run inside one or pass --vault <directory>".to_owned(),
+        );
         return checks;
-    }
-    let config = vault.root.join(crate::reporting::CONFIG_FILE);
-    let path = match configured(vault, &(0..0)) {
-        Ok(path) => {
+    };
+    check(
+        "vault",
+        true,
+        format!("{} ({} cards)", vault.root.display(), vault.cards.len()),
+    );
+    let config = vault.root.join(VAULT_CONFIG);
+    let path = match configured(Some(vault), &(0..0)) {
+        Ok((_, path)) => {
             check(
                 "config",
                 true,
@@ -277,24 +285,29 @@ pub fn doctor(vault: &Vault) -> Vec<Check> {
     checks
 }
 
-/// The index path a vault configures, resolved inside the vault root.
-fn configured(vault: &Vault, span: &Range<usize>) -> Result<PathBuf, Diagnostic> {
-    let named = vault.semantics.index.as_deref().ok_or_else(|| {
+/// The vault and the index path it configures, resolved inside the vault
+/// root. A run with no vault configures no index.
+fn configured<'v>(
+    vault: Option<&'v Vault>,
+    span: &Range<usize>,
+) -> Result<(&'v Vault, PathBuf), Diagnostic> {
+    let configured = vault.and_then(|vault| Some((vault, vault.semantics.index.as_deref()?)));
+    let (vault, named) = configured.ok_or_else(|| {
         Diagnostic::name(
             span.clone(),
             format!(
                 "`semantic` needs an index: name one with `[semantics] index` in \
-                 {}, and build it with `{BUILD}`",
-                crate::reporting::CONFIG_FILE
+                 the vault's {VAULT_CONFIG}, and build it with `{BUILD}`"
             ),
         )
     })?;
-    within(&vault.root, Path::new(named)).ok_or_else(|| {
+    let path = within(&vault.root, Path::new(named)).ok_or_else(|| {
         Diagnostic::name(
             span.clone(),
             format!("the configured index `{named}` is outside the vault"),
         )
-    })
+    })?;
+    Ok((vault, path))
 }
 
 /// A vault-relative path, refused if it climbs out of the vault.
@@ -522,7 +535,7 @@ fn check_semantic(
     _: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
-    configured(cx.vault(), &span)?;
+    configured(cx.environment().vault.as_ref(), &span)?;
     Ok(())
 }
 
@@ -534,8 +547,8 @@ mod tests {
     fn a_vault_relative_path_resolves_and_an_escaping_one_does_not() {
         let root = Path::new("/vault");
         assert_eq!(
-            within(root, Path::new(".hql/index.sqlite")),
-            Some(PathBuf::from("/vault/.hql/index.sqlite"))
+            within(root, Path::new(".hmd/index.sqlite")),
+            Some(PathBuf::from("/vault/.hmd/index.sqlite"))
         );
         assert_eq!(within(root, Path::new("../elsewhere.sqlite")), None);
         assert_eq!(within(root, Path::new("/etc/passwd")), None);
@@ -555,10 +568,11 @@ mod tests {
         // would describe what a vault claims rather than what ran — so the
         // table is neither read nor refused, and only `index` is taken.
         let directory = tempfile::tempdir().expect("a temporary directory");
+        std::fs::create_dir_all(directory.path().join(".hmd")).expect("the vault marker");
         std::fs::write(
-            directory.path().join(crate::reporting::CONFIG_FILE),
+            directory.path().join(VAULT_CONFIG),
             "[semantics]\n\
-             index = \".hql/index.sqlite\"\n\
+             index = \".hmd/index.sqlite\"\n\
              \n\
              [semantics.embedder]\n\
              provider = \"http\"\n\
@@ -572,7 +586,7 @@ mod tests {
         assert_eq!(
             Semantics::read(directory.path()),
             Semantics {
-                index: Some(".hql/index.sqlite".to_owned())
+                index: Some(".hmd/index.sqlite".to_owned())
             }
         );
     }

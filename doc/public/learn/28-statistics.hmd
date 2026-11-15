@@ -17,7 +17,7 @@ needs:
 ```
 
 ```text
-check error[unknown-name]: `mean` is provided by the `stats` extension: write `import stats`
+check error[unknown-name]: `mean` is declared in the module `stats`: write `import stats`
  --> <expression>:1:16
   |
 1 | [1, 2, 3, 4] | mean
@@ -96,14 +96,14 @@ import stats
 ```
 
 ```text
-check error[unknown-name]: `variance` over List<Int> is declared by `core` and `stats`, so the call is ambiguous; qualify it, `core.variance(…)`
+check error[unknown-name]: `variance` over List<Int> is declared by `collections` and `stats`, so the call is ambiguous; qualify it, `collections.variance(…)`
  --> <expression>:2:16
   |
 2 | [1, 2, 3, 4] | variance
   |                ^^^^^^^^
 ```
 
-`stats.variance` is the sample variance and `core.variance` the population
+`stats.variance` is the sample variance and `collections.variance` the population
 variance. Over `Decimal` values only `stats` declares one, and a bare
 `variance` is the sample variance.
 

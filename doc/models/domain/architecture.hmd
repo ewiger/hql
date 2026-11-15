@@ -45,15 +45,22 @@ VaultSource → source snapshot → DocumentStore → card and knowledge assembl
                                                      ↓
                                            extension metadata contributions
                                                      ↓
-                                              Vault → HQL execution
+                                                   Vault
+                                                     ↓
+                   project configuration → RunEnvironment → HQL execution
 ```
 
 `sources.rs` owns filesystem traversal and reading behind `VaultSource`.
 `document.rs` assigns names, parses headers and references, and reports bad
 documents. `knowledge.rs` assembles effective metadata, verifies relation
 endpoints, and builds link and relation edges. The extension registry dispatches
-metadata contributions; lexical metadata is owned by the `lexical` module, which the `search` extension implements.
-`vault.rs` coordinates these stages and exposes their aggregate to HQL.
+metadata contributions; lexical metadata is owned by the `hmd.search.lexical` module, which the `hmd` extension implements.
+`vault.rs` coordinates these stages into a `Vault`: the cards, their edges, the
+loader's warnings, and the vault's own index configuration. `environment.rs`
+holds what a program is checked and run against, a `RunEnvironment`: the HQL
+project's root, modules, packages, renderers and endpoints, and the `Vault` when
+the run has one. A run with no vault has no cards, and a run with no project
+has the configuration of the system and user layers alone.
 
 YAML syntax belongs to the YAML library. Conversion to HQL `Data` is fallible:
 unsupported keys, tags, and numbers are diagnosed rather than reinterpreted.

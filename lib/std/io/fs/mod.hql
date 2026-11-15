@@ -50,6 +50,18 @@ type Entry {
 fn folder(path: String) : Folder
 fn folder(path: Path) : Folder
 
+/// The source directory of the unit calling it: the directory holding the
+/// program's file, the document of a cell, or the module whose function
+/// calls it, and the working directory for a program with no file. A
+/// relative path in that unit resolves against it, never against the
+/// directory `hql` was started in.
+fn source_dir() : Path
+
+/// The working directory: the directory `hql` was started in. No relative
+/// path in HQL source resolves against it; a program composes a path from
+/// it explicitly, `fs.working_dir().join("out.csv")`.
+effectful fn working_dir() : Path
+
 /// The `Glob` of `pattern`. A pattern that does not parse, an unclosed `[`
 /// or a `**` that is not a whole segment, is an evaluation error naming it.
 fn Glob(pattern: String) : Glob

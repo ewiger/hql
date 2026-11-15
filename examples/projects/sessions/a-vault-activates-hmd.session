@@ -1,0 +1,11 @@
+// status: valid-now
+// feature: a run with a vault has `hmd` active: `--vault` names the vault, and the programs a run with no vault refuses read its cards with no import
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 0
+
+$ hql --vault examples/projects/notes run examples/projects/queries/invalid-cards-without-hmd.hql
+2
+$ hql --vault examples/projects/notes run examples/projects/queries/invalid-reference-without-hmd.hql
+owl

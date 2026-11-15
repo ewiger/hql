@@ -1,0 +1,674 @@
+# HQL-0059: HyperMarkdown vaults and HQL project resolution
+
+**Status**: implemented in part
+**Created**: 2026-11-14
+
+## Companion notes
+
+- [`parts/01-config.md`](parts/01-config.hmd) — every key of
+  `.hql/config.toml` and of the user and system files, which levels take
+  it, and how layers combine.
+
+## Context
+
+HyperMarkdown and HQL currently overlap in several places:
+
+- HyperMarkdown has the concept of a **vault / namespace root** used for document and card resolution.
+- HQL has configuration, packages, endpoints, secrets, execution settings, and runtime state.
+- HQL can be executed from inside HyperMarkdown documents and HQL cells.
+- Existing HQL behavior exposes some HyperMarkdown-specific concepts, such as cards and vault-aware resolution, through the default prelude.
+
+This creates ambiguity around what belongs to HyperMarkdown versus what belongs to HQL.
+
+The two systems require separate roots and separate resolution semantics.
+
+HyperMarkdown needs to answer:
+
+- Which HMD project or vault does this document belong to?
+- What is the namespace root?
+- How does `[[...]]` resolve?
+- How are relative, absolute, imported, and namespace-qualified card references interpreted?
+
+HQL needs to answer:
+
+- Which HQL project provides configuration for this execution?
+- Which packages are installed and available?
+- Which endpoints and secrets are configured?
+- Which runtime and execution policies apply?
+
+These concerns MUST remain independent even when HQL executes inside an HMD document.
+
+## Decision
+
+### 1. HyperMarkdown owns vaults
+
+A **vault** is a HyperMarkdown concept.
+
+HyperMarkdown owns:
+
+- `.hmd/config.toml`
+- document and card discovery
+- namespace roots
+- `[[...]]` resolution
+- relative and absolute card paths
+- imports and namespace resolution
+- cross-vault or external namespace providers
+
+HQL MUST NOT define or reinterpret HyperMarkdown vault semantics.
+
+### 2. HQL owns projects
+
+HQL introduces the concept of an **HQL project**. "Project" is HQL's one
+term for it: HQL has no workspace.
+
+An HQL project contains configuration and runtime state required to execute HQL.
+
+The project marker is:
+
+```text
+.hql/
+└── config.toml
+```
+
+The `.hql` directory MAY additionally contain project-local state:
+
+```text
+.hql/
+├── config.toml
+├── packages/
+├── cache/
+└── lock.toml
+```
+
+An HQL project is not a vault and does not contain document namespace semantics.
+
+`.hql/config.toml` takes the keys [part 1](parts/01-config.hmd) lists: the
+keys `hql.toml` held, with `[extensions]` renamed to `[modules] import` and
+`[modules] prelude`, and without `[semantics]`, which is HyperMarkdown's
+("The semantic index is HyperMarkdown's" below). HQL reads no file named
+`hql.toml`.
+
+A relative path in `.hql/config.toml` resolves against the project root,
+the directory holding `.hql/`, never against `.hql/` itself: a
+`[packages] paths` entry, an endpoint's `root` or `path`, a `[modules]
+roots` entry. A path that moved from `hql.toml` to `.hql/config.toml` keeps
+its meaning. A relative path in the user or the system file resolves
+against the directory holding that file.
+
+#### Packages at two levels
+
+The HQL home and a project have the same layout, and packages install into
+either: the project is the default level, the home the shared one, as
+`npm install` and `npm install -g` divide them.
+
+```text
+~/.hql/                    <project>/.hql/
+├── config.toml            ├── config.toml
+├── packages/<name>/       ├── packages/<name>/
+├── cache/                 ├── cache/
+└── lock.toml              └── lock.toml
+```
+
+- `packages/<name>/` holds an installed package: `package.toml`, the
+  `modules/` root and the built library, as HQL-0057 lays it out. There is
+  no `~/.hql/lib/`.
+- `cache/` holds what installing at that level fetched: the source
+  checkouts under `cache/src/<name>/`. The registry is cached once, in the
+  home's `cache/registry/`.
+- `lock.toml` pins each package dependency of that level to its version
+  and source (registry tag, crates.io version or path). A project commits
+  `config.toml` and `lock.toml` and ignores `packages/` and `cache/`,
+  which are rebuilt from the two.
+- Dependencies are declared at two grains. A unit's `import`s are its
+  module dependencies. A level's `config.toml` declares its package
+  dependencies by name, and its `lock.toml` pins each to one version and
+  source:
+
+  ```toml
+  # .hql/config.toml
+  [packages]
+  dependencies = ["ml"]          # names only; no version
+  paths = ["../hql-ext-geo"]     # crates on disk, never pinned
+  ```
+
+  ```toml
+  # .hql/lock.toml, written by hql package
+  [[package]]
+  name = "ml"
+  version = "0.1.0"
+  source = "registry"
+  registry = "official"
+  tag = "hql-ext-ml-v0.1.0"
+  ```
+
+- `config.toml` carries no version. `install <name>[@<version>]` adds the
+  name to `dependencies` and its pin to `lock.toml`; `update` moves a pin;
+  `remove` drops both. `install` with no name installs every declared
+  dependency at its pinned version, and pins a declared one `lock.toml`
+  lacks at the newest version the running `hql` admits.
+- A declared dependency that is not installed MUST fail the run, naming
+  `hql package install`. A `[packages] paths` entry is a dependency too,
+  rebuilt as its sources change, and is never pinned.
+- `hql package install <name>` installs into the project; `--home`
+  installs into the HQL home. Without a project, `install` without
+  `--home` is refused, naming `--home`. `update`, `rebuild` and `remove`
+  take `--home` the same way; `list` shows both levels, naming each
+  package's level.
+- A run discovers packages from the `[packages] paths` entries, the
+  project's `packages/` and the home's `packages/`, in that order. Home
+  packages are included in every run, with a project or without one. The
+  same package found at more than one place is one package, and the first
+  place wins; two different packages providing one module are both
+  refused, as HQL-0057 states.
+- A crate on disk that is not installed is reached only through
+  `[packages] paths`.
+
+### 3. HyperMarkdown vaults may select an HQL project
+
+An HMD vault MAY declare which HQL project is used when executing HQL from that vault.
+
+Example:
+
+```toml
+[hql]
+project = "../.."
+```
+
+The path is resolved relative to the HyperMarkdown project or vault root.
+
+If no explicit project is configured, the HMD host discovers the HQL project by walking parent directories and selecting the nearest ancestor containing:
+
+```text
+.hql/config.toml
+```
+
+Resolution order:
+
+1. Explicit `hql.project` from `.hmd/config.toml`
+2. Nearest ancestor containing `.hql/config.toml`
+3. No project: the run has no project layer
+
+Resolution selects only the project layer. The system file and the user
+file contribute their layers in every run, with a project or without one.
+
+`hql render` is an HMD host: it resolves a document's project by the same
+order, reading `[hql] project` from the vault's `.hmd/config.toml`.
+
+Without an HMD host, `hql` resolves the project itself, by steps 2 and 3:
+
+- The walk starts at the program's source directory: the program file's
+  directory for `run`, `check`, `plan`, `boundary` and `context <file>`,
+  and the working directory for a program with no file.
+- `--project <dir>` replaces the walk; the directory MUST hold
+  `.hql/config.toml`, and one that does not is refused.
+- `--bare` runs with no project and no walk; `--bare` with `--project` is
+  a usage error.
+- There is no `--workspace`. `--vault <dir>` names the HMD vault the `hmd`
+  module reads where no host supplies one, and never selects a project.
+  Without it the vault is the nearest directory holding `.hmd/` at or
+  above the program's source directory. A run with a vault, found or
+  named, has `hmd` active ("HMD is an imported capability" below).
+- A named context binds a project with the key `project`, read against
+  the file that declares it.
+
+The HQL home (`$HQL_HOME`, else `~/.hql`) is never a project, though its
+`config.toml` has the marker's shape. The ancestor walk skips the directory
+whose `.hql/` is the HQL home: a walk that reaches it without finding a
+project ends with no project, and `~/.hql/config.toml` stays the user file,
+contributing the user layer as it does in every run.
+
+### 4. HQL project discovery and HMD card resolution are independent
+
+The HQL project root MUST NOT participate in `[[...]]` resolution.
+
+Likewise, the HMD vault root MUST NOT determine package, endpoint, or secret resolution in HQL.
+
+For an HQL cell inside:
+
+```text
+repo/docs/wiki/design/foo.hmd
+```
+
+the runtime may have:
+
+```text
+HQL project root   = repo/
+HMD vault root     = repo/docs/
+HMD namespace root = repo/docs/wiki/
+document directory = repo/docs/wiki/design/
+```
+
+These are distinct values.
+
+### 5. Execution context preserves all relevant roots
+
+When HQL runs from an HMD document, the host MUST supply an execution context containing at least:
+
+```text
+hql_project_root
+source_document
+source_directory
+hmd_project_root
+hmd_namespace_root
+```
+
+Different operations use different roots.
+
+#### The source directory and the working directory
+
+Two directories are distinct, and only one of them resolves paths:
+
+- The **source directory** of a unit is the directory holding its source:
+  the HMD document of a cell, the `.hql` file of a program or module, as
+  Python's `dirname(__file__)` is. A program with no file, written on the
+  command line or read from standard input, has the working directory as
+  its source directory.
+- The **working directory** is the directory `hql` was started in, the
+  process's current directory. It is a fact about the invocation, as an
+  environment variable is.
+
+A relative path in HQL source MUST resolve against the source directory of
+the unit that names it, and never against the working directory
+([[HQL-0040]]). Each unit has its own: a module imported from `lib/`
+resolves its relative paths against its own directory, not its caller's.
+The project walk starts at the same directory ("HyperMarkdown vaults may
+select an HQL project" above).
+
+```hql
+file("./data.json")
+```
+
+For a source document at:
+
+```text
+repo/docs/wiki/design/foo.hmd
+```
+
+this resolves relative to its source directory:
+
+```text
+repo/docs/wiki/design/
+```
+
+whatever directory `hql` was started in.
+
+`io.fs` exposes both, as `Path` values, so a program composes paths from
+either explicitly:
+
+```hql
+fn source_dir() : Path      // the source directory of the calling unit
+fn working_dir() : Path     // the directory hql was started in
+```
+
+```hql
+fs.source_dir().join("data/users.csv")     // beside this file
+fs.working_dir().join("out.csv")           // where the user ran hql
+```
+
+- `source_dir()` is fixed per unit when the unit is checked, so it is
+  pure. `working_dir()` reads the invocation and is effectful, as reading
+  the environment is ([[HQL-0041]]).
+- Neither is an environment variable. The source directory differs per
+  unit and cannot be one process-wide variable; the working directory is
+  the process's, read through `io.fs` rather than `$PWD`, which a shell
+  sets and a host may not.
+
+HyperMarkdown card references use HyperMarkdown resolution:
+
+```hql
+@[[foo]]
+```
+
+The HQL project root has no role in resolving this reference.
+
+### 6. HyperMarkdown support moves out of the global HQL prelude
+
+HMD-specific functionality moves into `hmd`, an internal package compiled
+into the binary next to `std`. `std` and `hmd` are the two builtin
+packages; the builtin `search` package is retired, and its modules join
+`hmd`. Being builtin, `hmd` is never installed, declared in
+`[packages] dependencies` or pinned in `lock.toml`.
+
+`hmd` provides:
+
+- the vault: the module `hmd.vault`, the host binding `vault`, and `cards`
+  and `graph` over it
+- the meaning of `@[[...]]`
+- retrieval over a vault's cards: the module `hmd.search`, with
+  `hmd.search.lexical` and `hmd.search.semantic`, formerly the builtin
+  `search` package
+- other HyperMarkdown-specific functionality
+
+The `Card` and `Doc` types, and `uplinks`, `downlinks` and `expand`, stay in
+`std`'s `doc` and `graph` modules: they are operations over any document
+and any graph, and `graph` and `knowledge` do not depend on HyperMarkdown
+("The vault is HyperMarkdown's, in the `hmd` namespace" below).
+
+Plain HQL MUST NOT expose these concepts.
+
+`@[[` stays one token of the core grammar ([[HQL-0023]]): an import makes
+declarations visible and cannot add syntax. Its meaning comes from `hmd`. A
+document reference, and the link operator `@[[a]] -> @[[b]]` built on it,
+in a run where `hmd` is not active is a check error naming `import hmd`.
+
+`hmd` has its own `prelude.hql` at the root of `lib/hmd/`, as every package
+does (HQL-0024, part "The standard library"). It imports `hmd.vault`,
+`hmd.search` and the card modules, so once `hmd` is active a unit writes
+`search` with no import of its own, since an import binds a module under
+its final segment.
+
+A package is **loaded** when its library is in the process, and **active**
+when one of its modules is imported: by a unit, by `[modules] import`, by
+`--import`, or by the host. Only an active package's prelude applies.
+`hmd` is always loaded, being builtin, but active only when imported; only
+`std`'s prelude applies to every run. A run with a vault imports `hmd`: the
+CLI is the host of a vault it finds or is given, as `hql render` is the
+host of a document's.
+
+Activation is per run, not per unit. The units of a run are its program and
+every project module the program reaches through imports. An import in any
+of them activates the package for all of them, and every unit starts with
+the same implicit imports: `std`'s prelude, the prelude of each active
+package, and `[modules] import` with `--import`. A project module stays a
+closure over its imports otherwise: no host binding reaches it, `vault` and
+`cards` included, while a document reference `@[[..]]` in it is checked
+once `hmd` is active. An installed package's prelude is
+`modules/prelude.hql` in its directory, and applies by the same rule.
+
+```text
+lib/hmd/
+├── prelude.hql      import hmd.vault, hmd.search, and the card modules
+├── mod.hql          the module hmd: Card, uplinks, downlinks
+├── vault/
+│   └── mod.hql      the module hmd.vault: Vault, vault, cards, graph, knowledge
+└── search/
+    ├── mod.hql      the module hmd.search
+    ├── lexical.hql
+    └── semantic.hql
+```
+
+### 7. HMD is an imported capability
+
+At language level:
+
+```hql
+import hmd
+```
+
+activates HyperMarkdown-specific functionality.
+
+A vault imports it too. A run whose vault the CLI found, at or above the
+program's source directory, or was given with `--vault`, has `hmd` imported
+into every unit, as a host's injection is: a program in a vault writes
+`cards` and `@[[..]]` with no import. A run with no vault has `hmd` only by
+`import hmd`, `--import hmd` or `[modules] import`. `--bare` runs no vault
+walk, so only `--vault` gives a bare run a vault.
+
+The HMD VS Code extension MAY inject this import when executing HQL from an HMD document.
+
+The CLI mechanism is host-side import injection:
+
+```text
+hql eval --import hmd ...
+hql run --import hmd file.hql
+```
+
+`--import <module>` is the command-line layer of `[modules] import`
+([part 1](parts/01-config.hmd)): the module is imported into every unit
+of the run, as a line of a prelude is. A project with no vault that wants
+HyperMarkdown states `import = ["hmd"]` under `[modules]`.
+
+The implementation MUST NOT modify the user's source text through string
+concatenation. Injected imports are execution configuration, so
+diagnostics and source locations remain correct.
+
+### 8. The HMD host supplies context; the HMD module consumes it
+
+`import hmd` enables HMD functionality but does not itself determine which document or vault is active.
+
+The host is responsible for supplying the HMD execution context.
+
+For example, the HyperMarkdown VS Code extension:
+
+```text
+current HMD document
+        ↓
+resolve HMD vault / namespace
+        ↓
+resolve HQL project
+        ↓
+invoke HQL with --import hmd
+        ↓
+pass HMD execution context
+```
+
+The `hmd` module consumes this context.
+
+If `hmd` is imported without an HMD context, HQL MUST either:
+
+- use the vault `--vault` names, or
+- return a clear diagnostic indicating that no HyperMarkdown context is available.
+
+### 9. HMD resolution remains implemented by HyperMarkdown
+
+HQL MUST NOT independently implement wikilink or card resolution rules.
+
+HyperMarkdown publishes its resolver as a Rust library, a Cargo crate in
+the HyperMarkdown repository beside its Python and TypeScript libraries.
+The three are held to one behavior by HyperMarkdown's conformance corpus.
+`hmd` depends on that crate and resolves every document reference through
+it; HQL keeps no resolution code of its own.
+
+This includes:
+
+- relative references
+- namespace-root references
+- named imports
+- wildcard imports
+- spine lookup
+- autodiscovery
+- ambiguity detection
+- namespace-qualified references
+- external namespace providers
+
+This prevents divergence between:
+
+- HMD CLI behavior
+- VS Code behavior
+- HQL execution
+- future HyperMarkdown integrations
+
+### 10. The semantic index is HyperMarkdown's
+
+A semantic index is built from a vault's cards and is valid only for that
+vault's namespace, so the vault owns it and HyperMarkdown keeps it current.
+
+- The index lives in the vault's `.hmd/`, one per vault. No `.hql/`
+  directory, project or home, holds an index.
+- Its configuration, the embedder and the index path, is a table of
+  `.hmd/config.toml`. HQL configuration has no `[semantics]` table.
+- HyperMarkdown builds and refreshes the index. It covers every level of
+  detail HyperMarkdown defines for a card: summaries at the coarser depths
+  and the card itself at the finest. The depth levels, their summaries and
+  when they are recomputed are specified by HyperMarkdown, not here.
+- HQL reads the index only through the `hmd` module. Retrieval, `lexical`
+  and `semantic`, is part of `hmd`; plain HQL has no retrieval over cards.
+
+### 11. The vault is HyperMarkdown's, in the `hmd` namespace
+
+Everything HQL knows about a vault moves into the `hmd` package, under the
+module `hmd.vault`; `std` keeps no vault logic.
+
+- `hmd.vault` is the former `vault` module of `lib/std/vault/`: the `Vault`
+  type, the host binding `vault`, and the bindings `cards`, `graph` and
+  `knowledge` HQL-0020 defines. `hmd`'s prelude imports it, so the names
+  read as before once `hmd` is active.
+- Only `.hmd/` marks a vault. A directory marked by `.hql/config.toml`
+  alone is a project with no vault: it loads no documents as cards, and
+  `vault` is unbound in it.
+- The endpoint kind `vault` of HQL-0012, documents under a directory read
+  as cards, is provided by `hmd`. A `[endpoint.<id>]` of that kind is
+  refused when `hmd` is not active, naming `import hmd`.
+- `vault.graph` and `vault.knowledge` are values of `std`'s `graph` and
+  `knowledge` types. Those modules stay in `std`: a graph and a knowledge
+  universe do not depend on HyperMarkdown, only the vault that builds them
+  from cards does.
+- Without a vault, from the host or from `--vault`, `vault` and the
+  bindings made from it are unbound, and the checker says a vault is
+  needed.
+
+## Example topology
+
+```text
+repo/
+├── .hql/
+│   ├── config.toml
+│   └── packages/
+│
+├── product-docs/
+│   ├── .hmd/
+│   │   └── config.toml
+│   └── wiki/
+│       └── ...
+│
+├── research/
+│   ├── .hmd/
+│   │   └── config.toml
+│   └── wiki/
+│       └── ...
+│
+└── pipelines/
+    └── ingest.hql
+```
+
+Both HyperMarkdown vaults may use the same HQL project:
+
+```text
+product-docs ─┐
+              ├──> repo/.hql/
+research ─────┘
+```
+
+`pipelines/ingest.hql` may use the same HQL project without involving HyperMarkdown at all.
+
+## Consequences
+
+### Positive
+
+- HMD vaults and HQL projects become clearly separated concepts.
+- HQL remains usable independently of HyperMarkdown.
+- Multiple HMD vaults can share one HQL execution environment.
+- One HMD vault can explicitly select a different HQL project.
+- HyperMarkdown resolution semantics remain centralized.
+- HQL package discovery remains independent from document discovery.
+- HMD functionality becomes modular rather than part of the global prelude.
+- Other host integrations can use the same execution-context mechanism later.
+
+### Negative
+
+- Existing implicit HMD behavior in the HQL prelude becomes a compatibility concern.
+- The HMD VS Code extension must pass richer execution context to HQL.
+- CLI and runtime APIs need explicit support for injected imports and host context.
+- HQL gains a build dependency on HyperMarkdown's Rust crate.
+
+## Backwards Compatibility
+
+HQL is before 1.0, and this proposal breaks outright: no alias, shim or
+message recognises an old form, which is simply unknown. What breaks:
+
+| Before | Now |
+| --- | --- |
+| `hql.toml` at a workspace root | `.hql/config.toml` at the project root; a directory holding only `hql.toml` is no project |
+| `.hmd/` or `hql.toml` marks an HQL workspace | `.hql/config.toml` marks a project; `.hmd/` marks only a vault |
+| `--workspace <dir>` | `--project <dir>` |
+| `--vault <dir>` selects the workspace | `--vault <dir>` names the vault `hmd` reads, and selects no project |
+| `workspace` in a named context | `project` |
+| `[extensions] import`, `[extensions] prelude` | `[modules] import`, `[modules] prelude` |
+| `[semantics]` in HQL configuration | a table of the vault's `.hmd/config.toml` |
+| the index at `<vault>/.hql/index.sqlite` | in the vault's `.hmd/` |
+| `~/.hql/lib/`, `~/.hql/src/`, `~/.hql/registry/` | `~/.hql/packages/`, `~/.hql/cache/src/`, `~/.hql/cache/registry/` |
+| `cards`, `vault`, `knowledge`, `graph` bound in every run with a vault | bound while `hmd` is active, which a vault makes it |
+| the builtin package `search`, modules `lexical` and `semantic` | `hmd.search.lexical`, `hmd.search.semantic` |
+| `@[[x]]` resolved without `hmd` | a check error in a run with no vault and no import of `hmd` |
+
+A directory marked only by `hql.toml` that held documents loaded them as
+cards; it now needs `.hmd/` to be a vault and `.hql/config.toml` to be a
+project.
+
+## Required implementation work
+
+1. Introduce `.hql/config.toml` as the HQL project marker, with the keys
+   of [part 1](parts/01-config.hmd), and retire `hql.toml`.
+2. Define HQL project discovery independently from HyperMarkdown discovery.
+3. Add optional `[hql] project = ...` configuration to `.hmd/config.toml`.
+4. Implement ancestor-based fallback discovery for HQL projects.
+5. Define an execution context carrying both HQL and HMD roots.
+6. Extract HMD-specific symbols from the global HQL prelude.
+7. Add the builtin package `hmd` beside `std`, with its prelude.
+8. Add `import hmd`, and the loaded/active distinction for preludes.
+9. Add `--import <module>` as the command-line layer of `[modules] import`.
+10. Update the HMD VS Code extension to inject `hmd` and pass document context.
+11. Publish HyperMarkdown's resolver as a Rust crate held to the
+    conformance corpus, and resolve every document reference through it.
+12. Add tests proving that HQL project discovery and HMD document resolution are orthogonal.
+13. Move the semantic index into the vault's `.hmd/` and its configuration
+    into `.hmd/config.toml`; retire the builtin `search` package and move
+    its `lexical` and `semantic` modules into the builtin `hmd` package;
+    specify the depth levels of the index in HyperMarkdown.
+14. Move `lib/std/vault/` to `lib/hmd/vault/` as `hmd.vault`; stop loading
+    cards in a project with no `.hmd/`; provide the endpoint kind `vault`
+    from `hmd`.
+15. Rename "workspace" to "project" in the code, the CLI and the
+    documentation.
+16. Add `fs.source_dir()` and `fs.working_dir()` to `io.fs`; resolve a
+    module's relative paths against its own source directory.
+
+## Invariant
+
+The central invariant is:
+
+> HyperMarkdown determines what a document reference means. HQL determines how an HQL program executes.
+
+An HMD host may select an HQL project, but an HQL project never defines a HyperMarkdown vault.
+
+## Changelog
+
+- 2026-11-14: drafted
+- 2026-11-14: accepted, and implemented in part. Built: `.hql/config.toml`
+  as the project marker with the keys of part 1, `hql.toml` retired;
+  project and vault discovery apart, the HQL home never a project, `[hql]
+  project` read from a vault; `--project`, `--vault`, `--bare` and
+  `--import`; the builtin package `hmd` with `hmd.vault` and `hmd.search`,
+  its prelude, and `vault`, `cards`, `@[[..]]` and vault endpoints only
+  while it is active; the semantic index in the vault's `.hmd/`; packages at
+  two levels with `[packages] dependencies` and `lock.toml`; the source
+  directory, `fs.source_dir()` and `fs.working_dir()`. Not built:
+  resolving through HyperMarkdown's Rust resolver crate
+  (until then `hmd` resolves a reference by name within its vault), the VS
+  Code extension's context, and HyperMarkdown's depth levels of the index,
+  all in the HyperMarkdown repository. `Card`, `Doc`, `uplinks`,
+  `downlinks` and `expand` stay in `std`
+- 2026-11-14: activation is per run: an import in a project module
+  activates a package for every unit, and every unit starts with the
+  effective prelude and the configured imports. An installed package's
+  `modules/prelude.hql` applies while the package is active.
+  `contrib/semantics` reads `[semantics]` from the vault's
+  `.hmd/config.toml`
+- 2026-11-15: a run with a vault, found by the walk or named with
+  `--vault`, has `hmd` active; the retired step names and the `[sources]`
+  refusal are removed
+- 2026-11-15: in the crate, `hql::environment::RunEnvironment` holds the
+  project's configuration and an optional `hql::vault::Vault`, which holds
+  the cards alone; a run with no vault has `None`
+- 2026-11-15: the index producer left `contrib/semantics/` for
+  HyperMarkdown's `tools/hmd-semantics`, command `hmd-semantics`;
+  HyperMarkdown's HMD-0028 specifies `[hql] project`, `[semantics]` and the
+  depth levels of the index, and its HMD-0027 is the Rust resolver crate
+- 2026-11-15: HyperMarkdown's resolver crate is `hypermarkdown` 0.1.0 on
+  crates.io; resolving through it, and reading a vault's namespace root, is
+  issue 0079. The renamed-name messages for `Unit`, `Socket`, `socket` and
+  `length` are removed
+- 2026-11-15: issue 0079 done: HQL depends on `hypermarkdown` 0.2 and reads a
+  vault's cards from its namespace root, `--vault` names the vault root, and
+  HyperMarkdown takes `.md` cards in as Markdown cards (its HMD-0029).
+  Resolving references through the crate is issue 0080

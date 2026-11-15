@@ -1,0 +1,270 @@
+# 36. Installing packages
+
+`hql package` builds a package from its crate and installs it into a
+project, or into the HQL home, where every program on the machine reaches
+it. This chapter is the commands, the files they write, and the settings of
+`.hql/config.toml` that concern packages.
+
+## The commands
+
+| Command | What it does |
+| --- | --- |
+| `hql package install <name>` | build a package the registry lists, install it into the project, declare it and pin it ([[37-the-registry-and-publishing#installing-by-name|chapter 37]]) |
+| `hql package install --path <dir>` | build the package of a crate on this machine and install it into the project |
+| `hql package install` | install every package the project declares, at the version it pins |
+| `hql package list` | the packages installed in the project and in the HQL home, each with its modules and its level |
+| `hql package info <name>` | what an installed package records about itself |
+| `hql package rebuild [<name>]` | build an installed package again from its source; every installed package where none is named |
+| `hql package remove <name>` | remove an installed package, its declaration and its pin |
+
+`install`, `rebuild`, `update` and `remove` act on the project: the one
+`--project` names, else the nearest directory at or above the working
+directory holding `.hql/config.toml`. With `--home` they act on the HQL home
+instead, as `npm install -g` acts on the machine rather than the project.
+Without a project, each refuses and names `--home`.
+
+This chapter installs from a directory, which needs no network and no
+registry. Installing needs `cargo` on the `PATH`
+([rustup](https://rustup.rs) installs it). Listing, describing and
+removing need nothing but `hql`.
+
+## Installing
+
+Inside a project, here one whose `.hql/config.toml` exists and is empty:
+
+```sh
+cd ~/code/reading-club
+hql package install --path ~/hql/tests/packages/hello
+```
+
+```text
+   Compiling hql-ext-hello v0.1.0
+    Finished `release` profile [optimized] target(s) in 58.20s
+installed hello 0.1.0 (hello) in /home/ada/code/reading-club/.hql/packages/hello
+```
+
+The first build of a package compiles the `hql` crate and its
+dependencies, which takes about a minute; later builds reuse them. The
+last line is written once the package has been built, installed and
+loaded: a package that builds and cannot be loaded is reported here, with
+the reason, and not left for a program to find.
+
+```sh
+hql package list
+```
+
+```text
+hello 0.1.0 (hello) [project]
+```
+
+```sh
+hql eval 'import hello
+hello.greet("Ada")'
+```
+
+```text
+"Hello, Ada!"
+```
+
+## What is installed
+
+A project's `.hql/` and the HQL home, `~/.hql` unless `$HQL_HOME` names
+another, have the same layout, and a package installs into either:
+
+```text
+.hql/
+├── config.toml          declares the packages, by name
+├── lock.toml            pins each to a version and a source
+├── packages/
+│   └── hello/
+│       ├── package.toml
+│       ├── modules/
+│       │   └── hello/mod.hql
+│       └── libhql_ext_hello.dylib
+└── cache/               sources fetched to build from
+```
+
+`install` declares the package by name in `config.toml`, with no version:
+
+```toml
+[packages]
+dependencies = ["hello"]
+```
+
+and pins it in `lock.toml`, which `hql package` writes:
+
+```toml
+[[package]]
+name = "hello"
+version = "0.1.0"
+source = "path"
+path = "/home/ada/hql/tests/packages/hello"
+```
+
+A project commits `config.toml` and `lock.toml`, and leaves `packages/` and
+`cache/` out of version control. `hql package install` with no name builds
+them again: every declared package at the version its pin names, and a
+declared package with no pin at the newest version this `hql` admits. A run
+whose project declares a package that is not installed fails before any
+program is checked, and names `hql package install`.
+
+`package.toml` is the record of the build:
+
+```toml
+[package]
+name = "hello"
+crate = "hql-ext-hello"
+version = "0.1.0"
+provides = ["hello"]
+
+[source]
+kind = "path"
+path = "/home/ada/hql/tests/packages/hello"
+
+[build]
+hql = "0.7.0"
+rustc = "1.98.1 (48a229cea 2026-09-01)"
+target = "aarch64-apple-darwin"
+library = "libhql_ext_hello.dylib"
+built = "2026-11-14T10:02:11Z"
+```
+
+| Table | Records |
+| --- | --- |
+| `[package]` | the package, its crate and version, and the modules it provides |
+| `[source]` | where the source came from, which is what `rebuild` builds again |
+| `[build]` | the `hql` and the compiler it was built with, and the library's file name |
+
+The package's directory is self-contained. Removing it, with its declaration
+and its pin, is what `hql package remove` does. The crate it was built from
+is not needed again until a rebuild.
+
+## Installing for every project
+
+`--home` installs into the HQL home instead:
+
+```sh
+hql package install --home --path ~/hql/tests/packages/hello
+```
+
+```text
+installed hello 0.1.0 (hello) in /home/ada/.hql/packages/hello
+```
+
+The home has its own `config.toml` and `lock.toml`, and its packages reach
+every run on the machine, with a project or without one. A run looks for a
+package in the project first and in the home second, so a project's pinned
+version is the one its programs use.
+
+## Describing and rebuilding
+
+```sh
+hql package info hello
+```
+
+```text
+package: hello
+crate: hql-ext-hello 0.1.0
+provides: hello
+source: path /home/ada/hql/tests/packages/hello
+built: 2026-11-14T10:02:11Z against hql 0.7.0 with rustc 1.98.1 (48a229cea 2026-09-01) for aarch64-apple-darwin
+library: /home/ada/code/reading-club/.hql/packages/hello/libhql_ext_hello.dylib
+```
+
+After `hql` is upgraded, an installed package was built for the previous
+one and is refused until it is rebuilt
+([[35-how-a-library-is-loaded/the-version-rule|the version rule]]).
+`hql package list` says which:
+
+```text
+hello 0.1.0 (hello) [project]: built against hql 0.7.0, run `hql package rebuild hello`
+```
+
+```sh
+hql package rebuild
+```
+
+Without a name, `rebuild` builds every installed package again, which is
+what an upgrade of `hql` asks for.
+
+`hql doctor` reports the packages of the environment a program in the
+current directory would run in, each as loaded or refused:
+
+```text
+package  ok      hello 0.1.0 (hello)
+```
+
+## A package under development
+
+Installing copies a build. While a package is being written, a project
+names the crate instead, under `[packages] paths` in its `.hql/config.toml`:
+
+```toml
+[packages]
+paths = ["../hello"]
+```
+
+A path is read against the project root, the directory holding `.hql/`. Each
+crate listed is built the first time a program runs in the project, and
+again whenever its `Cargo.toml`, a file under `src/` or a file under its
+module root is newer than the build. The build is kept under the crate's own
+`target/` directory, and nothing is installed or pinned: a crate on disk is
+never pinned.
+
+<!-- run: --project examples/packages -->
+```hql
+import hello
+
+Greeting("Ada").length
+```
+
+```text
+11
+```
+
+The project of that program is
+[`examples/packages/`](https://github.com/ewiger/hql/tree/main/examples/packages),
+whose `.hql/config.toml` lists the `hello` crate. A crate a project lists comes
+before an installed package of the same name, so the checkout being edited
+is the one that runs. [A local crate](a-local-crate.hmd) follows one crate
+from its first build to an installed package.
+
+## Importing a package for every program
+
+A module of a package is imported where it is used, as any module outside
+the prelude is. A project whose programs all use one may import it once,
+under `[modules] import` in `.hql/config.toml`, by the package's name:
+
+```toml
+[modules]
+import = ["hello"]
+```
+
+Every program of the project then starts with the package's modules
+imported, and `greet("Ada")` needs no `import` line. The setting names a
+standard module or a package; it is the one place a package is named.
+
+## Where a module comes from
+
+| Source | Found in | Wins over |
+| --- | --- | --- |
+| a builtin package | the `hql` binary | everything: no package provides a module `std` or `hmd` does |
+| a crate under `[packages] paths` | the project's `.hql/config.toml` | an installed package of the same name |
+| a package installed in the project | `.hql/packages/` of the project | the same package installed in the HQL home |
+| a package installed in the HQL home | `~/.hql/packages/` | a project module of the same name |
+| a project module | the module roots ([[05-modules|chapter 5]]) | |
+
+`hql builtins` prints the module graph a program in the current directory
+would see, each module with the package and version providing it.
+
+## The pages of this chapter
+
+| Page | What it covers |
+| --- | --- |
+| [A local crate](a-local-crate.hmd) | a crate on this machine, step by step: listed under `[packages] paths`, built on first use, rebuilt after an edit, then installed |
+| [A shared project](a-shared-project.hmd) | what a project commits, what a fresh clone runs, and how a pin moves |
+
+## What is next
+
+[[37-the-registry-and-publishing|Chapter 37]] is how a package reaches
+other people: the registry that names packages, and publishing a crate.

@@ -20,8 +20,8 @@
 //! is between them, so rendering twice leaves what rendering once did.
 
 use crate::diagnostics::{Diagnostic, Kind, Phase, Severity};
+use crate::environment::RunEnvironment;
 use crate::reporting::Mode;
-use crate::vault::Vault;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::ops::Range;
@@ -130,8 +130,8 @@ enum Segment {
 
 /// Run every cell in a document and write each one's output.
 #[must_use]
-pub fn render(source: &str, vault: &Vault, mode: Mode, emit: Emit) -> Rendered {
-    match render_cell(source, vault, mode, emit, None) {
+pub fn render(source: &str, env: &RunEnvironment, mode: Mode, emit: Emit) -> Rendered {
+    match render_cell(source, env, mode, emit, None) {
         Ok(rendered) => rendered,
         Err(message) => Rendered {
             document: source.to_owned(),
@@ -151,7 +151,7 @@ pub fn render(source: &str, vault: &Vault, mode: Mode, emit: Emit) -> Rendered {
 /// Names a cell id the document does not have.
 pub fn render_cell(
     source: &str,
-    vault: &Vault,
+    env: &RunEnvironment,
     mode: Mode,
     emit: Emit,
     only: Option<&str>,
@@ -246,7 +246,7 @@ pub fn render_cell(
             .filter_map(|&read| Some((cells[read].id.clone()?, types[read].clone()?)))
             .collect();
         blocks += 1;
-        let (program, found) = crate::check_cell(&cells[index].body, vault, mode, &bound);
+        let (program, found) = crate::check_cell(&cells[index].body, env, mode, &bound);
         results[index].diagnostics =
             of_cell(shifted(found, cells[index].body_at), &cells[index], index);
         match program {
@@ -278,7 +278,7 @@ pub fn render_cell(
                 .iter()
                 .filter_map(|&read| Some((cells[read].id.clone()?, values[read].clone()?)))
                 .collect();
-            let (value, log) = crate::evaluate_cell(program, vault, bound, mode);
+            let (value, log) = crate::evaluate_cell(program, env, bound, mode);
             results[index].diagnostics.extend(of_cell(
                 shifted(log, cells[index].body_at),
                 &cells[index],
@@ -299,7 +299,7 @@ pub fn render_cell(
                     crate::types::TypeConstructor("Hmd"),
                     0,
                     None,
-                    &vault.formats,
+                    &env.formats,
                 );
                 values[index] = Some(value);
                 markdown

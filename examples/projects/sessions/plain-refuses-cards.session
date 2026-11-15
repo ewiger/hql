@@ -1,0 +1,21 @@
+// status: valid-now
+// feature: a run with no vault and no import of `hmd` refuses `cards` and a document reference, each naming `import hmd`
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 1
+
+$ hql run examples/projects/queries/invalid-cards-without-hmd.hql
+check error[unknown-name]: `cards` is HyperMarkdown's: write `import hmd`, or run with `--import hmd`, to bind it
+ --> examples/projects/queries/invalid-cards-without-hmd.hql:9:1
+  |
+9 | cards | count
+  | ^^^^^
+
+$ hql run examples/projects/queries/invalid-reference-without-hmd.hql
+check error[unknown-name]: `@[[owl]]` is a HyperMarkdown document reference: write `import hmd`, or run with `--import hmd`, to resolve it
+ --> examples/projects/queries/invalid-reference-without-hmd.hql:9:1
+  |
+9 | @[[owl]]
+  | ^^^^^^^^
+

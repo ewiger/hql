@@ -1,0 +1,15 @@
+<!-- hql reference: std/io/fs.source_dir -->
+# `source_dir`
+
+In [`std/io/fs`](index.hmd).
+
+```hql
+fn source_dir() : Path
+```
+
+The source directory of the unit calling it: the directory holding the
+program's file, the document of a cell, or the module whose function
+calls it, and the working directory for a program with no file. A
+relative path in that unit resolves against it, never against the
+directory `hql` was started in.
+<!-- hql reference: end -->

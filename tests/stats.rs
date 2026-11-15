@@ -226,7 +226,7 @@ fn the_preludes_variance_and_stats_variance_are_told_apart_by_qualifying() {
     let message = refused("[1, 2, 3, 4] | variance");
     assert!(message.contains("ambiguous"), "{message}");
     assert_eq!(shown("[1, 2, 3, 4] | stats.variance"), "1.6666666666666667");
-    assert_eq!(shown("[1, 2, 3, 4] | core.variance"), "1.25");
+    assert_eq!(shown("[1, 2, 3, 4] | collections.variance"), "1.25");
     // Over Decimals only `stats` declares it.
     assert_eq!(shown("[1.5, 2.5] | variance"), "0.50");
 }

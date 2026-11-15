@@ -3,7 +3,7 @@
 //! What a diagnostic is lives in [`crate::diagnostics`]. This module holds the
 //! policy the host applies to the run's diagnostic channel: the mode that asks
 //! producers for continuation, the lowest severity shown, and the layer each
-//! setting came from — the query, the vault's `hql.toml`, the environment, the
+//! setting came from — the query, the project's `.hql/config.toml`, the environment, the
 //! default, in decreasing order of specificity. Below the environment, the
 //! host supplies the selected context's and the user and system files'
 //! settings (HQL-0025) where none of these layers states one.
@@ -65,23 +65,23 @@ pub struct Level {
 }
 
 impl Level {
-    /// Resolve the shown level from the query, the vault and the environment,
+    /// Resolve the shown level from the query, the project and the environment,
     /// with the same precedence as the mode.
     #[must_use]
-    pub fn resolve(query: Option<Severity>, vault_root: Option<&Path>) -> Self {
+    pub fn resolve(query: Option<Severity>, project_root: Option<&Path>) -> Self {
         if let Some(severity) = query {
             return Self {
                 severity,
                 origin: "this query".to_owned(),
             };
         }
-        if let Some(root) = vault_root
+        if let Some(root) = project_root
             && let Some(severity) = setting(&root.join(CONFIG_FILE), "level")
                 .and_then(|name| Severity::parse_level(&name))
         {
             return Self {
                 severity,
-                origin: format!("the vault's {CONFIG_FILE}"),
+                origin: format!("the project's {CONFIG_FILE}"),
             };
         }
         if let Some(severity) = env::var(LEVEL_ENVIRONMENT)
@@ -113,28 +113,29 @@ pub const DEFAULT_ORIGIN: &str = "the default";
 pub const ENVIRONMENT: &str = "HQL_REPORT";
 /// The environment variable a user sets for their own shown level.
 pub const LEVEL_ENVIRONMENT: &str = "HQL_REPORT_LEVEL";
-/// The file a vault puts its own default in.
-pub const CONFIG_FILE: &str = "hql.toml";
+/// The file a project puts its own defaults in, relative to the project
+/// root.
+pub const CONFIG_FILE: &str = crate::context::PROJECT_CONFIG;
 
 impl Settings {
-    /// Resolve the mode from the query, the vault and the environment.
+    /// Resolve the mode from the query, the project and the environment.
     ///
     /// The most specific layer that states a mode wins: a flag on this query,
-    /// then the vault's file, then the user's environment, then the default.
+    /// then the project's file, then the user's environment, then the default.
     #[must_use]
-    pub fn resolve(query: Option<Mode>, vault_root: Option<&Path>) -> Self {
+    pub fn resolve(query: Option<Mode>, project_root: Option<&Path>) -> Self {
         if let Some(mode) = query {
             return Self {
                 mode,
                 origin: "this query".to_owned(),
             };
         }
-        if let Some(root) = vault_root
+        if let Some(root) = project_root
             && let Some(mode) = from_file(&root.join(CONFIG_FILE))
         {
             return Self {
                 mode,
-                origin: format!("the vault's {CONFIG_FILE}"),
+                origin: format!("the project's {CONFIG_FILE}"),
             };
         }
         if let Some(mode) = env::var(ENVIRONMENT)
@@ -159,12 +160,12 @@ impl Settings {
     }
 }
 
-/// Read `[report] mode = "…"` from a vault's configuration file.
+/// Read `[report] mode = "…"` from a project's configuration file.
 fn from_file(path: &Path) -> Option<Mode> {
     Mode::parse(&setting(path, "mode")?)
 }
 
-/// Read one `[report]` setting from a vault's configuration file.
+/// Read one `[report]` setting from a project's configuration file.
 fn setting(path: &Path, key: &str) -> Option<String> {
     let text = fs::read_to_string(path).ok()?;
     let parsed: toml::Value = toml::from_str(&text).ok()?;

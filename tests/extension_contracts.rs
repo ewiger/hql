@@ -12,7 +12,7 @@ fn every_catalogue_signature_is_generated_from_its_structural_contract() {
     // where they are used, `time`, `random`, `stats`, `crypto`,
     // `crypto.digest`, `encoding`, `io.fs`, `io.env` and `io.db.postgres`
     // among them.
-    assert_eq!(count, 330);
+    assert_eq!(count, 332);
     for provider in providers {
         for step in provider.steps {
             let mut lines = Vec::new();
@@ -50,7 +50,7 @@ fn invalid_structural_signatures_are_rejected_before_use() {
 
 #[test]
 fn contracts_reject_unknown_duplicate_missing_and_mistyped_arguments() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     for source in [
         "[1] | take(1, 2)",
         "[1] | take(n = 1, n = 2)",
@@ -73,9 +73,9 @@ fn contracts_reject_unknown_duplicate_missing_and_mistyped_arguments() {
         "@[[oauth]] | downlinks(unknown)",
         "cards | expand(1, \"both\")",
         "cards | expand(depth = 1, 2)",
-        "import lexical\ncards | lexical(query = 1)",
-        "import lexical\ncards | lexical(\"owl\", \"robin\")",
-        "import semantic\ncards | semantic(wrong = \"owl\")",
+        "import hmd\ncards | lexical(query = 1)",
+        "import hmd\ncards | lexical(\"owl\", \"robin\")",
+        "import hmd\ncards | semantic(wrong = \"owl\")",
     ] {
         for mode in [Mode::Strict, Mode::Collect] {
             let outcome = hql::run(source, &vault, mode);
@@ -87,7 +87,7 @@ fn contracts_reject_unknown_duplicate_missing_and_mistyped_arguments() {
 
 #[test]
 fn every_registered_step_runs_at_its_declared_result_type() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/birds")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/birds")).unwrap();
     for source in [
         "[1, 1] | size",
         "[1, 1] | count(1)",
@@ -111,10 +111,10 @@ fn every_registered_step_runs_at_its_declared_result_type() {
         "[1] | hmd",
         "cards | Graph | d2",
         "cards | Graph | mermaid",
-        "import lexical\ncards | lexical(query = \"owl\")",
-        "import semantic\ncards | semantic(\"night hunting birds\")",
-        "import lexical\ncards | lexical(\"owl\") | filter(h => true)",
-        "import lexical\nranked = cards | lexical(\"owl\") | filter(h => false)\nranked.query",
+        "import hmd\ncards | lexical(query = \"owl\")",
+        "import hmd\ncards | semantic(\"night hunting birds\")",
+        "import hmd\ncards | lexical(\"owl\") | filter(h => true)",
+        "import hmd\nranked = cards | lexical(\"owl\") | filter(h => false)\nranked.query",
     ] {
         let outcome = hql::run(source, &vault, Mode::Strict);
         assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
@@ -131,7 +131,7 @@ fn every_registered_step_runs_at_its_declared_result_type() {
 /// states.
 #[test]
 fn an_overloaded_operation_takes_the_first_declaration_a_call_fits() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/birds")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/birds")).unwrap();
     for (source, expected) in [
         ("[3, 1] | sort", "List<Int>"),
         ("{3, 1} | sort", "List<Int>"),
@@ -157,15 +157,15 @@ fn an_overloaded_operation_takes_the_first_declaration_a_call_fits() {
         ("ok(2) | map(n => n + 1)", "Result<Int, Never>"),
         ("cards | first | filter(c => c | is(Card))", "Option<Card>"),
         (
-            "import lexical\ncards | lexical(\"owl\") | sort(by = h => h.score)",
+            "import hmd\ncards | lexical(\"owl\") | sort(by = h => h.score)",
             "Seq<Hit<Card>>",
         ),
         (
-            "import lexical\ncards | lexical(\"owl\") | take(1)",
+            "import hmd\ncards | lexical(\"owl\") | take(1)",
             "Ranking<Card>",
         ),
         (
-            "import lexical\ncards | lexical(\"owl\") | reverse",
+            "import hmd\ncards | lexical(\"owl\") | reverse",
             "Seq<Hit<Card>>",
         ),
     ] {
@@ -199,7 +199,7 @@ fn an_overloaded_operation_takes_the_first_declaration_a_call_fits() {
 /// only: the value counted, tested, looked up or raised to is never named.
 #[test]
 fn an_argument_declared_positional_only_is_refused_by_name() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     for (source, argument) in [
         ("[1] | count(value = 1)", "value"),
         ("[1] | contains(value = 1)", "value"),
@@ -231,7 +231,7 @@ fn an_argument_declared_positional_only_is_refused_by_name() {
 /// takes its arguments, the refusal names both forms.
 #[test]
 fn an_overload_is_chosen_by_its_arguments_types_too() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     for source in ["2 | pow(2.0f)", "2.0f | pow(2)"] {
         let outcome = hql::run(source, &vault, Mode::Strict);
         let message = outcome
@@ -264,7 +264,7 @@ fn an_overload_is_chosen_by_its_arguments_types_too() {
 /// present.
 #[test]
 fn a_step_over_a_value_is_lifted_over_absence() {
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     for (source, ty, json) in [
         ("none | abs", "Option<Int>", "null"),
         ("none | sqrt", "Option<Float>", "null"),
@@ -297,7 +297,7 @@ fn a_step_over_a_value_is_lifted_over_absence() {
 /// any other value.
 #[test]
 fn fmt_and_format_take_the_signatures_their_declarations_state() {
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     for (source, ty) in [
         ("fmt(\"{} {}\", 1, \"a\")", "String"),
         ("fmt(\"{}\", some(1))", "String"),

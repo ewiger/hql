@@ -32,7 +32,7 @@ config file remaining optional.
 | Part | Responsibility | May assume |
 | --- | --- | --- |
 | `hmd` (Python, package `hypermarkdown`) | the vault: root discovery, `.hmd/config.toml`, the namespace | nothing about HQL |
-| `contrib/semantics/` (Python) | the index: read the vault, embed each card and each query, write `.hql/index.sqlite` | `hmd` is installed |
+| `hmd-semantics` (Python, in the HyperMarkdown repository) | the index: read the vault, embed each card and each query, write `.hmd/index.sqlite` | `hmd` is installed |
 | `hql` (Rust) | the query: score a stored query against stored vectors | nothing but the index file |
 
 The dependency runs one way. A script around semantic search may assume the
@@ -43,7 +43,7 @@ a committed index, and `cargo test` must keep running with no Python present.
 ## What must hold before a query can answer
 
 1. The vault exists and is one — `.hmd/` is present.
-2. `hql.toml` names an index, and the file it names exists.
+2. The vault's `.hmd/config.toml` names an index, and the file it names exists.
 3. The index describes *this* vault: every card present on both sides, and every
    content hash still matching. `cli.py verify` is what says so.
 4. The index holds the query. The binary has no model, so it cannot embed a
@@ -58,9 +58,9 @@ answer is the failure mode this design exists to avoid.
 
 The text the producer embeds and the text `Document::text()` hashes must be
 byte-identical, or the index scores text nobody wrote and every score is quietly
-wrong. This is why `contrib/semantics/vault.py` reimplements the loader's header
-parser instead of using a YAML library, and why a change to either side moves
-both in one commit. The indexed text is the title, then the authored header's
+wrong. This is why the producer's `vault.py` reimplements the loader's header
+parser instead of using a YAML library, and why a change to either side changes
+the other. The indexed text is the title, then the authored header's
 strings in key order, then the body; where a document sits is a field rather
 than a header entry and is not indexed at all, so moving a card between
 directories does not change its score.

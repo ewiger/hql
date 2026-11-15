@@ -1,0 +1,11 @@
+# The cards start at the vault root.
+wiki = "."
+
+# The vault the HQL tutorial reads.
+
+# The embedding index the book's `semantic` queries read, built by
+# HyperMarkdown's hmd-semantics with each question the book asks pinned at
+# build time. A changed card means rebuilding it; `hmd-semantics verify`
+# says when.
+[semantics]
+index = ".hmd/index.sqlite"

@@ -602,7 +602,7 @@ source(decrypted_with(file("orders.jsonl.age"), pair.private)) | map(o => o.id)
     current binary, and names, keys, types and outputs may change before
     they ship.
 
-A **key vault** is a store of named keys that `hql.toml` configures, as it
+A **key vault** is a store of named keys that `.hql/config.toml` configures, as it
 configures an endpoint. Its secrets are named by `*_env` keys and never
 written:
 

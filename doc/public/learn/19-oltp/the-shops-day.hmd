@@ -5,9 +5,9 @@ archive file as it arrived. Each is validated: the valid ones land in the
 silver Delta table, and a placed order of 100 or more is also published as
 an alert to a core NATS subject; the invalid ones go to the dead-letter
 subject with the rules they broke. The configuration is the shop's
-`hql.toml`; the pipeline, `day.hql`, is this:
+`.hql/config.toml`; the pipeline, `day.hql`, is this:
 
-<!-- run: check --vault examples/pipelines/shop -->
+<!-- run: check --project examples/pipelines/shop -->
 ```hql
 type EventData : DataContract = {
     id       : Int
@@ -79,7 +79,7 @@ ended in `target` over this stream would be refused, as any `target` of a
 stream is.
 
 There is no orchestration around the file: no activity names, no cluster,
-no connection strings. `hql check day.hql` reads `hql.toml`, resolves every
+no connection strings. `hql check day.hql` reads `.hql/config.toml`, resolves every
 id to its kind and every kind to a type, checks the whole file, and opens
 no connection; the result above is what it prints. Every system in the file
 is in the current release, and the

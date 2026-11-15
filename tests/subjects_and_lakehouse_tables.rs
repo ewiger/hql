@@ -4,10 +4,22 @@
 //! and written by `target` or `sink`. Nothing here reaches a server; the
 //! round trips run against the containers of the `hql-demo` repository.
 
+use hql::environment::RunEnvironment;
 use hql::reporting::Mode;
-use hql::vault::{self, Vault};
 use std::fs;
 use tempfile::{TempDir, tempdir};
+
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
 
 /// The environment variables named below are never set, so no case
 /// connects to anything.
@@ -47,15 +59,15 @@ path = "counts.csv"
 
 const ORDER: &str = "type Order { id : Int, customer : String, total : Decimal }\n";
 
-fn configured() -> (TempDir, Vault) {
+fn configured() -> (TempDir, RunEnvironment) {
     let dir = tempdir().unwrap();
-    fs::write(dir.path().join("hql.toml"), CONFIG).unwrap();
+    fs::write(project_config(dir.path()), CONFIG).unwrap();
     fs::write(dir.path().join("counts.csv"), "species,count\nwren,3\n").unwrap();
-    let vault = vault::load(dir.path()).unwrap();
+    let vault = hql::environment::load(dir.path()).unwrap();
     (dir, vault)
 }
 
-fn refusal(source: &str, vault: &Vault) -> String {
+fn refusal(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(outcome.failed(), "{source} ran");
     outcome
@@ -66,7 +78,7 @@ fn refusal(source: &str, vault: &Vault) -> String {
         .join("\n")
 }
 
-fn checks(source: &str, vault: &Vault) {
+fn checks(source: &str, vault: &RunEnvironment) {
     if let Err(error) = hql::check_in(source, vault) {
         panic!("{source}: {error:?}");
     }
@@ -151,12 +163,12 @@ fn a_lakehouse_column_is_written_as_a_type_that_keeps_the_value() {
     // A Decimal in a DOUBLE column may lose digits, and says so.
     let dir = tempdir().unwrap();
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         "[endpoint.orders]\nkind = \"spark\"\nurl_env = \"U\"\ntable = \"orders\"\n\n\
          [endpoint.orders.fields.total]\ntype = \"DOUBLE\"\n",
     )
     .unwrap();
-    let lossy = vault::load(dir.path()).unwrap();
+    let lossy = hql::environment::load(dir.path()).unwrap();
     let written =
         format!("{ORDER}[Order(id = 1, customer = \"ada\", total = 1.50)] | target(\"orders\")");
     let error = refusal(&written, &lossy);
@@ -251,11 +263,11 @@ fn a_malformed_subject_or_lakehouse_table_refuses_the_vault() {
     ] {
         let dir = tempdir().unwrap();
         fs::write(
-            dir.path().join("hql.toml"),
+            project_config(dir.path()),
             format!("[endpoint.db]\n{entry}"),
         )
         .unwrap();
-        let error = vault::load(dir.path()).unwrap_err().to_string();
+        let error = hql::environment::load(dir.path()).unwrap_err().to_string();
         assert!(error.contains(says), "{entry}: {error}");
     }
 }
@@ -265,11 +277,11 @@ fn a_list_field_is_written_to_a_nesting_format_as_a_list() {
     // The cell a message's boundary writes is the cell a JSON file's does.
     let dir = tempdir().unwrap();
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         "[endpoint.rejected]\nkind = \"json_lines\"\npath = \"rejected.jsonl\"\n",
     )
     .unwrap();
-    let vault = vault::load(dir.path()).unwrap();
+    let vault = hql::environment::load(dir.path()).unwrap();
     let outcome = hql::run(
         "type Rejected { id : Int, rules : List<String> }\n\
          [Rejected(id = 3, rules = [\"a.type\", \"b.missing\"])] | target(\"rejected\")",
@@ -281,7 +293,7 @@ fn a_list_field_is_written_to_a_nesting_format_as_a_list() {
     assert_eq!(written.trim(), r#"{"id":3,"rules":["a.type","b.missing"]}"#);
 }
 
-fn type_of(source: &str, vault: &Vault) -> String {
+fn type_of(source: &str, vault: &RunEnvironment) -> String {
     match hql::check_in(source, vault) {
         Ok(checked) => checked.to_string(),
         Err(error) => panic!("{source}: {error:?}"),
@@ -383,18 +395,18 @@ fn a_consumer_is_a_key_of_the_kind_and_a_name() {
     let entry = "[endpoint.events]\nkind = \"nats_jetstream\"\nurl = \"nats://h:4222\"\n\
                  stream = \"S\"\nsubject = \"s\"\n";
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         format!("{entry}consumer = \"billing\"\n"),
     )
     .unwrap();
-    let vault = vault::load(dir.path()).unwrap();
+    let vault = hql::environment::load(dir.path()).unwrap();
     checks(r#"tap("events") | take(1)"#, &vault);
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         format!("{entry}consumer = \"billing.eu\"\n"),
     )
     .unwrap();
-    let error = vault::load(dir.path()).unwrap_err().to_string();
+    let error = hql::environment::load(dir.path()).unwrap_err().to_string();
     assert!(error.contains("`consumer` is a name"), "{error}");
 }
 
@@ -402,12 +414,12 @@ fn a_consumer_is_a_key_of_the_kind_and_a_name() {
 fn a_core_subject_is_its_own_kind_and_module() {
     let dir = tempdir().unwrap();
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         "[endpoint.alerts]\nkind = \"nats\"\nurl_env = \"HQL_TEST_UNSET_NATS_URL\"\n\
          subject = \"alerts.>\"\nidle_ms = 500\n",
     )
     .unwrap();
-    let vault = vault::load(dir.path()).unwrap();
+    let vault = hql::environment::load(dir.path()).unwrap();
     assert_eq!(type_of(r#"tap("alerts")"#, &vault), "Stream<Data>");
     let error = refusal(r#"source("alerts")"#, &vault);
     assert!(error.contains("`alerts` is a `nats` endpoint"), "{error}");

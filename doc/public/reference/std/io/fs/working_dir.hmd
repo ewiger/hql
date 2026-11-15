@@ -1,0 +1,13 @@
+<!-- hql reference: std/io/fs.working_dir -->
+# `working_dir`
+
+In [`std/io/fs`](index.hmd).
+
+```hql
+effectful fn working_dir() : Path
+```
+
+The working directory: the directory `hql` was started in. No relative
+path in HQL source resolves against it; a program composes a path from
+it explicitly, `fs.working_dir().join("out.csv")`.
+<!-- hql reference: end -->

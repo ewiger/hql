@@ -3,14 +3,15 @@ tags: [hql, extensions, retrieval]
 ---
 # The lexical module
 
-`lexical` ranks a corpus by the words it shares with a query. It is a module
-of the builtin `search` package, implemented by its internal extension,
-`search`. It is the
-retrieval HQL always has: no index, no model file, no configuration, nothing to
-build. Written out with `import lexical`, it supplies one step.
+`lexical` ranks a corpus by the words it shares with a query. It is the
+module `hmd.search.lexical` of the builtin `hmd` package, implemented by its
+internal extension, `hmd` ([[HQL-0059]]). It is the retrieval HQL always has
+over a vault: no index, no model file, no configuration, nothing to build.
+`import hmd` brings it, as `hmd`'s prelude imports it, and it supplies one
+step.
 
 ```hql
-import lexical
+import hmd
 
 cards
 | lexical("bearer token authorization")

@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeMap, fs, path::Path};
 
-use hql::{check, check_in, eval, reporting::Mode, run, vault};
+use hql::{check, check_in, eval, reporting::Mode, run};
 
 struct Case {
     path: String,
@@ -11,10 +11,10 @@ struct Case {
 }
 
 impl Case {
-    fn vault(&self) -> vault::Vault {
+    fn vault(&self) -> hql::environment::RunEnvironment {
         match self.metadata["environment"].as_str() {
             "pure" => {
-                let mut vault = vault::Vault::empty();
+                let mut vault = hql::environment::RunEnvironment::bare();
                 if let Some(modules) = self.metadata.get("modules") {
                     vault.extensions.module_roots.push(
                         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -28,7 +28,7 @@ impl Case {
                 let path = Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("examples")
                     .join(&self.metadata["vault"]);
-                vault::load(&path).unwrap_or_else(|e| panic!("{}: {e}", self.path))
+                hql::environment::load(&path).unwrap_or_else(|e| panic!("{}: {e}", self.path))
             }
             other => panic!("{}: unsupported environment {other}", self.path),
         }

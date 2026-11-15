@@ -1,0 +1,108 @@
+# How the standard library is built
+
+The standard library is a package named `std`. Its modules are HQL files
+of declarations, and its extension is Rust compiled into the `hql` binary.
+A package you write has the same two halves; the one difference is where
+its Rust is kept ([[35-how-a-library-is-loaded|chapter 35]]).
+
+## The contract
+
+A module's file of declarations is its **contract**. This is the head of
+the contract of `math`, the file
+[`lib/std/math/mod.hql`](https://github.com/ewiger/hql/blob/main/lib/std/math/mod.hql):
+
+````text
+module math
+
+import core
+
+/// `self` without its sign, at its own type: `abs(-3)` is `3`,
+/// `abs(-1.50)` is `1.50`, and `abs(Duration("-PT1H"))` is `PT1H`.
+fn abs(self: Int) : Int
+fn abs(self: Float) : Float
+fn abs(self: Decimal) : Decimal
+fn abs(self: Duration) : Duration
+
+/// The square root of `self`: `sqrt(2.0f)` is `1.4142135623730951`.
+fn sqrt(self: Float) : Float
+````
+
+The file opens with `module` and its name, imports the modules whose types
+it writes, and declares. A `///` doc string above a declaration is what
+`help` prints for it. The contract is the whole of what a program is
+checked against: the checker never reads Rust.
+
+## The implementation
+
+Beside the contract is one Rust function per declared name, and a table
+that lists them by that name:
+
+```rust
+pub(crate) static STEPS: &[Operation] = &[
+    declared("abs", eval_abs),
+    declared("sqrt", eval_sqrt),
+    // …
+];
+
+fn eval_abs(
+    _: &mut dyn EvalCx,
+    input: Value,
+    _: &[TypedArg],
+    span: Range<usize>,
+) -> Result<Value, Diagnostic> {
+    match number(&input, "abs", &span)? {
+        Value::Int(n) => n.checked_abs().map(Value::Int).ok_or(Diagnostic::overflow(span)),
+        Value::Float(x) => Ok(Value::Float(x.abs())),
+        Value::Decimal(x) => Ok(Value::Decimal(x.abs())),
+        _ => unreachable!("number() answers a number"),
+    }
+}
+```
+
+`eval_abs` takes the value the call is made on, the call's other
+arguments, and the place of the call in the source, and gives a value or a
+diagnostic. It serves all four forms of `abs` and reads which one it was
+given from the value. The Rust states no HQL type: the types are the
+contract's.
+
+## Binding
+
+**Binding** joins the two halves, once, before the first program is
+checked. For each module of each package it pairs every declaration with
+the function of the same name in that module's table, and it refuses the
+package where the halves disagree:
+
+| Defect | What binding reports |
+| --- | --- |
+| a declaration with no function | the declaration is declared, and the extension implements no such function |
+| a function with no declaration | the extension implements a name no contract declares |
+| `effectful fn` over a function marked pure, or the reverse | the two markings differ |
+| a shape word that differs from the function's marking | the two markings differ |
+| a type the contract writes and no module declares | the declaration states no signature |
+
+Because binding runs before any program does, a package is never half
+usable: either every declaration of its modules has its function, or the
+package is refused whole.
+
+## Reading the result
+
+`hql builtins` prints what binding produced: each module, the package and
+version that provide it, and each declared name with its forms, its purity
+and its shape.
+
+```sh
+hql builtins
+```
+
+```text
+math (std 0.7.0, prelude)
+  abs
+    Int | abs() -> Int
+    Float | abs() -> Float
+    Decimal | abs() -> Decimal
+    Duration | abs() -> Duration
+    pure, barrier
+```
+
+`Int | abs() -> Int` reads: on an `Int`, `abs` with no further arguments
+gives an `Int`. The value before `|` is the receiver.

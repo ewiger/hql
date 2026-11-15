@@ -1,6 +1,6 @@
 # Endpoints: reading what a run context configures
 
-`station/` is a vault whose `hql.toml` declares ten endpoints under
+`station/` is a vault whose `.hql/config.toml` declares ten endpoints under
 `[endpoint.<id>]`: two vaults of notes, `journal` and `archive`, a CSV file
 of counts, a JSON array of sightings, a CSV ledger and a JSON array of
 profiles whose fields a boundary maps, and notes and readings whose

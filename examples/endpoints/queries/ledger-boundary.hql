@@ -6,7 +6,7 @@
 // expected-type: List<String>
 // expected: ["wren 2", "owl 1", "kite 1"]
 
-// `ledger.csv` heads its columns `Species Name` and `Total`; hql.toml maps
+// `ledger.csv` heads its columns `Species Name` and `Total`; .hql/config.toml maps
 // `species` and `count` to them. `Tally` is an open record, so the
 // `Observer` column it does not declare is kept and not read.
 type Tally : Data = {

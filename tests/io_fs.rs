@@ -3,12 +3,24 @@
 //! a listing is held to, and the run context's bound on what a listing
 //! holds. Every case lists a tree built in a temporary directory.
 
+use hql::environment::RunEnvironment;
 use hql::reporting::Mode;
-use hql::vault::{self, Vault};
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 use tempfile::{TempDir, tempdir};
+
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
 
 /// A tree whose sorted walk differs from the text order of its paths:
 /// `a/b.md` before `a-b.md`, although `-` sorts before `/`.
@@ -34,12 +46,12 @@ fn root(dir: &TempDir) -> String {
     dir.path().join("t").display().to_string()
 }
 
-fn empty() -> Vault {
-    Vault::empty()
+fn empty() -> RunEnvironment {
+    RunEnvironment::bare()
 }
 
 /// A program's value as its text, the module imported.
-fn value(source: &str, vault: &Vault) -> String {
+fn value(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(&format!("import io.fs\n{source}"), vault, Mode::Strict);
     assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
     outcome
@@ -48,7 +60,7 @@ fn value(source: &str, vault: &Vault) -> String {
         .unwrap_or_default()
 }
 
-fn refusal(source: &str, vault: &Vault) -> String {
+fn refusal(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(&format!("import io.fs\n{source}"), vault, Mode::Strict);
     assert!(outcome.failed(), "{source} ran");
     outcome
@@ -80,7 +92,7 @@ fn walk_is_the_sorted_walk_and_the_vaults_order() {
     );
     // The cards of a vault over the tree are its walk's documents, in the
     // same order; the vault skips hidden entries.
-    let vault = vault::load(Path::new(&root)).unwrap();
+    let vault = hql::environment::load(Path::new(&root)).unwrap();
     let cards = hql::run("vault.cards | map(c => c.path)", &vault, Mode::Strict)
         .value
         .unwrap()
@@ -335,11 +347,11 @@ fn a_listing_is_held_once_whatever_changes_on_disk() {
 fn a_listing_is_bounded_by_the_run_context() {
     let dir = tree();
     fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         "[execution]\nmax_elements = 3\n",
     )
     .unwrap();
-    let vault = vault::load(dir.path()).unwrap();
+    let vault = hql::environment::load(dir.path()).unwrap();
     let root = root(&dir);
     let refused = refusal(&format!("folder({root:?}) | walk"), &vault);
     assert!(refused.contains("max_elements = 3"), "{refused}");
@@ -395,7 +407,7 @@ fn hql_in(dir: &Path, args: &[&str]) -> Output {
 #[test]
 fn a_document_lists_only_under_its_own_directory() {
     let dir = tree();
-    fs::write(dir.path().join("hql.toml"), "").unwrap();
+    fs::write(project_config(dir.path()), "").unwrap();
     fs::write(dir.path().join("t/a/secret.txt"), "s").unwrap();
     let cell = |name: &str, program: &str| {
         fs::write(
@@ -501,5 +513,56 @@ fn io_fs_is_imported_and_not_in_the_prelude() {
     assert_eq!(
         outcome.value.map(|value| value.to_string()).as_deref(),
         Some("b")
+    );
+}
+
+/// HQL-0059: a relative path resolves against the source directory of the
+/// unit naming it, a module's own included, and never against the working
+/// directory, which `fs.working_dir()` reads.
+#[test]
+fn a_relative_path_resolves_against_the_source_directory_of_its_unit() {
+    let root = tempdir().unwrap();
+    let root = fs::canonicalize(root.path()).unwrap();
+    let repo = root.join("repo");
+    fs::create_dir_all(repo.join(".hql")).unwrap();
+    fs::create_dir_all(repo.join("lib/shelf")).unwrap();
+    fs::create_dir_all(repo.join("jobs")).unwrap();
+    fs::create_dir_all(root.join("elsewhere")).unwrap();
+    fs::write(
+        repo.join(".hql/config.toml"),
+        "[modules]\nroots = [\"lib\"]\n",
+    )
+    .unwrap();
+    fs::write(
+        repo.join("lib/shelf/mod.hql"),
+        "module shelf\nimport io\nimport io.fs\n\n\
+         fn here() : String = fs.source_dir().text\n\
+         fn note() : String = source(file(\"note.txt\"), Lines) | first | text\n",
+    )
+    .unwrap();
+    fs::write(repo.join("lib/shelf/note.txt"), "from the module\n").unwrap();
+    fs::write(repo.join("jobs/note.txt"), "from the job\n").unwrap();
+    fs::write(
+        repo.join("jobs/job.hql"),
+        "import io\nimport io.fs\nimport shelf\n\
+         [fs.source_dir().text, shelf.here(), shelf.note(), \
+         source(file(\"note.txt\"), Lines) | first | text, fs.working_dir().text]\n",
+    )
+    .unwrap();
+    let output = hql_in(&root.join("elsewhere"), &["run", "../repo/jobs/job.hql"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let written = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(
+        written.trim(),
+        format!(
+            "[{:?}, {:?}, from the module, from the job, {:?}]",
+            repo.join("jobs").display().to_string(),
+            repo.join("lib/shelf").display().to_string(),
+            root.join("elsewhere").display().to_string()
+        )
     );
 }

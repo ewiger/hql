@@ -1415,7 +1415,7 @@ dependencies = [
 
 [[package]]
 name = "hql"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "aes-gcm 0.11.1",
  "age",
@@ -1432,8 +1432,10 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "hmac 0.13.0",
+ "hypermarkdown",
  "jiff",
  "jiff-tzdb",
+ "libloading",
  "md-5",
  "num-integer",
  "p256 0.14.0",
@@ -1449,6 +1451,7 @@ dependencies = [
  "rskafka",
  "rusqlite",
  "rustyline",
+ "semver",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -1504,6 +1507,17 @@ dependencies = [
  "subtle",
  "typenum",
  "zeroize",
+]
+
+[[package]]
+name = "hypermarkdown"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0d8c3303c0d6f90f2b60b8ea4ea707abfeedf11c129d6b382a8cf681867410f"
+dependencies = [
+ "serde",
+ "serde_yaml_ng",
+ "toml 1.1.6+spec-1.1.0",
 ]
 
 [[package]]
@@ -1870,6 +1884,16 @@ name = "libc"
 version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
+
+[[package]]
+name = "libloading"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
+dependencies = [
+ "cfg-if",
+ "windows-link",
+]
 
 [[package]]
 name = "libm"

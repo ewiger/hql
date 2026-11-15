@@ -1,0 +1,42 @@
+# 35. How a library is loaded
+
+`hql` is one program file. An installed package is a second file, built
+later, on another day, perhaps by another person. This chapter is about how
+code in the second file comes to run inside the first: what kind of file a
+library is, the one name `hql` looks up in it, and the rule that makes the
+two files fit.
+
+Nothing here is needed to use a package, and little of it to write one.
+It is what explains the messages a package gives when it is refused, and
+why `hql package rebuild` exists.
+
+## From a crate to a call
+
+![hql package install builds the crate with cargo against the running hql and writes the library, the module root and package.toml. When hql starts it compares the record with itself, opens the library, calls hql_extension_v1, compares the header, and binds the contract to the extension. A program's call then runs the library's function directly.](35-loading.svg)
+
+There are two moments.
+
+**Install**, once per package and again after `hql` is upgraded: `hql
+package install` runs `cargo` on the crate and writes three things into
+the HQL home, the library, the module root and a record of the build.
+
+**Start**, every time `hql` runs: each installed package is read, its
+library is loaded into the process, and its contract is bound to its
+extension. Only then is a program checked.
+
+After that a call to a function of the package costs what a call to a
+standard function costs. The library's function is called directly,
+through a pointer, with no copying and no other process.
+
+## The pages of this chapter
+
+| Page | What it covers |
+| --- | --- |
+| [Static and dynamic libraries](static-and-dynamic.hmd) | how Rust code is linked into one binary, and what a `cdylib` is |
+| [The entry point](the-entry-point.hmd) | `hql_extension_v1`, the header it returns, and the steps of loading |
+| [The version rule](the-version-rule.hmd) | why a library fits one `hql` and one compiler, and every refusal |
+
+## What is next
+
+[[36-installing-packages|Chapter 36]] is the commands: installing,
+listing, rebuilding and removing packages, and the files they keep.

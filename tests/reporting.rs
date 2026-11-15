@@ -2,11 +2,23 @@
 //! diagnostic channel, continuation by phase, and where a mode comes from.
 
 use hql::diagnostics::{self, Diagnostic, Disposition, Kind, Phase, Severity};
+use hql::environment::RunEnvironment;
 use hql::reporting::{Level, Mode, Settings};
-use hql::vault::Vault;
 use hql::{check_reported, run};
 use std::fs;
 use tempfile::tempdir;
+
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
 
 fn axes(diagnostic: &Diagnostic) -> (Phase, Kind, Severity, Disposition) {
     (
@@ -19,7 +31,7 @@ fn axes(diagnostic: &Diagnostic) -> (Phase, Kind, Severity, Disposition) {
 
 #[test]
 fn each_phase_states_its_own_axes() {
-    let parse = run("1 +", &Vault::empty(), Mode::Strict);
+    let parse = run("1 +", &RunEnvironment::bare(), Mode::Strict);
     assert_eq!(
         axes(&parse.diagnostics[0]),
         (
@@ -29,7 +41,7 @@ fn each_phase_states_its_own_axes() {
             Disposition::Fatal
         )
     );
-    let check = run("\"a\" + 1", &Vault::empty(), Mode::Strict);
+    let check = run("\"a\" + 1", &RunEnvironment::bare(), Mode::Strict);
     assert_eq!(
         axes(&check.diagnostics[0]),
         (
@@ -39,7 +51,11 @@ fn each_phase_states_its_own_axes() {
             Disposition::Fatal
         )
     );
-    let execute = run("[1, 0] | map(n => 1 / n)", &Vault::empty(), Mode::Strict);
+    let execute = run(
+        "[1, 0] | map(n => 1 / n)",
+        &RunEnvironment::bare(),
+        Mode::Strict,
+    );
     assert_eq!(
         axes(&execute.diagnostics[0]),
         (
@@ -62,7 +78,7 @@ fn severity_is_not_derived_from_the_phase() {
     // failures, and their producers rate them differently.
     let contract = run(
         "type User { age : Int }\nData(\"{\\\"age\\\": \\\"x\\\"}\", Json) | User",
-        &Vault::empty(),
+        &RunEnvironment::bare(),
         Mode::Strict,
     );
     let read = &contract.diagnostics[0];
@@ -72,7 +88,7 @@ fn severity_is_not_derived_from_the_phase() {
     );
     assert_eq!(read.context.expected.as_deref(), Some("User"));
     assert_eq!(read.context.violations.len(), 1);
-    let division = run("1 / 0", &Vault::empty(), Mode::Strict);
+    let division = run("1 / 0", &RunEnvironment::bare(), Mode::Strict);
     assert_eq!(division.diagnostics[0].severity, Severity::Failure);
 }
 
@@ -82,7 +98,7 @@ fn one_channel_holds_every_phase_in_order() {
     // the warning is not lost when the run fails.
     let outcome = run(
         "fn totalOf(xs : List<Int>) : Int = xs | sum\ntotalOf([1]) / 0",
-        &Vault::empty(),
+        &RunEnvironment::bare(),
         Mode::Strict,
     );
     let order: Vec<(Phase, Kind)> = outcome
@@ -103,7 +119,7 @@ fn one_channel_holds_every_phase_in_order() {
 
 #[test]
 fn a_warning_leaves_the_value_and_the_status() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     let outcome = run("@[[nowhere]]\n1 + 1", &vault, Mode::Strict);
     assert!(outcome.value.is_some());
     assert!(!outcome.failed());
@@ -126,7 +142,7 @@ fn a_warning_leaves_the_value_and_the_status() {
 #[test]
 fn the_loader_writes_skipped_document_and_keeps_the_rest() {
     let directory = tempdir().unwrap();
-    fs::write(directory.path().join("hql.toml"), "").unwrap();
+    fs::write(project_config(directory.path()), "").unwrap();
     fs::write(
         directory.path().join("broken.md"),
         "---\ntitle: [unclosed\n---\n# Broken\n",
@@ -137,7 +153,7 @@ fn the_loader_writes_skipped_document_and_keeps_the_rest() {
         "---\ntitle: Fine\n---\n# Fine\n",
     )
     .unwrap();
-    let vault = hql::vault::load(directory.path()).unwrap();
+    let vault = hql::environment::load(directory.path()).unwrap();
     let outcome = run("cards | size", &vault, Mode::Strict);
     assert_eq!(
         outcome.value.as_ref().map(|value| value.to_string()),
@@ -160,11 +176,11 @@ fn the_loader_writes_skipped_document_and_keeps_the_rest() {
 #[test]
 fn collect_steps_past_an_element_and_stops_at_an_overflow() {
     let source = "[6, 0, 3] | map(n => 6 / n)";
-    let strict = run(source, &Vault::empty(), Mode::Strict);
+    let strict = run(source, &RunEnvironment::bare(), Mode::Strict);
     assert!(strict.value.is_none());
     assert_eq!(strict.diagnostics[0].disposition, Disposition::Fatal);
 
-    let collected = run(source, &Vault::empty(), Mode::Collect);
+    let collected = run(source, &RunEnvironment::bare(), Mode::Collect);
     assert_eq!(
         collected.value.as_ref().map(|value| value.to_string()),
         Some("[1, 2]".into())
@@ -178,7 +194,7 @@ fn collect_steps_past_an_element_and_stops_at_an_overflow() {
 
     let overflow = run(
         "[1, 9223372036854775807] | map(n => n + 1)",
-        &Vault::empty(),
+        &RunEnvironment::bare(),
         Mode::Collect,
     );
     assert!(overflow.value.is_none());
@@ -190,7 +206,7 @@ fn collect_steps_past_an_element_and_stops_at_an_overflow() {
 fn a_data_failure_writes_no_diagnostic() {
     let outcome = run(
         "type User { age : Int }\n[{age: 1}, {age: \"x\"}] | map(u => u | validate(User)) | errs() | size",
-        &Vault::empty(),
+        &RunEnvironment::bare(),
         Mode::Strict,
     );
     assert_eq!(
@@ -204,11 +220,11 @@ fn a_data_failure_writes_no_diagnostic() {
 fn strict_stops_at_the_first_error_and_collect_checks_them_all() {
     let source = "a = nosuchthing\nb = alsomissing\nc = stillmissing";
 
-    let strict = check_reported(source, &Vault::empty(), Mode::Strict);
+    let strict = check_reported(source, &RunEnvironment::bare(), Mode::Strict);
     assert_eq!(strict.diagnostics.len(), 1);
     assert_eq!(strict.diagnostics[0].disposition, Disposition::Fatal);
 
-    let collected = check_reported(source, &Vault::empty(), Mode::Collect);
+    let collected = check_reported(source, &RunEnvironment::bare(), Mode::Collect);
     assert_eq!(collected.diagnostics.len(), 3);
     assert!(collected.diagnostics.iter().all(|diagnostic| {
         diagnostic.severity == Severity::Error && diagnostic.disposition == Disposition::Recoverable
@@ -219,7 +235,11 @@ fn strict_stops_at_the_first_error_and_collect_checks_them_all() {
 fn a_statement_that_fails_does_not_cascade_into_the_ones_after_it() {
     // `a` did not check, but it is still bound, so the second statement is
     // reported on its own fault rather than on a missing name.
-    let outcome = check_reported("a = nosuchthing\nb = a + 1", &Vault::empty(), Mode::Collect);
+    let outcome = check_reported(
+        "a = nosuchthing\nb = a + 1",
+        &RunEnvironment::bare(),
+        Mode::Collect,
+    );
     assert_eq!(outcome.diagnostics.len(), 2);
     assert!(outcome.diagnostics[0].message.contains("nosuchthing"));
     assert!(outcome.diagnostics[1].message.contains("addition"));
@@ -227,7 +247,7 @@ fn a_statement_that_fails_does_not_cascade_into_the_ones_after_it() {
 
 #[test]
 fn a_syntax_failure_stops_even_in_collect_mode() {
-    let outcome = check_reported("1 +", &Vault::empty(), Mode::Collect);
+    let outcome = check_reported("1 +", &RunEnvironment::bare(), Mode::Collect);
     assert_eq!(outcome.diagnostics.len(), 1);
     assert_eq!(
         diagnostics::worst(&outcome.diagnostics),
@@ -238,7 +258,11 @@ fn a_syntax_failure_stops_even_in_collect_mode() {
 
 #[test]
 fn a_nearest_name_is_help_and_not_the_message() {
-    let outcome = run("[1, 2] | mapp(n => n)", &Vault::empty(), Mode::Strict);
+    let outcome = run(
+        "[1, 2] | mapp(n => n)",
+        &RunEnvironment::bare(),
+        Mode::Strict,
+    );
     let unknown = &outcome.diagnostics[0];
     assert_eq!(unknown.kind, Kind::UnknownStep);
     assert_eq!(unknown.message, "`mapp` is not a pipeline step");
@@ -249,7 +273,7 @@ fn a_nearest_name_is_help_and_not_the_message() {
 fn a_second_place_is_a_label() {
     let source = "trait T { fn f(self) : Int }\ntype A { x : Int }\n\
                   impl T for A { fn f(self) : Int = 1 }\nimpl T for A { fn f(self) : Int = 2 }\n1";
-    let outcome = run(source, &Vault::empty(), Mode::Strict);
+    let outcome = run(source, &RunEnvironment::bare(), Mode::Strict);
     let duplicate = &outcome.diagnostics[0];
     assert_eq!(duplicate.kind, Kind::DuplicateImplementation);
     assert!(!duplicate.message.contains("byte"), "{}", duplicate.message);
@@ -266,7 +290,11 @@ fn a_tap_observes_the_channel_as_it_is_written() {
     hql::io::tap_diagnostics(move |diagnostic| {
         tapped.lock().unwrap().push(diagnostic.kind);
     });
-    let outcome = run("x = @[[nowhere]]\n1 / 0", &Vault::empty(), Mode::Strict);
+    let outcome = run(
+        "import hmd\nx = @[[nowhere]]\n1 / 0",
+        &RunEnvironment::bare(),
+        Mode::Strict,
+    );
     // The run did not own the channel, so it left it open; the host closes
     // it, and its contents are what the run returned.
     let closed = hql::io::close_diagnostics();
@@ -281,7 +309,7 @@ fn a_tap_observes_the_channel_as_it_is_written() {
 fn a_vault_states_its_own_mode_and_the_query_still_outranks_it() {
     let directory = tempdir().unwrap();
     fs::write(
-        directory.path().join(hql::reporting::CONFIG_FILE),
+        project_config(directory.path()),
         "[report]\nmode = \"collect\"\n",
     )
     .unwrap();
@@ -313,13 +341,13 @@ fn the_shown_level_parses_by_name() {
 fn the_shown_level_comes_from_the_query_then_the_vault() {
     let directory = tempdir().unwrap();
     fs::write(
-        directory.path().join("hql.toml"),
+        project_config(directory.path()),
         "[report]\nlevel = \"info\"\n",
     )
     .unwrap();
     let from_vault = Level::resolve(None, Some(directory.path()));
     assert_eq!(from_vault.severity, Severity::Info);
-    assert!(from_vault.origin.contains("hql.toml"));
+    assert!(from_vault.origin.contains(".hql/config.toml"));
     let from_query = Level::resolve(Some(Severity::Debug), Some(directory.path()));
     assert_eq!(from_query.severity, Severity::Debug);
     assert_eq!(from_query.origin, "this query");

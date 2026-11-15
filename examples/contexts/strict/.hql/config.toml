@@ -1,0 +1,5 @@
+# A project that declines the prelude: every module is imported where it
+# is used.
+
+[modules]
+prelude = false

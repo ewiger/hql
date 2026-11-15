@@ -19,7 +19,7 @@ pub struct SourceDocument {
 /// One snapshot of a source before names and document structure are assigned.
 #[derive(Debug)]
 pub struct Snapshot {
-    /// Source identity, used for document paths and retrieval provenance.
+    /// Source identity, used for retrieval provenance: the vault root.
     pub root: PathBuf,
     /// Documents in this snapshot; assembly does not depend on their order.
     pub documents: Vec<SourceDocument>,
@@ -29,6 +29,11 @@ pub struct Snapshot {
 pub trait VaultSource: Send + Sync {
     /// Read a source snapshot, failing if the source itself is unreadable.
     fn read(&self) -> io::Result<Snapshot>;
+    /// The directory the documents' paths are relative to, where it is not
+    /// the snapshot's root: a vault's namespace root.
+    fn namespace(&self) -> Option<PathBuf> {
+        None
+    }
     /// Extensions enabled by this source.
     fn extensions(&self) -> crate::extensions::Config {
         crate::extensions::Config::default()
@@ -60,19 +65,42 @@ const VAULT_WALK: crate::walk::Walk = crate::walk::Walk {
     hidden: false,
 };
 
-/// Markdown files under a directory, excluding hidden entries.
+/// The cards of a vault on a filesystem, excluding hidden entries.
 pub struct Filesystem {
+    /// The vault root, holding `.hmd/`; or a plain directory read whole.
     root: PathBuf,
+    /// The namespace root: where the cards start.
+    cards: PathBuf,
 }
 
 impl Filesystem {
-    /// Select the directory to read.
-    #[must_use]
-    pub fn new(root: &Path) -> Self {
-        Self {
+    /// Select the vault to read. Its cards are read from its namespace root,
+    /// the directory `wiki` in its `.hmd/config.toml` names, as HyperMarkdown
+    /// reads them; a directory that holds no `.hmd/` is read whole.
+    ///
+    /// # Errors
+    /// The vault's `.hmd/config.toml` is malformed.
+    pub fn new(root: &Path) -> io::Result<Self> {
+        Ok(Self {
+            cards: namespace_root(root)?,
             root: root.to_owned(),
-        }
+        })
     }
+}
+
+/// Where a vault's cards start: `wiki` against the vault root, as
+/// HyperMarkdown's own resolver reads it, or the directory itself where it
+/// holds no `.hmd/`.
+///
+/// # Errors
+/// The vault's `.hmd/config.toml` is malformed.
+pub fn namespace_root(root: &Path) -> io::Result<PathBuf> {
+    if !crate::vault::is_root(root) {
+        return Ok(root.to_owned());
+    }
+    let config = hypermarkdown::Config::read(root)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))?;
+    Ok(config.namespace_root(root))
 }
 
 impl VaultSource for Filesystem {
@@ -87,7 +115,17 @@ impl VaultSource for Filesystem {
         // are known by the time their documents come up.
         let mut documents = Vec::new();
         let mut nested: Vec<PathBuf> = Vec::new();
-        crate::walk::walk::<io::Error>(&self.root, VAULT_WALK, &mut |listed| {
+        if !self.cards.is_dir() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "the cards location {} does not exist; set `wiki` in {}",
+                    self.cards.display(),
+                    self.root.join(".hmd").join("config.toml").display()
+                ),
+            ));
+        }
+        crate::walk::walk::<io::Error>(&self.cards, VAULT_WALK, &mut |listed| {
             if nested
                 .iter()
                 .any(|vault| listed.relative.starts_with(vault))
@@ -95,7 +133,7 @@ impl VaultSource for Filesystem {
                 return Ok(true);
             }
             if listed.stat.kind == crate::walk::Kind::Folder
-                && crate::vault::is_root(&self.root.join(&listed.relative))
+                && crate::vault::is_root(&self.cards.join(&listed.relative))
             {
                 nested.push(listed.relative);
                 return Ok(true);
@@ -104,7 +142,7 @@ impl VaultSource for Filesystem {
                 && let Some(format) = Format::of(&listed.relative)
             {
                 documents.push(SourceDocument {
-                    text: std::fs::read_to_string(self.root.join(&listed.relative)),
+                    text: std::fs::read_to_string(self.cards.join(&listed.relative)),
                     path: listed.relative,
                     format,
                 });
@@ -117,19 +155,14 @@ impl VaultSource for Filesystem {
         })
     }
 
-    fn extensions(&self) -> crate::extensions::Config {
-        crate::extensions::Config::read(&self.root)
+    fn namespace(&self) -> Option<PathBuf> {
+        Some(self.cards.clone())
     }
 
+    // A directory of documents configures its index, which is the vault's
+    // own (HQL-0059); modules, renderers and endpoints are a project's, and
+    // the project is taken apart from the documents.
     fn semantics(&self) -> crate::extensions::semantic::Semantics {
         crate::extensions::semantic::Semantics::read(&self.root)
-    }
-
-    fn formats(&self) -> Result<crate::extensions::format::Renderers, String> {
-        crate::extensions::format::Renderers::read(&self.root)
-    }
-
-    fn endpoints(&self) -> Result<crate::endpoints::Endpoints, String> {
-        crate::endpoints::Endpoints::read(&self.root)
     }
 }

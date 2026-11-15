@@ -1,6 +1,8 @@
 # HQL-0040: `io.fs`: paths, folders, globs and entries
 
 **Status**: implemented
+**Extended by**: [[HQL-0059]] (the source directory and the working
+directory: `fs.source_dir()` and `fs.working_dir()`)
 **Created**: 2026-10-23
 **Source**: [[HQL-0021]], whose non-goals exclude
 directory listing and file metadata, and the sorted walk of

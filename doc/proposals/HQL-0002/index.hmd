@@ -1,6 +1,10 @@
 # HQL-0002: Semantic retrieval over a precomputed embedding index
 
 **Status**: implemented
+**Superseded in part by**: [[HQL-0059]] (the index lives in the vault's
+`.hmd/`, is configured in `.hmd/config.toml`, and is HyperMarkdown's;
+retrieval is part of the `hmd` module; the producer is HyperMarkdown's
+`hmd-semantics`, and the index is specified by HyperMarkdown's HMD-0028)
 **Created**: 2026-09-18
 **Source**: [[requirements/semantic-search|semantic-search requirements]]
 
@@ -118,7 +122,7 @@ index = ".hql/index.sqlite"
 ```
 
 - With no `[semantics] index`, `semantic` MUST be a name error naming both the
-  missing configuration and `hql-semantics build`.
+  missing configuration and `hmd-semantics build`.
 - If `index_meta.vault` names a different vault than the one loaded, `semantic`
   MUST refuse rather than rank against a corpus it was not built for.
 
@@ -190,7 +194,7 @@ CREATE TABLE query (
 The `query` table is what makes the rest of this proposal implementable. A
 consumer with no model cannot embed a document *or* a question, and inventing a
 vector for one would be exactly the silent wrongness the split exists to avoid.
-So the producer embeds the queries too — `hql-semantics build --query "…"`,
+So the producer embeds the queries too — `hmd-semantics build --query "…"`,
 repeatable — and `semantic` looks one up. A query the index has no vector for
 MUST be a failure naming that command, and MUST NOT be answered with a ranking
 of nothing.
@@ -283,12 +287,12 @@ needs. `#![forbid(unsafe_code)]` binds this crate and is unaffected.
 it, and `cargo test` MUST NOT require it.
 
 ```text
-hql-semantics build   --vault DIR --out PATH [--offline]
+hmd-semantics build   --vault DIR --out PATH [--offline]
                       [--provider local|http] [--model NAME] [--revision REV]
                       [--endpoint URL] [--api-key-env VAR] [--dimensions N]
                       [--query TEXT]... [--built-at STAMP]
-hql-semantics verify  --vault DIR --index PATH    # exit 1 when stale
-hql-semantics inspect --index PATH
+hmd-semantics verify  --vault DIR --index PATH    # exit 1 when stale
+hmd-semantics inspect --index PATH
 ```
 
 - Default model `sentence-transformers/all-MiniLM-L6-v2`, `384` dimensions,
@@ -481,7 +485,7 @@ Integration tests MUST include:
 
 - the three paraphrase pairs
 - `semantic` with no configured index failing with a name error naming
-  `hql-semantics build`
+  `hmd-semantics build`
 - `cargo test` passing on a machine with no Python
 - a vault carrying a full `[semantics.embedder]` table still answering, with its
   provenance taken from the index
@@ -530,3 +534,7 @@ cd contrib/semantics && pytest
   of a unit vector is not a unit vector
 - 2026-10-19: implemented; the `lexical` and `semantic` extensions, the SQLite
   index reader and the `contrib/semantics/` producer are built as specified
+- 2026-11-15: the producer left `contrib/semantics/` for HyperMarkdown's
+  `tools/hmd-semantics`, command `hmd-semantics`; this record's paths under
+  `contrib/semantics/`, `hql.toml` and `.hql/index.sqlite` describe the
+  layout before [[HQL-0059]]

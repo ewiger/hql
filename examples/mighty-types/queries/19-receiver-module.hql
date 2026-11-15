@@ -2,7 +2,7 @@
 // implementation: implemented
 // environment: pure
 // modules: mighty-types/lib
-// feature: A workspace receiver module written in HQL
+// feature: A project receiver module written in HQL
 // expected-type: List<String>
 // expected-json: ["HELLO WORLD!","al","true","HI!"]
 

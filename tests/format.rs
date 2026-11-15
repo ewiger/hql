@@ -1,17 +1,29 @@
 //! `format` writes a value as text of a presentation format, and a vault's
-//! `hql.toml` chooses which renderer writes a type in a format.
+//! `.hql/config.toml` chooses which renderer writes a type in a format.
 
+use hql::environment::RunEnvironment;
 use hql::reporting::Mode;
 use hql::types::Value;
-use hql::vault::Vault;
 use std::path::Path;
 
-fn fixture() -> Vault {
-    hql::vault::load(Path::new("tests/fixtures/vault")).unwrap()
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
+
+fn fixture() -> RunEnvironment {
+    hql::environment::load(Path::new("tests/fixtures/vault")).unwrap()
 }
 
 /// The text a query writes and the name of its format type.
-fn written(source: &str, vault: &Vault) -> (String, String) {
+fn written(source: &str, vault: &RunEnvironment) -> (String, String) {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
     match outcome.value {
@@ -22,7 +34,7 @@ fn written(source: &str, vault: &Vault) -> (String, String) {
     }
 }
 
-fn refused(source: &str, vault: &Vault) -> String {
+fn refused(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(outcome.failed(), "{source}");
     format!("{:?}", outcome.diagnostics)
@@ -135,12 +147,12 @@ fn text_of_one_format_is_itself_plain_text_or_a_fence() {
     assert_eq!(format, "Json");
 }
 
-fn configured(toml: &str) -> std::io::Result<Vault> {
+fn configured(toml: &str) -> std::io::Result<RunEnvironment> {
     let directory = tempfile::tempdir().unwrap();
     std::fs::write(directory.path().join("a.hmd"), "# A\n\nSee [[b]].\n").unwrap();
     std::fs::write(directory.path().join("b.hmd"), "# B\n").unwrap();
-    std::fs::write(directory.path().join("hql.toml"), toml).unwrap();
-    hql::vault::load(directory.path())
+    std::fs::write(project_config(directory.path()), toml).unwrap();
+    hql::environment::load(directory.path())
 }
 
 #[test]
@@ -198,7 +210,7 @@ fn expand_traverses_at_least_one_step() {
 fn a_graph_says_why_each_node_is_present() {
     let vault = fixture();
     let (text, _) = written(
-        "import lexical\ncards | lexical(\"bearer token authorization\") | take(2) | expand(depth = 1) | text",
+        "import hmd\ncards | lexical(\"bearer token authorization\") | take(2) | expand(depth = 1) | text",
         &vault,
     );
     assert!(text.contains("(retrieved "), "{text}");

@@ -1,10 +1,10 @@
-//! The `format` extension: writing a value as text in a presentation format.
+//! The `format` module's operations, in `std`: writing a value as text in a presentation format.
 //!
 //! A format is a value of `Format`: `Markdown`, `Json`, `D2` and the rest.
 //! `format(x, F)` applies the encoder for `x`'s type in `F` and gives the
 //! encoded text, a `String` a later step may read. A renderer is one of a
 //! format's encoders for one shape, `Graph` or `Table`; which one writes a
-//! type in a format is chosen per vault in `hql.toml`, over built-in
+//! type in a format is chosen per project in `.hql/config.toml`, over built-in
 //! defaults. The model is stated in
 //! [presentation](../../doc/wiki/hql/presentation.hmd).
 
@@ -109,7 +109,7 @@ pub fn format_named(name: &str) -> Option<TypeConstructor> {
         .map(|(format, _)| TypeConstructor(format))
 }
 
-/// Which renderer a vault chose for a type in a format, read from `hql.toml`:
+/// Which renderer a vault chose for a type in a format, read from `.hql/config.toml`:
 ///
 /// ```toml
 /// [format.Graph]
@@ -741,7 +741,7 @@ fn written(
         let whole = Value::list(values, traversal.element.clone());
         return written(cx, &whole, format, limit, renderer, span);
     }
-    let text = render(input, format, limit, renderer, &cx.vault().formats)
+    let text = render(input, format, limit, renderer, &cx.environment().formats)
         .map_err(|message| Diagnostic::runtime(span, message))?;
     Ok(Value::Formatted(Arc::new(Formatted { text, format })))
 }

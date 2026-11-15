@@ -1,0 +1,5 @@
+# The workspace the book's chapters on extensions run in. `[packages] paths`
+# names the crate of the `hello` package, which `hql` builds on first use and
+# loads, so `import hello` resolves here without an install.
+[packages]
+paths = ["../../tests/packages/hello"]

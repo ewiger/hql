@@ -1,0 +1,25 @@
+# The fixture package of `tests/package.rs`, and the worked example of the
+# book's chapter on writing an extension: the smallest crate that is a
+# package. Its name is `hql-ext-` and the package's; its library is a
+# `cdylib`, which `hql` loads; `[package.metadata.hql]` names the package,
+# the modules it provides and the root holding their contracts.
+[package]
+name = "hql-ext-hello"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "HQL package `hello`: the fixture of hql's package tests"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+hql = "0.7"
+
+[package.metadata.hql]
+package = "hello"
+provides = ["hello"]
+modules = "modules"
+
+# A package is its own workspace: it is built from where it is checked out.
+[workspace]

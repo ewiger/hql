@@ -4,10 +4,22 @@
 //! database; the round trips run against the containers of the `hql-demo`
 //! repository.
 
+use hql::environment::RunEnvironment;
 use hql::reporting::Mode;
-use hql::vault::{self, Vault};
 use std::fs;
 use tempfile::{TempDir, tempdir};
+
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
 
 /// The environment variables named below are never set, so no case
 /// connects to anything.
@@ -31,15 +43,15 @@ path = "counts.csv"
 
 const ORDER: &str = "type Order { id : Int, customer : String, total : Decimal }\n";
 
-fn configured() -> (TempDir, Vault) {
+fn configured() -> (TempDir, RunEnvironment) {
     let dir = tempdir().unwrap();
-    fs::write(dir.path().join("hql.toml"), CONFIG).unwrap();
+    fs::write(project_config(dir.path()), CONFIG).unwrap();
     fs::write(dir.path().join("counts.csv"), "species,count\nwren,3\n").unwrap();
-    let vault = vault::load(dir.path()).unwrap();
+    let vault = hql::environment::load(dir.path()).unwrap();
     (dir, vault)
 }
 
-fn refusal(source: &str, vault: &Vault) -> String {
+fn refusal(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(outcome.failed(), "{source} ran");
     outcome
@@ -50,7 +62,7 @@ fn refusal(source: &str, vault: &Vault) -> String {
         .join("\n")
 }
 
-fn checks(source: &str, vault: &Vault) {
+fn checks(source: &str, vault: &RunEnvironment) {
     if let Err(error) = hql::check_in(source, vault) {
         panic!("{source}: {error:?}");
     }
@@ -163,11 +175,11 @@ fn a_malformed_topic_or_table_refuses_the_vault() {
     ] {
         let dir = tempdir().unwrap();
         fs::write(
-            dir.path().join("hql.toml"),
+            project_config(dir.path()),
             format!("[endpoint.db]\n{entry}"),
         )
         .unwrap();
-        let error = vault::load(dir.path()).unwrap_err().to_string();
+        let error = hql::environment::load(dir.path()).unwrap_err().to_string();
         assert!(error.contains(says), "{entry}: {error}");
     }
 }

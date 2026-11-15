@@ -23,7 +23,7 @@ prints each declaration and the doc string's first sentence.
 | [citation](sessions/citation.session) | `hql help round`: a `[[/learn/…]]` citation printed as the page's URL under the binary's version | a URL under `/v{version}/` |
 | [unknown name](sessions/unknown-name.session) | `:help rnge` names `range`, and the session goes on | a message |
 | [unknown name on the command line](sessions/unknown-name-cli.session) | `hql help rnge` exits `1` | a message, exit `1` |
-| [workspace module](sessions/workspace-module.session) | `hql help shelf` and `hql help shelf.pages` under a module root | the module's entry and a function's |
+| [project module](sessions/project-module.session) | `hql help shelf` and `hql help shelf.pages` under a module root | the module's entry and a function's |
 
 [`lib/`](lib/shelf.hql) is a module root, not a set of cases.
 

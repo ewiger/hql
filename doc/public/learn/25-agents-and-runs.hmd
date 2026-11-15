@@ -52,7 +52,7 @@ librarian.tools
 A card is an agent only by saying it is one: `Agent` refuses a card with no
 `agent` table, and an unknown key in it, so a misspelt `max_turn` does not
 quietly select the default. `model` names a key of `[ai.models]` in the vault's
-`hql.toml`, never a provider, so a committed card does not fix a vendor:
+`.hql/config.toml`, never a provider, so a committed card does not fix a vendor:
 
 ```toml
 [ai]
@@ -240,7 +240,7 @@ may happen:
 | `record` | sends what is not recorded yet, and records it |
 | `live` | always sends |
 
-The mode is never read from `hql.toml`, so spending money is always a choice
+The mode is never read from `.hql/config.toml`, so spending money is always a choice
 made on the command line. Record once, and the same program then evaluates
 offline, byte for byte:
 

@@ -1,7 +1,7 @@
 # Endpoints by id
 
 A program that names a file path is tied to one machine's files. A vault
-declares its endpoints in `hql.toml` instead, each under an id, and a program
+declares its endpoints in `.hql/config.toml` instead, each under an id, and a program
 names only the id. The field station of the
 [endpoints examples](https://github.com/ewiger/hql/tree/main/examples/endpoints)
 is such a vault, and the programs on this page run with
@@ -67,8 +67,8 @@ lakehouse. `postgres` and `kafka` are the subject of
 [topics and tables](#topics-and-tables), and `nats`, `nats_jetstream` and
 `spark` of
 [[subjects-and-lakehouses|subjects and lakehouse tables]]. A path resolves against the directory of
-`hql.toml`. The type comes from the configuration, so checking a program
-reads `hql.toml` and opens nothing else.
+`.hql/config.toml`. The type comes from the configuration, so checking a program
+reads `.hql/config.toml` and opens nothing else.
 
 An endpoint read as a declared record decodes each element as the record, as a
 file does, and `tap("id")` gives a finite endpoint one element at a time, as a
@@ -114,7 +114,7 @@ source("postgres://db/birds")
 ```
 
 ```text
-check error[type-mismatch]: "postgres://db/birds" is not an endpoint id: connection details belong in configuration, `[endpoint.<id>]` in hql.toml, and a program names the id
+check error[type-mismatch]: "postgres://db/birds" is not an endpoint id: connection details belong in configuration, `[endpoint.<id>]` in .hql/config.toml, and a program names the id
  --> <expression>:1:8
   |
 1 | source("postgres://db/birds")

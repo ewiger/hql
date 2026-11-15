@@ -274,22 +274,23 @@ fn a_string_size_counts_code_points_not_bytes() {
 }
 
 #[test]
-fn a_string_length_is_refused_naming_size() {
-    for source in [r#""héllo".length()"#, r#""héllo" | length"#] {
-        let refusal = check(source).expect_err(source);
-        let help = refusal.to_json().to_string();
-        assert!(help.contains("`length` is now `size`"), "{source}: {help}");
-    }
-}
-
-#[test]
 fn the_link_operator_builds_an_edge() {
-    assert_eq!(check("@[[alice]] -> @[[bob]]"), Ok(TypeRef::EDGE));
+    // `@[[` is HyperMarkdown's: without `hmd` it is refused, naming it.
+    let refused = check("@[[alice]] -> @[[bob]]").unwrap_err();
+    assert!(
+        refused.message().contains("import hmd"),
+        "{}",
+        refused.message()
+    );
     assert_eq!(
-        check("@[[alice]] -> @[[bob]] { relation: \"parent\" }"),
+        check("import hmd\n@[[alice]] -> @[[bob]]"),
         Ok(TypeRef::EDGE)
     );
-    match eval("@[[alice]] -> @[[bob]]") {
+    assert_eq!(
+        check("import hmd\n@[[alice]] -> @[[bob]] { relation: \"parent\" }"),
+        Ok(TypeRef::EDGE)
+    );
+    match eval("import hmd\n@[[alice]] -> @[[bob]]") {
         Ok(Value::Edge(edge)) => {
             assert_eq!(edge.source, "alice");
             assert_eq!(edge.target, "bob");
@@ -306,8 +307,11 @@ fn a_document_reference_is_written_with_an_at_sign() {
         ("@[[alice#Bio]]", "alice#Bio"),
         ("@[[ A Room of One's Own ]]", "A Room of One's Own"),
     ] {
-        assert_eq!(check(source).unwrap().to_string(), "Option<Card>");
-        match eval(&format!("{source} -> @[[x]]")) {
+        assert_eq!(
+            check(&format!("import hmd\n{source}")).unwrap().to_string(),
+            "Option<Card>"
+        );
+        match eval(&format!("import hmd\n{source} -> @[[x]]")) {
             Ok(Value::Edge(edge)) => assert_eq!(edge.source, target),
             other => panic!("{source}: expected an edge, got {other:?}"),
         }
@@ -361,13 +365,16 @@ fn cards_and_traversal_say_they_need_a_vault_rather_than_finding_nothing() {
 fn generics_are_written_with_angle_brackets() {
     // An angle bracket always means the type world; a square bracket stays
     // value-level. See doc/models/behavior/bind-vs-apply-in-generic-types.hmd.
-    assert_eq!(check("@[[alice]]").unwrap().to_string(), "Option<Card>");
     assert_eq!(
-        check("@[[alice]].header").unwrap().to_string(),
+        check("import hmd\n@[[alice]]").unwrap().to_string(),
+        "Option<Card>"
+    );
+    assert_eq!(
+        check("import hmd\n@[[alice]].header").unwrap().to_string(),
         "Option<Data>"
     );
     assert_eq!(
-        check("x : Option<Card> = @[[alice]]\nx")
+        check("import hmd\nx : Option<Card> = @[[alice]]\nx")
             .unwrap()
             .to_string(),
         "Option<Card>"
@@ -473,15 +480,11 @@ fn a_near_miss_on_a_step_name_is_suggested() {
 }
 
 #[test]
-fn a_retired_step_names_what_replaces_it() {
-    for (source, replacement) in [
-        ("@[[oauth]] | graph", "`Graph`"),
-        ("1 | table", "`Table`"),
-        ("[1] | typed(Int)", "`of_type`"),
-    ] {
+fn a_step_named_as_a_type_names_its_constructor() {
+    for (source, replacement) in [("@[[oauth]] | graph", "`Graph`"), ("1 | table", "`Table`")] {
         let failed = hql::check_in(
             source,
-            &hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap(),
+            &hql::environment::load(std::path::Path::new("tests/fixtures/vault")).unwrap(),
         )
         .expect_err(source);
         assert!(
@@ -499,7 +502,7 @@ fn a_retired_step_names_what_replaces_it() {
 fn an_unimported_step_reports_the_import_rather_than_a_misspelling() {
     let failed = check("1 | lexical(\"anything\")").expect_err("lexical is not imported");
     assert!(
-        failed.message().contains("write `import lexical`"),
+        failed.message().contains("write `import hmd`"),
         "{}",
         failed.message()
     );
@@ -520,7 +523,7 @@ fn an_import_names_a_registered_extension() {
         "{}",
         failed.message()
     );
-    assert_eq!(check("import lexical\n1"), Ok(TypeRef::INT));
+    assert_eq!(check("import hmd\n1"), Ok(TypeRef::INT));
 }
 
 #[test]
@@ -727,7 +730,7 @@ fn a_call_with_a_hole_is_a_function_of_the_arguments_left_open() {
 
 #[test]
 fn a_type_test_that_always_holds_is_a_warning() {
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     let outcome = hql::run(
         "[1, 2] | of_type(Int)",
         &vault,
@@ -792,7 +795,7 @@ fn a_generic_body_relies_only_on_what_its_parameter_promises() {
 
 #[test]
 fn an_alias_is_a_function_whose_types_the_checker_writes() {
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     let signature = |source: &str| {
         let outcome = hql::check_reported(source, &vault, hql::reporting::Mode::Strict);
         assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
@@ -835,7 +838,7 @@ fn an_alias_whose_body_fixes_no_type_is_refused() {
     );
     let input = check("double(x) := x * 2\n1").expect_err("an expression needs its input typed");
     assert!(input.message().contains("annotated"), "{}", input.message());
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     let shadow = hql::run(
         "sum := take(1)\n[1] | sum",
         &vault,

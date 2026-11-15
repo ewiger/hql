@@ -68,7 +68,7 @@ Each term is defined as the implementation has it.
   (`src/graph.rs`). It records the seed and the distance, not a predecessor
   edge, so the prose must not claim that a path can be reconstructed.
 - **Extension.** A registered provider of typed steps. The extensions the
-  binary carries are listed in [[packages]];
+  binary carries are listed in [[status/packages|packages]];
   extensions over SQL databases, JSON and YAML documents, message queues and
   REST APIs are design direction, and are described as such.
 

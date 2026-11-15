@@ -495,7 +495,7 @@ errors
 | sink(stderr, Json)
 ```
 
-They do not need entries in `hql.toml`.
+They do not need entries in `.hql/config.toml`.
 
 Whether a source ends lives in its type, not in separate I/O APIs. A file is
 replayable, so `source(file(p))` is a `Seq<Data>`; standard input arrives
@@ -589,7 +589,7 @@ These are dataflow problems.
 HQL expresses them as dataflow.
 
 ```hql
-import semantic
+import hmd
 
 context =
     cards
@@ -603,7 +603,7 @@ Retrieval is not a terminal operation.
 The result remains ordinary typed data that can continue through filtering, graph traversal, transformation, aggregation and rendering.
 
 ```hql
-import semantic
+import hmd
 
 cards
 | semantic("a creature and its maker")
@@ -738,11 +738,11 @@ with a question; `semantic` ranks them by meaning, against embeddings the vault
 indexes ahead of time:
 
 ```hql
-import semantic
+import hmd
 cards | semantic("a creature and its maker") | take(3) | map(h => h.value.title)
 // ["Frankenstein", "Frankenstein inspires Dune", "Mary Shelley"]
 
-import lexical
+import hmd
 cards | lexical("a creature and its maker") | take(3) | map(h => h.value.title)
 // ["Frankenstein", "Walt Whitman", "Librarian"]
 ```
@@ -752,7 +752,7 @@ rendering continue from it. `expand` grows a graph from the hits, and each node
 records whether it was retrieved or reached:
 
 ```hql
-import semantic
+import hmd
 
 cards
 | semantic("a creature and its maker")
@@ -967,7 +967,7 @@ cards
 The same knowledge can be searched semantically:
 
 ```hql
-import semantic
+import hmd
 
 cards
 | semantic("decisions affecting event delivery")
@@ -977,7 +977,7 @@ cards
 expanded through relationships:
 
 ```hql
-import semantic
+import hmd
 
 cards
 | semantic("event delivery")
@@ -1162,6 +1162,30 @@ cargo build --release
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for changes between releases.
+
+---
+
+## Packages
+
+A package adds modules to HQL: native functions compiled from a Rust crate,
+with the HQL declarations that type them. The official packages live in
+[hql-extensions](https://github.com/ewiger/hql-extensions), whose
+`hql-packages.yaml` is the registry `hql package` reads. `ml`, the first of
+them, fits and predicts with linear and logistic regression and k-means:
+
+```bash
+hql package install ml          # into this project's .hql/packages/
+hql package install --home ml   # into ~/.hql/packages/, for every run
+```
+
+```hql
+import ml
+```
+
+A project declares what it needs under `[packages] dependencies` in
+`.hql/config.toml`, and `lock.toml` pins it; `hql package install` with no
+name installs from the lock. Building a package needs `cargo`. The book's
+Part V, *Extending HQL*, writes one.
 
 ---
 

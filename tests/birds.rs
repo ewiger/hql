@@ -9,14 +9,14 @@
 
 use hql::document::Kind;
 use hql::reporting::Mode;
+use hql::run;
 use hql::types::Value;
-use hql::{run, vault};
 use std::path::Path;
 
 const BIRDS: &str = "tests/fixtures/birds";
 
-fn birds() -> vault::Vault {
-    vault::load(Path::new(BIRDS)).expect("the birds vault loads")
+fn birds() -> hql::environment::RunEnvironment {
+    hql::environment::load(Path::new(BIRDS)).expect("the birds vault loads")
 }
 
 fn text_of(source: &str) -> String {
@@ -39,10 +39,10 @@ fn words(text: &str) -> Vec<String> {
 #[test]
 fn the_corpus_is_large_enough_and_holds_every_card_kind() {
     let vault = birds();
-    assert!(vault.cards.len() >= 40, "{}", vault.cards.len());
+    assert!(vault.cards().len() >= 40, "{}", vault.cards().len());
 
     let relations: Vec<&str> = vault
-        .cards
+        .cards()
         .iter()
         .filter(|card| card.kind == Kind::Relation)
         .map(|card| card.name())
@@ -63,11 +63,11 @@ fn the_corpus_is_large_enough_and_holds_every_card_kind() {
     assert_eq!(unresolved.kind, Kind::Concept);
 
     let with_status = vault
-        .cards
+        .cards()
         .iter()
         .filter(|card| card.metadata.path("status").is_some())
         .count();
-    assert!(with_status > 0 && with_status < vault.cards.len());
+    assert!(with_status > 0 && with_status < vault.cards().len());
 }
 
 #[test]

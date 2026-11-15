@@ -63,7 +63,14 @@ fn every_file_in_a_builtin_package_is_embedded_as_written() {
                 .copied()
                 .collect(),
         ),
-        ("search", library::SEARCH.to_vec()),
+        (
+            "hmd",
+            library::HMD
+                .iter()
+                .copied()
+                .chain([("hmd.prelude", library::HMD_PRELUDE)])
+                .collect(),
+        ),
     ];
     let mut folders: Vec<String> = fs::read_dir("lib")
         .expect("the builtin packages")
@@ -72,10 +79,17 @@ fn every_file_in_a_builtin_package_is_embedded_as_written() {
         .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
         .collect();
     folders.sort_unstable();
-    assert_eq!(folders, ["search", "std"], "one folder per builtin package");
+    assert_eq!(folders, ["hmd", "std"], "one folder per builtin package");
     for (package, embedded) in &packages {
         let mut found = Vec::new();
-        modules_under(&std::path::Path::new("lib").join(package), "", &mut found);
+        // The standard package's modules are named from its folder; `hmd`'s
+        // carry the package's name, `hmd.vault`.
+        let prefix = if *package == "std" { "" } else { package };
+        modules_under(
+            &std::path::Path::new("lib").join(package),
+            prefix,
+            &mut found,
+        );
         for (name, path) in &found {
             let source = embedded
                 .iter()
@@ -92,7 +106,7 @@ fn every_file_in_a_builtin_package_is_embedded_as_written() {
     }
     assert_eq!(
         library::MODULES.len(),
-        library::STD.len() + library::SEARCH.len()
+        library::STD.len() + library::HMD.len()
     );
 }
 
@@ -113,7 +127,7 @@ fn every_module_of_the_standard_library_checks_over_its_own_imports() {
     // module leaning on one it does not import fails here. A package's own
     // prelude does not apply to its own modules, so the library checks with
     // none: each file names what it imports.
-    let mut vault = hql::vault::Vault::empty();
+    let mut vault = hql::environment::RunEnvironment::bare();
     vault.extensions.prelude = false;
     let source_of = |name: &str| {
         library::MODULES
@@ -188,21 +202,6 @@ fn a_step_is_an_aute_and_not_the_other_way() {
     assert!(!TypeRef::AUTE.is(&TypeRef::UNIT));
     let message = refused("fn ran(s: Step) : Int = 1\nfn any(a: Aute) : Int = ran(a)");
     assert!(message.contains("Aute"), "{message}");
-}
-
-#[test]
-fn unit_is_refused_naming_step() {
-    for source in [
-        "fn f(x: Int) : Unit",
-        "fn g(x: Unit) : Int = 1",
-        "type Done { last : Unit }",
-    ] {
-        let message = refused(source);
-        assert!(
-            message.contains("`Unit` is now `Step`"),
-            "{source}: {message}"
-        );
-    }
 }
 
 #[test]
@@ -556,9 +555,10 @@ fn a_function_called_with_the_wrong_number_of_arguments_is_refused() {
 #[test]
 fn every_name_the_binary_provides_follows_its_kind() {
     use hql::naming::{Kind, departure};
-    for extension in hql::extensions::catalogue(&hql::extensions::Config::default()) {
-        assert_eq!(departure(Kind::Extension, extension.name), None);
-        for step in extension.steps {
+    for provider in hql::extensions::catalogue(&hql::extensions::Config::default()) {
+        assert_eq!(departure(Kind::Extension, provider.extension), None);
+        assert_eq!(departure(Kind::Extension, provider.module), None);
+        for step in provider.steps {
             // A step named for a type is that type's constructor, so it is
             // named as the type is: `Logger(stderr, Text, name = "q")`.
             let kind = if hql::types::builtin::constructor(step.name).is_some() {
@@ -570,7 +570,7 @@ fn every_name_the_binary_provides_follows_its_kind() {
         }
     }
     // Every name `lib/std/` declares passes: checking it reports no warning.
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     let outcome = hql::check_reported(&library::source(), &vault, hql::reporting::Mode::Strict);
     let warnings: Vec<_> = outcome
         .diagnostics
@@ -583,7 +583,7 @@ fn every_name_the_binary_provides_follows_its_kind() {
 
 #[test]
 fn a_name_off_its_kinds_convention_is_a_warning_at_the_name() {
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     for (source, name, message) in [
         (
             "birdCards = 1\nbirdCards",
@@ -638,18 +638,18 @@ fn every_external_declaration_has_an_implementation_and_every_implementation_a_d
         let name = *name;
         let provider = catalogue
             .iter()
-            .find(|provider| provider.provides.contains(&name))
+            .find(|provider| provider.module == name)
             .unwrap_or_else(|| {
                 panic!(
                     "lib/{}/mod.hql declares externally, and no extension provides `{name}`",
                     library::path(name)
                 )
             });
-        // A provider of several modules, `core` and `collections`,
-        // implements what all of them declare.
+        // A module lists what it declares, and only that: `core` declares
+        // types alone, and the operations over them are `collections`'s.
         let mut declared: Vec<&str> = contracts
             .iter()
-            .filter(|(module, _)| provider.provides.contains(module))
+            .filter(|(module, _)| *module == name)
             .flat_map(|(_, contract)| contract.iter())
             .map(|declaration| declaration.name.as_str())
             .collect();

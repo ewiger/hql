@@ -82,7 +82,7 @@ host is open.
 
 ## What the HMD extension provides
 
-The extension's job is to turn a workspace on disk into typed documents, and the
+The extension's job is to turn a vault on disk into typed documents, and the
 parsing work already exists. The inspected HyperMarkDown checkout was revision
 `74487940adb82654207cfec4cfd934d03eeee8f9` of
 [ewiger/hypermarkdown](https://github.com/ewiger/hypermarkdown). Paths below
@@ -105,28 +105,12 @@ The repository README identifies the Python tool as canonical and the
 TypeScript core as a second implementation sharing a conformance corpus. There
 is no reason to write another HMD parser in this Rust bootstrap.
 
-## Unresolved transport
+## The resolver HQL uses
 
-The extension can call the canonical Python library to parse and resolve a
-workspace, then expose a versioned projection to Rust through serialization or
-an in-process bridge. That protocol is work to design, not an existing API we
-assume is available. The projection translates each `Document` into a
-language-facing document value, preserving provenance, document structure,
-metadata, namespace context, relation outcomes, and diagnostics.
-
-Reserved header keys can supply known field types; user fields need an explicit
-schema or a deliberate unknown-value policy, and [[type-system]]
-describes the progressive route rather than inferring a complete schema from one
-example. Preserve ambiguity and missing references instead of choosing a
-document silently — HMD treats an unresolved link as a warning on purpose.
-Verify span coordinate conventions with Unicode fixtures before translating
-Python positions into HQL UTF-8 byte diagnostics.
-
-Keep HMD import and resolution rules inside the extension; `.hql` module
-semantics are a separate design, recorded in [[hql/extensions]]. The extension
-should use the HMD conformance corpus plus projection tests. The present core
-has no HMD dependency and no document placeholder.
-
-See [[architecture]], [[hypermarkdown]] for the
-format, [[doc-type]] for the document type, [[card-type]] for the card type and
-[[design-direction]] for what is still open.
+HyperMarkdown publishes its resolver as a Rust library, a Cargo crate in the
+HyperMarkdown repository beside its Python and TypeScript libraries, and the
+three are held to one behavior by the shared conformance corpus. The builtin
+`hmd` package depends on that crate and resolves every document reference
+through it; HQL keeps no resolution rules of its own ([[HQL-0059]]). Until the
+crate is published, `hmd` resolves a reference by name within the vault it
+loaded, and nothing else.

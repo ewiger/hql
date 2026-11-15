@@ -25,7 +25,7 @@ type Event {
 }
 ```
 
-<!-- run: with Event --vault examples/pipelines/shop -->
+<!-- run: with Event --project examples/pipelines/shop -->
 ```hql
 current  : Seq<Event> = source("ledger")
 incoming : Seq<Event> = source("silver_replayed")
@@ -49,7 +49,7 @@ unchanged. An incoming row with a new id would be inserted by the same
 steps, since a group of one keeps its one row. Written back under
 `mode = "replace"`, the table is the merge, in one transaction:
 
-<!-- run: check with Event --vault examples/pipelines/shop -->
+<!-- run: check with Event --project examples/pipelines/shop -->
 ```hql
 current  : Seq<Event> = source("orders_silver")
 incoming : Seq<Event> = source("silver_replayed")

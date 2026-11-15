@@ -1,0 +1,3 @@
+# A project with no vault: a module root, and no `.hmd/` beside it.
+[modules]
+roots = ["lib"]

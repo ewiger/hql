@@ -4,6 +4,18 @@ use std::io::Write;
 use std::process::{Command, Output, Stdio};
 use tempfile::tempdir;
 
+/// The configuration file of a directory that is both a project and a vault,
+/// as a directory holding `hql.toml` once was: `.hql/config.toml` beside
+/// `.hmd/`, both created (HQL-0059).
+#[allow(dead_code)]
+fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+    let dir = dir.as_ref();
+    std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::create_dir_all(dir.join(".hql")).unwrap();
+    dir.join(".hql/config.toml")
+}
+
 const VAULT: &str = "tests/fixtures/vault";
 /// A vault that declines the prelude and configures its own import.
 const CONFIGURED: &str = "tests/fixtures/configured";
@@ -151,7 +163,19 @@ fn json_carries_the_type_the_value_and_the_diagnostics() {
 #[test]
 fn the_vault_is_supplied_from_outside_and_its_absence_is_said_out_loud() {
     let outside = tempdir().unwrap();
+    // Plain HQL has no cards: `hmd` binds them, and names `import hmd`.
     let output = hql_in(outside.path(), &["eval", "cards | count"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr(&output).contains("import hmd"),
+        "{}",
+        stderr(&output)
+    );
+    // With `hmd` and no vault, the refusal names `--vault`.
+    let output = hql_in(
+        outside.path(),
+        &["--import", "hmd", "eval", "cards | count"],
+    );
     assert_eq!(output.status.code(), Some(1));
     assert!(stderr(&output).contains("--vault"), "{}", stderr(&output));
 
@@ -163,15 +187,82 @@ fn the_vault_is_supplied_from_outside_and_its_absence_is_said_out_loud() {
 }
 
 #[test]
+fn a_project_module_that_imports_hmd_activates_it_for_the_run() {
+    // A project and no vault: nothing but an import activates `hmd`.
+    let root = tempdir().unwrap();
+    std::fs::create_dir(root.path().join(".hql")).unwrap();
+    std::fs::write(
+        root.path().join(".hql/config.toml"),
+        "[modules]\nroots = [\"lib\"]\n",
+    )
+    .unwrap();
+    std::fs::create_dir(root.path().join("lib")).unwrap();
+    std::fs::write(
+        root.path().join("lib/notes.hql"),
+        "module notes\nimport hmd\nfn first() : Option<String> = @[[one]].name\n",
+    )
+    .unwrap();
+    // `plain` imports nothing of `hmd` and writes a document reference.
+    std::fs::write(
+        root.path().join("lib/plain.hql"),
+        "module plain\nfn first() : Option<String> = @[[one]].name\n",
+    )
+    .unwrap();
+    // The program writes no `import hmd`; `notes` does, so `hmd` is active
+    // for the run, and the reference in `plain` checks.
+    let output = hql_in(
+        root.path(),
+        &[
+            "eval",
+            "import notes\nimport plain\nnotes.first() == plain.first()",
+        ],
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "true\n");
+    // Without `notes`, no unit of the run imports `hmd`.
+    let output = hql_in(root.path(), &["eval", "import plain\nplain.first()"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr(&output).contains("import hmd"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_run_with_a_vault_has_hmd_active_and_a_bare_run_walks_to_none() {
+    let root = tempdir().unwrap();
+    std::fs::create_dir(root.path().join(".hmd")).unwrap();
+    std::fs::write(root.path().join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::write(root.path().join("one.md"), "# One\n").unwrap();
+    // The vault found by the walk imports `hmd`: no import is written.
+    let output = hql_in(root.path(), &["eval", "cards | count"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "1\n");
+    let output = hql_in(root.path(), &["eval", "@[[one]].name"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "\"one\"\n");
+    // `--bare` walks to no vault, so nothing activates `hmd`.
+    let output = hql_in(root.path(), &["--bare", "eval", "cards | count"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr(&output).contains("import hmd"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn without_the_flag_the_vault_is_the_nearest_marked_directory_above() {
     let root = tempdir().unwrap();
     std::fs::create_dir(root.path().join(".hmd")).unwrap();
+    std::fs::write(root.path().join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     std::fs::write(root.path().join("one.md"), "# One\n").unwrap();
     let deep = root.path().join("notes/deeper");
     std::fs::create_dir_all(&deep).unwrap();
     std::fs::write(deep.join("two.md"), "# Two\n").unwrap();
 
-    let output = hql_in(&deep, &["eval", "cards | count"]);
+    let output = hql_in(&deep, &["--import", "hmd", "eval", "cards | count"]);
     assert!(output.status.success(), "{}", stderr(&output));
     assert_eq!(stdout(&output), "2\n");
 
@@ -194,7 +285,7 @@ fn the_whole_pipeline_runs_from_the_command_line() {
         "--vault",
         VAULT,
         "eval",
-        "import lexical\ncards\n| lexical(\"bearer token authorization\")\n| take(2)\n| expand(depth = 1)\n| text",
+        "import hmd\ncards\n| lexical(\"bearer token authorization\")\n| take(2)\n| expand(depth = 1)\n| text",
     ]);
     assert!(output.status.success(), "{}", stderr(&output));
     let table = stdout(&output);
@@ -525,21 +616,24 @@ fn builtins_and_config_explain_the_surface_and_the_settings() {
         assert!(stdout(&listed).contains(name), "{name}");
     }
     // A flat list stops being true once a name can come from two places, so
-    // help says who supplies each step and whether this vault has it.
+    // help names the module declaring each step, the extension providing
+    // the module, and whether this vault has it.
+    let version = env!("CARGO_PKG_VERSION");
     for provider in [
-        "core",
-        "graph",
-        "format",
-        "always available",
-        "prelude",
-        "imported where it is used",
+        format!("collections (std {version}, always available)"),
+        format!("graph (std {version}, prelude)"),
+        format!("hmd.search.lexical (hmd {version}, imported where it is used)"),
+        format!("io.net (std {version}, imported where it is used)"),
     ] {
-        assert!(stdout(&listed).contains(provider), "{provider}");
+        assert!(stdout(&listed).contains(&provider), "{provider}");
     }
     let configured = stdout(&hql(&["--vault", CONFIGURED, "builtins"]));
-    let version = env!("CARGO_PKG_VERSION");
-    assert!(configured.contains(&format!("lexical {version} (imported by this vault)")));
-    assert!(configured.contains(&format!("format {version} (imported where it is used)")));
+    assert!(configured.contains(&format!(
+        "hmd.search.lexical (hmd {version}, imported by this project)"
+    )));
+    assert!(configured.contains(&format!(
+        "format (std {version}, imported where it is used)"
+    )));
 
     let configured = hql(&["--vault", VAULT, "config"]);
     assert!(stdout(&configured).contains("strict"));
@@ -583,7 +677,7 @@ fn config_reports_the_backend_and_an_unknown_one_fails_every_program() {
     );
     let mapreduce = stdout(&hql(&["--vault", "examples/mapreduce/wiki", "config"]));
     assert!(
-        mapreduce.contains("backend: localhost (from the vault's hql.toml)"),
+        mapreduce.contains("backend: localhost (from the project's .hql/config.toml)"),
         "{mapreduce}"
     );
     let chosen = hql(&["--backend", "localhost", "eval", "1 + 1"]);
@@ -761,7 +855,8 @@ fn config_names_the_level_and_its_origin() {
 
 #[test]
 fn to_names_the_format_a_result_is_written_in() {
-    let graph = "import lexical\ncards | lexical(\"bearer token authorization\") | take(2) | expand(depth = 1)";
+    let graph =
+        "import hmd\ncards | lexical(\"bearer token authorization\") | take(2) | expand(depth = 1)";
     let text = hql(&["--vault", VAULT, "eval", graph]);
     assert!(stdout(&text).contains("(retrieved "), "{}", stdout(&text));
     let json = hql(&["--vault", VAULT, "--to", "json", "eval", graph]);
@@ -832,7 +927,7 @@ fn a_stream_is_written_line_by_line_as_it_arrives() {
 fn render_runs_one_cell_and_reports_every_cell_as_json() {
     let directory = tempdir().unwrap();
     // A document renders only in a vault.
-    std::fs::write(directory.path().join("hql.toml"), "").unwrap();
+    std::fs::write(project_config(directory.path()), "").unwrap();
     let path = directory.path().join("notes.hmd");
     std::fs::write(
         &path,
@@ -893,7 +988,7 @@ fn a_program_outside_every_vault_imports_builtin_modules() {
         String::from_utf8_lossy(&output.stdout).trim(),
         "[true, true]"
     );
-    let unbound = hql_in(dir.path(), &["eval", "cards | size"]);
+    let unbound = hql_in(dir.path(), &["--import", "hmd", "eval", "cards | size"]);
     assert!(!unbound.status.success());
     assert!(String::from_utf8_lossy(&unbound.stderr).contains("needs a vault"));
 }
@@ -909,7 +1004,7 @@ fn boundary_prints_an_endpoints_effective_boundary() {
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("hql.toml"),
+        project_config(dir.path()),
         "[endpoint.ledger]\nkind = \"csv\"\npath = \"ledger.csv\"\nstrictness = \"open\"\n\
          [endpoint.ledger.fields.species]\nname = \"Species Name\"\n\
          [endpoint.ledger.fields.count]\nwrite = false\n",

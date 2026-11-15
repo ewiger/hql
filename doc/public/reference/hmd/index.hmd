@@ -1,0 +1,15 @@
+<!-- hql reference: hmd -->
+# `hmd`
+
+```hql
+module hmd
+```
+
+HyperMarkdown in HQL: the builtin package `hmd`, beside `std`. `hmd` is
+active in a run that has a vault, found at or above the program or named
+with `--vault`, and in a run that imports it, with `import hmd`,
+`--import hmd` or `[modules] import`. While it is active its prelude
+imports `hmd.vault` and `hmd.search`, the host binds `vault`, `cards` and
+`graph`, and a document reference `@[[..]]` resolves. A run with no vault
+and no import of `hmd` has none of these.
+<!-- hql reference: end -->

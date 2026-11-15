@@ -7,6 +7,6 @@
 // kind: type-mismatch
 // severity: error
 
-// The kind in `hql.toml` states the type, so the checker refuses this
+// The kind in `.hql/config.toml` states the type, so the checker refuses this
 // without connecting to a broker.
 source("order_events")

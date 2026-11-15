@@ -1,4 +1,4 @@
-//! Workspace modules: HQL files under a module root, named by their position.
+//! Project modules: HQL files under a module root, named by their position.
 //!
 //! A module root is a namespace boundary, not a module. Under it `foo.hql`
 //! and `foo/mod.hql` are the module `foo`, and `foo/bar.hql` is `foo.bar`; a
@@ -123,10 +123,10 @@ pub(crate) fn declared(
     }
 }
 
-/// A workspace module once checked: what it exports, and the program that
+/// A project module once checked: what it exports, and the program that
 /// evaluates to its functions.
 #[derive(Debug)]
-pub(crate) struct WorkspaceModule {
+pub(crate) struct ProjectModule {
     /// The canonical name, `mighty.geometry`.
     pub name: String,
     /// The receiver pattern of a `module a.b for T` file.
@@ -140,13 +140,17 @@ pub(crate) struct WorkspaceModule {
     pub private_types: Vec<String>,
     /// The checked program whose `fn` statements are the functions.
     pub program: Arc<crate::execution::Program>,
+    /// The module's source directory: the directory holding its file, which
+    /// its relative paths resolve against (HQL-0059). `None` for a written
+    /// module of the standard library, which reads no file.
+    pub source_dir: Option<Arc<std::path::PathBuf>>,
     /// The public traits it declares, by name.
     pub traits: HashMap<String, crate::checker::TraitInfo>,
     /// The implementations it declares.
     pub impls: Vec<crate::checker::ImplInfo>,
 }
 
-/// One exported function of a workspace module, with what the checker needs
+/// One exported function of a project module, with what the checker needs
 /// to apply it from another unit.
 #[derive(Debug, Clone)]
 pub(crate) struct ModuleFunction {

@@ -10,7 +10,7 @@
 [[01-modules|HQL-0024, modules]],
 [[02-imports|imports]] and
 [[09-packages-and-extensions|packages and extensions]],
-[[packages]], `lib/std/io/`, `src/endpoints.rs`
+[[status/packages|packages]], `lib/std/io/`, `src/endpoints.rs`
 
 ## Abstract
 
@@ -132,7 +132,7 @@ A configured kind is named by its module.
 
 A package is the distribution unit and a module the name a program imports;
 one package provides any number of modules
-([[packages]]).
+([[status/packages|packages]]).
 
 - `io` and every module below it MUST be modules of the `std` package. A
   transport is added to HQL by adding a module to `std`, with its
@@ -211,7 +211,7 @@ one package provides any number of modules
    `src/endpoints.rs`. No runtime
    behaviour changes.
 3. Reference pages for the modules, and their rows in
-   [[packages]].
+   [[status/packages|packages]].
 4. A further transport is added by its own issue, under the name this record
    reserves.
 

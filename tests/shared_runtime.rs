@@ -3,11 +3,11 @@
 use hql::{
     data::Data,
     document::Card,
+    environment::RunEnvironment,
     extensions::{Extension, Operation},
     graph::Graph,
     search::{Hit, Ranking, Retrieval},
     types::Value,
-    vault::Vault,
 };
 
 #[test]
@@ -20,20 +20,20 @@ fn runtime_and_extension_boundaries_are_send_and_sync() {
     shared::<Hit>();
     shared::<Ranking>();
     shared::<Retrieval>();
-    shared::<Vault>();
+    shared::<RunEnvironment>();
     shared::<Operation>();
     shared::<Extension>();
 }
 
 #[test]
 fn concurrent_queries_share_a_vault_and_retrieval_provenance() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     std::thread::scope(|scope| {
         let handles: Vec<_> = (0..4)
             .map(|_| {
                 scope.spawn(|| {
                     let outcome = hql::run(
-                        "import lexical\ncards | lexical(\"bearer token\")",
+                        "import hmd\ncards | lexical(\"bearer token\")",
                         &vault,
                         hql::reporting::Mode::Strict,
                     );

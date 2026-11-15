@@ -1,4 +1,4 @@
-//! The `lexical` extension: matching a query against shared spellings.
+//! The `lexical` module's operation, in `search`: matching a query against shared spellings.
 //!
 //! The embedding is a hashed bag of words compared by cosine. It is offline,
 //! deterministic and exact, which is what makes it honest about the one thing
@@ -134,7 +134,7 @@ fn eval_lexical(
         crate::types::TypeRef::CARD,
         Retrieval {
             query: query.to_string(),
-            index: cx.vault().index_name(),
+            index: cx.environment().index_name(),
             model: MODEL.to_owned(),
             revision: env!("CARGO_PKG_VERSION").to_owned(),
             metric: METRIC.to_owned(),

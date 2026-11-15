@@ -1,5 +1,5 @@
-//! Execution contexts through the CLI process (HQL-0025): the mode, the
-//! workspace and the anchor discovery starts from. Every run is isolated
+//! Execution contexts through the CLI process (HQL-0025, HQL-0059): the
+//! mode, the project, the vault and the anchor discovery starts from. Every run is isolated
 //! from the user's own HQL home and the machine's configuration.
 
 use std::fs;
@@ -97,11 +97,11 @@ fn field(report: &str, label: &str) -> String {
 }
 
 #[test]
-fn a_directory_outside_every_workspace_runs_bare() {
+fn a_directory_outside_every_project_runs_bare() {
     let sandbox = Sandbox::new();
     let report = ok(&sandbox.run(&sandbox.tree(), &["context"]));
     assert_eq!(field(&report, "mode"), "bare");
-    assert_eq!(field(&report, "workspace"), "none");
+    assert_eq!(field(&report, "project"), "none");
     assert_eq!(field(&report, "vault"), "none");
     assert_eq!(
         field(&report, "anchor"),
@@ -115,6 +115,7 @@ fn a_program_file_anchors_discovery_wherever_hql_is_run_from() {
     let sandbox = Sandbox::new();
     let vault = sandbox.tree().join("a");
     fs::create_dir_all(vault.join(".hmd")).unwrap();
+    std::fs::write(vault.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     let script = vault.join("b/c/script.hql");
     sandbox.write(&script, "cards | count\n");
     sandbox.write(&vault.join("note.hmd"), "# Note\n");
@@ -122,12 +123,12 @@ fn a_program_file_anchors_discovery_wherever_hql_is_run_from() {
     fs::create_dir_all(&elsewhere).unwrap();
 
     let report = ok(&sandbox.run(&elsewhere, &["context", script.to_str().unwrap()]));
-    assert_eq!(field(&report, "mode"), "vault");
+    assert_eq!(field(&report, "mode"), "bare");
+    assert_eq!(field(&report, "project"), "none");
     assert_eq!(
-        field(&report, "workspace"),
+        field(&report, "vault"),
         format!("{} (discovered from the anchor)", vault.display())
     );
-    assert_eq!(field(&report, "vault"), vault.display().to_string());
     assert_eq!(
         field(&report, "anchor"),
         vault.join("b/c").display().to_string()
@@ -137,76 +138,104 @@ fn a_program_file_anchors_discovery_wherever_hql_is_run_from() {
     // The program runs in the vault it was found in, not the working
     // directory's.
     assert_eq!(
-        ok(&sandbox.run(&elsewhere, &["run", script.to_str().unwrap()])),
+        ok(&sandbox.run(
+            &elsewhere,
+            &["--import", "hmd", "run", script.to_str().unwrap()]
+        )),
         "1\n"
     );
 }
 
 #[test]
-fn hql_toml_alone_is_a_workspace_and_the_nearest_boundary_wins() {
+fn a_project_and_a_vault_are_found_apart_and_the_nearest_project_wins() {
     let sandbox = Sandbox::new();
     let outer = sandbox.tree();
     fs::create_dir_all(outer.join(".hmd")).unwrap();
+    std::fs::write(outer.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    sandbox.write(&outer.join(".hql/config.toml"), "");
     let inner = outer.join("inner");
-    sandbox.write(&inner.join("hql.toml"), "");
+    sandbox.write(&inner.join(".hql/config.toml"), "");
     sandbox.write(&inner.join("src/program.hql"), "1\n");
     let report = ok(&sandbox.run(&outer, &["context", "inner/src/program.hql"]));
-    assert_eq!(field(&report, "mode"), "workspace");
+    assert_eq!(field(&report, "mode"), "project");
     assert!(
-        field(&report, "workspace").starts_with(&inner.display().to_string()),
+        field(&report, "project").starts_with(&inner.display().to_string()),
         "{report}"
     );
-    assert_eq!(field(&report, "vault"), "none");
+    // The vault above the project is still the vault: the two walks are
+    // separate.
+    assert!(
+        field(&report, "vault").starts_with(&outer.display().to_string()),
+        "{report}"
+    );
 }
 
 #[test]
-fn bare_suppresses_discovery_and_conflicts_with_a_named_workspace() {
+fn the_hql_home_is_never_a_project() {
+    let sandbox = Sandbox::new();
+    sandbox.write(&sandbox.home().join(".hql/config.toml"), "");
+    let code = sandbox.home().join("code");
+    fs::create_dir_all(&code).unwrap();
+    let report = ok(&sandbox.run(&code, &["context"]));
+    assert_eq!(field(&report, "mode"), "bare");
+    assert_eq!(field(&report, "project"), "none");
+}
+
+#[test]
+fn bare_suppresses_discovery_and_conflicts_with_a_named_project() {
     let sandbox = Sandbox::new();
     let vault = sandbox.tree();
     fs::create_dir_all(vault.join(".hmd")).unwrap();
+    std::fs::write(vault.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     sandbox.write(&vault.join("note.hmd"), "# Note\n");
     let report = ok(&sandbox.run(&vault, &["--bare", "context"]));
     assert_eq!(field(&report, "mode"), "bare");
-    // A workspace-dependent operation fails in bare mode rather than reading
+    // A vault-dependent operation fails in bare mode rather than reading
     // the working directory as a vault.
-    let bare = sandbox.run(&vault, &["--bare", "cards | count"]);
+    let bare = sandbox.run(&vault, &["--bare", "--import", "hmd", "cards | count"]);
     assert_eq!(bare.status.code(), Some(1));
     assert!(stderr(&bare).contains("needs a vault"), "{}", stderr(&bare));
+    // A run with a vault has `hmd` active: the cards are bound with no
+    // import.
     assert_eq!(ok(&sandbox.run(&vault, &["cards | count"])), "1\n");
+    // A bare run walks to no vault and imports nothing: it has no cards.
+    let plain = sandbox.run(&vault, &["--bare", "cards | count"]);
+    assert_eq!(plain.status.code(), Some(1));
+    assert!(stderr(&plain).contains("import hmd"), "{}", stderr(&plain));
 
-    let conflict = sandbox.run(&vault, &["--bare", "--workspace", ".", "context"]);
+    let conflict = sandbox.run(&vault, &["--bare", "--project", ".", "context"]);
     assert_eq!(conflict.status.code(), Some(2), "{}", stderr(&conflict));
 }
 
 #[test]
-fn an_explicit_workspace_keeps_the_anchor_of_the_file() {
+fn an_explicit_project_keeps_the_anchor_of_the_file() {
     let sandbox = Sandbox::new();
     let repo = sandbox.tree().join("repo");
-    sandbox.write(&repo.join("hql.toml"), "");
-    sandbox.write(&repo.join("src/jobs/hql.toml"), "");
+    sandbox.write(&repo.join(".hql/config.toml"), "");
+    sandbox.write(&repo.join("src/jobs/.hql/config.toml"), "");
     sandbox.write(&repo.join("src/jobs/report.hql"), "1\n");
     let report = ok(&sandbox.run(
         &sandbox.tree(),
         &[
-            "--workspace",
+            "--project",
             repo.to_str().unwrap(),
             "context",
             repo.join("src/jobs/report.hql").to_str().unwrap(),
         ],
     ));
     assert_eq!(
-        field(&report, "workspace"),
-        format!("{} (--workspace)", repo.display())
+        field(&report, "project"),
+        format!("{} (--project)", repo.display())
     );
     assert_eq!(
         field(&report, "anchor"),
         repo.join("src/jobs").display().to_string()
     );
 
-    let unmarked = sandbox.run(&sandbox.tree(), &["--workspace", ".", "context"]);
+    let unmarked = sandbox.run(&sandbox.tree(), &["--project", ".", "context"]);
     assert_eq!(unmarked.status.code(), Some(1));
     assert!(
-        stderr(&unmarked).contains("not a workspace"),
+        stderr(&unmarked).contains("not a project"),
         "{}",
         stderr(&unmarked)
     );
@@ -221,7 +250,7 @@ fn the_context_is_written_as_json() {
     ));
     let document: serde_json::Value = serde_json::from_str(&report).unwrap();
     assert_eq!(document["mode"], "bare");
-    assert_eq!(document["workspace"], serde_json::Value::Null);
+    assert_eq!(document["project"], serde_json::Value::Null);
     assert_eq!(document["cwd"], sandbox.tree().display().to_string());
     assert_eq!(
         document["hql_home"]["path"],
@@ -241,6 +270,7 @@ fn bare_hql_imports_modules_from_the_hql_home_and_hql_path() {
     let sandbox = Sandbox::new();
     let vault = sandbox.tree();
     fs::create_dir_all(vault.join(".hmd")).unwrap();
+    std::fs::write(vault.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     sandbox.write(
         &sandbox.home().join(".hql/modules/greet.hql"),
         &module("greet", "fn one() : Int = 1"),
@@ -298,7 +328,10 @@ fn user_configuration_contributes_in_every_mode_and_names_its_files() {
         &module("units", "fn km(m: Int) : Int = m / 1000"),
     );
     let project = sandbox.tree().join("project");
-    sandbox.write(&project.join("hql.toml"), "[modules]\nroots = [\"src\"]\n");
+    sandbox.write(
+        &project.join(".hql/config.toml"),
+        "[modules]\nroots = [\"src\"]\n",
+    );
     sandbox.write(
         &project.join("src/local.hql"),
         &module("local", "fn base() : Int = 5000"),
@@ -332,12 +365,12 @@ fn user_configuration_contributes_in_every_mode_and_names_its_files() {
             hql_home.join("config.toml").display()
         ),
         format!(
-            "  {} (the workspace's hql.toml)",
-            project.join("hql.toml").display()
+            "  {} (the project's .hql/config.toml)",
+            project.join(".hql/config.toml").display()
         ),
         format!("  {} (user configuration)", hql_home.join("lib").display()),
         format!(
-            "  {} (the workspace's hql.toml)",
+            "  {} (the project's .hql/config.toml)",
             project.join("src").display()
         ),
     ] {
@@ -358,10 +391,13 @@ fn a_malformed_user_configuration_fails_every_run_naming_the_file() {
     );
 }
 
-/// A user configuration with two contexts, one binding a vault.
+/// A user configuration with two contexts, one binding a project that is
+/// also a vault.
 fn with_contexts(sandbox: &Sandbox) -> PathBuf {
     let production = sandbox.root().join("srv/production");
     fs::create_dir_all(production.join(".hmd")).unwrap();
+    std::fs::write(production.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    sandbox.write(&production.join(".hql/config.toml"), "");
     sandbox.write(&production.join("note.hmd"), "# Note\n");
     sandbox.write(
         &sandbox.home().join(".hql/lib/units.hql"),
@@ -371,7 +407,7 @@ fn with_contexts(sandbox: &Sandbox) -> PathBuf {
         &sandbox.home().join(".hql/config.toml"),
         &format!(
             "# my contexts\n\n[context.work.modules]\nroots = [\"lib\"]\n\n\
-             [context.production]\nworkspace = \"{}\"\n",
+             [context.production]\nproject = \"{}\"\n",
             production.display()
         ),
     );
@@ -448,19 +484,31 @@ fn contexts_are_listed_selected_and_shown() {
 }
 
 #[test]
-fn a_context_selected_for_one_invocation_binds_its_workspace() {
+fn a_context_selected_for_one_invocation_binds_its_project() {
     let sandbox = Sandbox::new();
     let production = with_contexts(&sandbox);
     let tree = sandbox.tree();
     let report = ok(&sandbox.run(&tree, &["--context", "production", "context"]));
     assert_eq!(field(&report, "context"), "production (--context)");
-    assert_eq!(field(&report, "mode"), "vault");
+    assert_eq!(field(&report, "mode"), "project");
     assert_eq!(
-        field(&report, "workspace"),
+        field(&report, "project"),
         format!("{} (context `production`)", production.display())
     );
+    // The context binds a project, not a vault: the vault is found apart.
     assert_eq!(
-        ok(&sandbox.run(&tree, &["--context", "production", "cards | count"])),
+        ok(&sandbox.run(
+            &tree,
+            &[
+                "--context",
+                "production",
+                "--vault",
+                production.to_str().unwrap(),
+                "--import",
+                "hmd",
+                "cards | count"
+            ]
+        )),
         "1\n"
     );
     let environment = sandbox
@@ -498,7 +546,7 @@ fn a_context_selected_for_one_invocation_binds_its_workspace() {
 }
 
 #[test]
-fn user_settings_sit_below_the_workspace_and_the_environment() {
+fn user_settings_sit_below_the_project_and_the_environment() {
     let sandbox = Sandbox::new();
     sandbox.write(
         &sandbox.home().join(".hql/config.toml"),
@@ -531,10 +579,13 @@ fn user_settings_sit_below_the_workspace_and_the_environment() {
     );
 
     let project = tree.join("project");
-    sandbox.write(&project.join("hql.toml"), "[report]\nlevel = \"debug\"\n");
+    sandbox.write(
+        &project.join(".hql/config.toml"),
+        "[report]\nlevel = \"debug\"\n",
+    );
     let shown = ok(&sandbox.run(&project, &["config"]));
     assert!(
-        shown.contains("report level: debug (from the vault's hql.toml)"),
+        shown.contains("report level: debug (from the project's .hql/config.toml)"),
         "{shown}"
     );
 
@@ -552,11 +603,12 @@ fn user_settings_sit_below_the_workspace_and_the_environment() {
 }
 
 #[test]
-fn a_host_supplies_the_workspace_and_keeps_the_user_configuration() {
-    use hql::context::{Environment, ExecutionContext, Request, WorkspaceOrigin};
+fn a_host_supplies_the_vault_and_keeps_the_user_configuration() {
+    use hql::context::{Environment, ExecutionContext, Request, Selection};
     let sandbox = Sandbox::new();
     let outer = sandbox.tree();
     fs::create_dir_all(outer.join(".hmd")).unwrap();
+    std::fs::write(outer.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     let hosted = outer.join("hosted");
     sandbox.write(&hosted.join("note.hmd"), "# Note\n");
     sandbox.write(&outer.join("other.hmd"), "# Other\n");
@@ -576,15 +628,17 @@ fn a_host_supplies_the_workspace_and_keeps_the_user_configuration() {
     };
     let request = Request {
         anchor: Some(hosted.join("cards")),
-        host_workspace: Some(hosted.clone()),
+        host_vault: Some(hosted.clone()),
         ..Request::default()
     };
     let context = ExecutionContext::construct(&request, &environment).unwrap();
-    let workspace = context.workspace.as_ref().unwrap();
-    assert_eq!(workspace.root, hosted);
-    assert_eq!(workspace.origin, WorkspaceOrigin::Host);
-    let vault = context.load_workspace().unwrap();
-    assert_eq!(vault.cards.len(), 1);
+    let selected = context.vault.as_ref().unwrap();
+    assert_eq!(selected.root, hosted);
+    assert_eq!(selected.origin, Selection::Host);
+    let mut vault = context.load().unwrap();
+    // A host that supplies a vault injects `import hmd`.
+    vault.host();
+    assert_eq!(vault.cards().len(), 1);
     let outcome = hql::run(
         "import units\n[units.km(2000), cards | count]",
         &vault,

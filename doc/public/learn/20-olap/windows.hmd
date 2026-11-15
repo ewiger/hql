@@ -31,7 +31,7 @@ type Event {
 }
 ```
 
-<!-- run: with Event --vault examples/pipelines/shop -->
+<!-- run: with Event --project examples/pipelines/shop -->
 ```hql
 rows : Seq<Event> = source("silver_replayed")
 rows

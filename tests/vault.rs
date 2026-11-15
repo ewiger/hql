@@ -6,8 +6,8 @@ use hql::types::Value;
 use hql::{run, vault};
 use std::path::Path;
 
-fn fixture() -> vault::Vault {
-    vault::load(Path::new("tests/fixtures/vault")).expect("the fixture vault loads")
+fn fixture() -> hql::environment::RunEnvironment {
+    hql::environment::load(Path::new("tests/fixtures/vault")).expect("the fixture vault loads")
 }
 
 fn value(source: &str) -> Value {
@@ -24,7 +24,7 @@ fn text(source: &str) -> String {
 #[test]
 fn loads_markdown_and_hypermarkdown_alike() {
     let vault = fixture();
-    let names: Vec<&str> = vault.cards.iter().map(|card| card.name()).collect();
+    let names: Vec<&str> = vault.cards().iter().map(|card| card.name()).collect();
     assert_eq!(
         names,
         [
@@ -59,7 +59,7 @@ fn a_declared_relation_is_checked_rather_than_trusted() {
         "the failed claim is kept"
     );
     assert!(
-        vault.warnings.iter().any(|warning| warning
+        vault.warnings().iter().any(|warning| warning
             .origin
             .as_deref()
             .is_some_and(|origin| origin.contains("broken-relation"))),
@@ -198,7 +198,7 @@ fn uplinks_and_downlinks_traverse_one_edge_set_in_two_directions() {
 
 #[test]
 fn lexical_ranks_by_shared_words_and_retains_the_retrieval() {
-    let ranked = value("import lexical\ncards | lexical(\"bearer token authorization\")");
+    let ranked = value("import hmd\ncards | lexical(\"bearer token authorization\")");
     let Value::Ranking(ranking) = &ranked else {
         panic!("expected a ranking, got {ranked:?}")
     };
@@ -215,7 +215,7 @@ fn lexical_ranks_by_shared_words_and_retains_the_retrieval() {
 
     assert_eq!(
         text(
-            "import lexical\ncards | lexical(\"bearer token authorization\") | take(1) | map(h => h.value.name)"
+            "import hmd\ncards | lexical(\"bearer token authorization\") | take(1) | map(h => h.value.name)"
         ),
         "[\"oauth\"]"
     );
@@ -223,7 +223,7 @@ fn lexical_ranks_by_shared_words_and_retains_the_retrieval() {
 
 #[test]
 fn a_new_order_is_not_the_retrieval_order_so_a_sorted_ranking_is_a_sequence() {
-    let query = "import lexical\nranked = cards | lexical(\"bearer token authorization\")\n";
+    let query = "import hmd\nranked = cards | lexical(\"bearer token authorization\")\n";
     let hits = TypeRef::hit(TypeRef::CARD);
     assert_eq!(
         hql::check_in(&format!("{query}ranked | take(1)"), &fixture()),
@@ -278,7 +278,7 @@ fn is_tests_a_type_and_a_filter_by_it_narrows_the_element_type() {
 }
 
 #[test]
-fn a_test_no_value_can_pass_and_the_retired_name_are_refused() {
+fn a_test_no_value_can_pass_is_refused() {
     let vault = fixture();
     let always_false = hql::check_in("1 | is(Card)", &vault).unwrap_err();
     assert!(
@@ -286,18 +286,16 @@ fn a_test_no_value_can_pass_and_the_retired_name_are_refused() {
         "{always_false}"
     );
     let renamed = hql::check_in(
-        "import lexical\ncards | lexical(\"owl\") | map(h => h.card)",
+        "import hmd\ncards | lexical(\"owl\") | map(h => h.card)",
         &vault,
     )
     .unwrap_err();
     assert!(renamed.to_string().contains("`value`"), "{renamed}");
-    let retired = hql::check_in("cards | typed(RelationCard)", &vault).unwrap_err();
-    assert!(retired.to_string().contains("of_type"), "{retired}");
 }
 
 #[test]
 fn an_unrelated_card_is_absent_from_a_ranking_rather_than_last_in_it() {
-    let ranked = value("import lexical\ncards | lexical(\"bearer token authorization\")");
+    let ranked = value("import hmd\ncards | lexical(\"bearer token authorization\")");
     let Value::Ranking(ranking) = &ranked else {
         panic!("expected a ranking")
     };
@@ -308,7 +306,7 @@ fn an_unrelated_card_is_absent_from_a_ranking_rather_than_last_in_it() {
 #[test]
 fn the_whole_pipeline_runs_and_says_why_each_node_is_present() {
     let projected = value(
-        "import lexical\n\
+        "import hmd\n\
          cards\n\
          | lexical(\"bearer token authorization\")\n\
          | take(2)\n\
@@ -437,13 +435,19 @@ fn cards_is_the_vaults_cards_in_the_order_a_sorted_walk_reaches_them() {
 
 #[test]
 fn without_a_vault_there_is_no_vault_and_no_cards() {
-    let failure = hql::check("vault.cards").expect_err("no vault");
+    let failure = hql::check("vault.cards").expect_err("no hmd");
+    assert!(
+        failure.message().contains("`vault` is HyperMarkdown's"),
+        "{}",
+        failure.message()
+    );
+    let failure = hql::check("import hmd\nvault.cards").expect_err("no vault");
     assert!(
         failure.message().contains("`vault` needs a vault"),
         "{}",
         failure.message()
     );
-    let failure = hql::check("cards").expect_err("no vault");
+    let failure = hql::check("import hmd\ncards").expect_err("no vault");
     assert!(
         failure.message().contains("--vault"),
         "{}",
@@ -560,11 +564,17 @@ fn discovery_stops_at_the_nearest_marked_directory() {
     assert_eq!(vault::discover(&deep), None);
 
     std::fs::create_dir(root.join(".hmd")).unwrap();
+    std::fs::write(root.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     assert_eq!(vault::discover(&deep), Some(root.clone()));
     assert_eq!(vault::discover(&root), Some(root.clone()));
 
+    // A project file marks a project, not a vault: the walk passes it.
     let nested = root.join("notes");
-    std::fs::write(nested.join("hql.toml"), "").unwrap();
+    std::fs::create_dir_all(nested.join(".hql")).unwrap();
+    std::fs::write(nested.join(".hql/config.toml"), "").unwrap();
+    assert_eq!(vault::discover(&deep), Some(root.clone()));
+    std::fs::create_dir(nested.join(".hmd")).unwrap();
+    std::fs::write(nested.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     assert_eq!(vault::discover(&deep), Some(nested));
 }
 
@@ -573,23 +583,63 @@ fn a_nested_vault_is_not_part_of_the_vault_around_it() {
     let root = tempfile::tempdir().unwrap();
     let outer = root.path();
     std::fs::create_dir_all(outer.join(".hmd")).unwrap();
+    std::fs::write(outer.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     std::fs::create_dir_all(outer.join("site/.hmd")).unwrap();
+    std::fs::write(outer.join("site/.hmd/config.toml"), "wiki = \".\"\n").unwrap();
     std::fs::create_dir_all(outer.join("site/learn")).unwrap();
     std::fs::create_dir_all(outer.join("wiki")).unwrap();
     std::fs::write(outer.join("wiki/time.hmd"), "# Time").unwrap();
     std::fs::write(outer.join("site/index.hmd"), "# Site").unwrap();
     std::fs::write(outer.join("site/learn/time.hmd"), "# Time, taught").unwrap();
 
-    let names = |vault: &vault::Vault| {
+    let names = |vault: &hql::environment::RunEnvironment| {
         vault
-            .cards
+            .cards()
             .iter()
             .map(|card| card.name().to_owned())
             .collect::<Vec<_>>()
     };
-    assert_eq!(names(&vault::load(outer).unwrap()), ["time"]);
+    assert_eq!(names(&hql::environment::load(outer).unwrap()), ["time"]);
     assert_eq!(
-        names(&vault::load(&outer.join("site")).unwrap()),
+        names(&hql::environment::load(&outer.join("site")).unwrap()),
         ["index", "time"]
+    );
+}
+
+#[test]
+fn the_cards_start_where_wiki_says_and_their_paths_are_relative_to_it() {
+    // HQL issue 0079: a vault's cards are the documents below its namespace
+    // root, and a card's path is written against that root.
+    let root = tempfile::tempdir().unwrap();
+    let vault = root.path();
+    std::fs::create_dir_all(vault.join(".hmd")).unwrap();
+    std::fs::write(vault.join(".hmd/config.toml"), "wiki = \"doc/wiki\"\n").unwrap();
+    std::fs::create_dir_all(vault.join("doc/wiki/birds")).unwrap();
+    std::fs::write(vault.join("README.md"), "# Readme").unwrap();
+    std::fs::write(vault.join("doc/wiki/birds/owl.hmd"), "# Owl").unwrap();
+    std::fs::write(vault.join("doc/wiki/heron.md"), "# Heron").unwrap();
+
+    let loaded = vault::load_documents(vault).unwrap();
+    let paths: Vec<_> = loaded
+        .cards
+        .iter()
+        .map(|card| card.document.path.to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(paths, ["heron.md", "birds/owl.hmd"]);
+    assert_eq!(loaded.root, vault);
+    assert_eq!(
+        loaded.file_of(&loaded.cards[1].document),
+        vault.join("doc/wiki/birds/owl.hmd")
+    );
+}
+
+#[test]
+fn a_vault_whose_cards_location_is_missing_names_the_setting() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(root.path().join(".hmd")).unwrap();
+    let error = vault::load_documents(root.path()).unwrap_err().to_string();
+    assert!(
+        error.contains("doc/wiki does not exist; set `wiki`"),
+        "{error}"
     );
 }

@@ -1,0 +1,3 @@
+# A vault read through `hmd`: every program run here imports it (HQL-0059).
+[modules]
+import = ["hmd"]

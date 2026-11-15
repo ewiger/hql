@@ -8,15 +8,122 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-11-15
+
+### Changed
+
+- **A vault's cards start where its `wiki` says**
+  ([issue 0079](doc/issues/archive/0079-the-namespace-root-of-a-vault.hmd)).
+  HQL reads a vault through HyperMarkdown's `hypermarkdown` crate: the cards
+  are the documents below the namespace root, `wiki` in `.hmd/config.toml`
+  against the vault root, and a card's path and `file_of` are relative to it.
+  `wiki` defaults to `doc/wiki`, as HyperMarkdown defines it, so **a vault
+  that keeps its cards at its root must say `wiki = "."`**; a vault whose
+  cards location does not exist fails to load, naming the setting. A
+  directory a host names that holds no `.hmd/` is still read whole.
+- **`--vault` names the vault root**, the directory holding `.hmd/`. A
+  directory inside a vault that holds no `.hmd/` is refused, naming the vault
+  root above it.
+
+- Projects and vaults are separate
+  ([HQL-0059](doc/proposals/HQL-0059/index.hmd)). A **project** is a
+  directory holding `.hql/config.toml`, which takes every key `hql.toml`
+  took; `hql.toml` is no longer read. A **vault** is a directory holding
+  `.hmd/`. Each is found by its own walk up from the program's source
+  directory, and the HQL home is never a project. `--project` replaces
+  `--workspace`, `--vault` names only the vault, and the named context key
+  `workspace` is `project`. `[extensions] import` and `prelude` are
+  `[modules] import` and `prelude`, and `--import <module>` is the
+  command-line layer of `[modules] import`. A configuration file that
+  states a key its layer does not take fails every run.
+- HyperMarkdown is the builtin package `hmd`, beside `std`. `hmd.vault`
+  holds the vault, and `hmd.search` with `hmd.search.lexical` and
+  `hmd.search.semantic` replaces the `search` package and its modules
+  `lexical` and `semantic`. A run that has a vault, found at or above the
+  program or named with `--vault`, or that imports `hmd`, by `import hmd`,
+  `--import hmd` or `[modules] import`, gets `hmd`'s prelude, the bindings
+  `vault`, `cards` and `graph`, document references `@[[..]]` and vault
+  endpoints; a run with no vault and no import of `hmd` has none of them. `hql render` imports `hmd` into
+  every cell, and reads a vault's `[hql] project` from its
+  `.hmd/config.toml`.
+- The semantic index and its `[semantics]` table live in the vault's
+  `.hmd/`, not the project's configuration. The index producer is no
+  longer `contrib/semantics` in this repository: it is HyperMarkdown's
+  [`hmd-semantics`](https://github.com/ewiger/hypermarkdown/tree/main/tools/hmd-semantics),
+  and the command a refusal names is `hmd-semantics build`.
+- A package is active per run. An import of one of its modules in the
+  program or in a project module the program reaches activates it for
+  every unit of the run, `hmd` included. A project module starts with the
+  imports the program starts with: `std`'s prelude, each active package's
+  prelude, and `[modules] import` with `--import`.
+- In the crate's API, `hql::environment::RunEnvironment` is what a program
+  is checked and run against: the project's configuration and an optional
+  `hql::vault::Vault`, which holds a vault's cards and nothing of a
+  project. `check_in`, `run`, `run_on`, `plan` and `stream` take it,
+  `hql::environment::load` reads a directory as a host does, and
+  `EvalCx::environment()` replaces `EvalCx::vault()`.
+- A relative path resolves against the source directory of the unit naming
+  it, a project module's own directory included, never the working
+  directory.
+
 ### Added
 
+- `fs.source_dir()` and `fs.working_dir()` in `io.fs`: the source directory
+  of the calling unit, and the directory `hql` was started in.
+
+- Packages ([HQL-0057](doc/proposals/HQL-0057/index.hmd), issue 0078). A
+  package is a Cargo crate named `hql-ext-<name>` whose library is an
+  extension: the Rust functions behind the declarations of the modules it
+  provides. `hql package install <name>` builds one the registry of
+  [hql-extensions](https://github.com/ewiger/hql-extensions) lists, and
+  `install --path <dir>` one on this machine, with `cargo` against the
+  running `hql`, and installs it into the project's `.hql/packages/<name>/`,
+  or with `--home` into `~/.hql/packages/<name>/`, declaring it by name in
+  that level's `config.toml` and pinning it in its `lock.toml`;
+  `hql package install` with no name installs every declared package at its
+  pin. `list`, `info`, `search`, `update`, `rebuild`, `remove` and
+  `registry` manage what is installed and what the registry offers, and
+  `hql doctor` and `hql builtins` report it. A run finds packages in
+  `[packages] paths`, then the project, then the HQL home, and refuses a
+  declared package that is not installed. `[packages] paths` in
+  `.hql/config.toml` names the crate of a package under development, built
+  on first use. A program reaches a package's module with `import`, as it
+  reaches a standard one, and `[modules] import` names a package too.
+- A package's prelude: `prelude.hql` at its module root, a list of imports
+  every unit of a run imports while the package is active. A prelude that
+  is no import list, or that imports a module that does not exist, refuses
+  the package.
+- `hql::ext`, the API a package's crate implements an extension against,
+  with `hql::extension!` and `hql::native!`. A library is loaded through
+  the symbol `hql_extension_v1` and held to the `hql` version, the
+  compiler and the type sizes it was built with; one that differs is
+  refused with ``run `hql package rebuild <name>` ``.
+- The book's Part V, [Extending HQL](doc/public/learn/32-functions-and-declarations/index.hmd):
+  functions and declarations, packages and extensions, writing an
+  extension, how a library is loaded, installing packages, the registry
+  and publishing, and the `ml` package.
 - `parse_date`, `parse_datetime` and `parse_instant` take no pattern as
   well: `"1982-05-09".parse_date()` reads the ISO text that `to_date`
   reads, and the same for `DateTime` and `Instant`
   ([HQL-0041](doc/proposals/HQL-0041/index.hmd) part 1, issue 0076).
+- `[extensions] import` in `hql.toml` names a builtin package as well as a
+  module: `import = ["search"]` imports every module the package provides.
 
 ### Changed
 
+- `hql` is built with one exact compiler, pinned in `rust-toolchain.toml`,
+  and records it: a package is built with the compiler of the `hql` that
+  installs it.
+- The binary registers one extension per builtin package, `std` and
+  `search`, each a descriptor with `id`, `abi` and `provides`, in place of
+  one entry per Rust source module
+  ([HQL-0057](doc/proposals/HQL-0057/index.hmd), issue 0049). Visibility is
+  the module's: the diagnostic for a step whose module is not imported now
+  reads `` `mean` is declared in the module `stats`: write `import stats` ``,
+  and an ambiguous call names the modules declaring it, so the population
+  `variance` beside `stats.variance` is qualified `collections.variance`,
+  not `core.variance`. `hql builtins` groups steps by module and names the
+  package beside it, `collections (std 0.7.0, always available)`.
 - A vault no longer holds the documents of a vault nested inside it: a
   folder below the root that carries its own `.hmd/` or `hql.toml` is
   another vault, and `cards` leaves it out, the way discovery stops at the
@@ -1267,7 +1374,9 @@ graph traversal that records why each node is present.
   runnable collection queries, including intentional errors for duplicate keys
   and non-orderable sorted-map keys.
 
-[Unreleased]: https://github.com/ewiger/hql/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/ewiger/hql/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/ewiger/hql/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/ewiger/hql/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/ewiger/hql/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/ewiger/hql/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/ewiger/hql/compare/v0.4.2...v0.5.0

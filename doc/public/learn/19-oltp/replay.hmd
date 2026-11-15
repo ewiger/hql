@@ -17,7 +17,7 @@ type EventData : DataContract = {
 }
 ```
 
-<!-- run: with EventData --vault examples/pipelines/shop -->
+<!-- run: with EventData --project examples/pipelines/shop -->
 ```hql
 route = (raw: Stream<Data>) => raw
 | validate(EventData)
@@ -53,7 +53,7 @@ The other direction is as short. A stream becomes something finite by
 bounding it: `take(n)` for a count, `collect(n)` for batches of a size,
 each batch a `List` every whole-input step of chapter 6 applies to:
 
-<!-- run: check --vault examples/pipelines/shop -->
+<!-- run: check --project examples/pipelines/shop -->
 ```hql
 tap("orders_raw") | take(100) | size
 ```
