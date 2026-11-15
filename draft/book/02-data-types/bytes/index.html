@@ -6945,8 +6945,8 @@ the prelude, so a program writes <code>import encoding</code>:</p>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>[0x68c3a9, 0x68c3a9]
 </code></pre></div>
-<p>Text that is not valid in the encoding is an evaluation error naming the
-encoding and the first invalid position, counted from 0:</p>
+<p>Text that is not valid in the encoding fails when the program runs. The
+error names the encoding and the first invalid position, counted from 0:</p>
 <div class="highlight"><pre><span></span><code>import encoding
 Bytes("68g3", Hex)
 </code></pre></div>

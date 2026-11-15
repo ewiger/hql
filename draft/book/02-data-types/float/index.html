@@ -6764,9 +6764,11 @@
 
 
 <h1 id="float">Float<a class="headerlink" href="#float" title="Permanent link">&para;</a></h1>
-<p>A <code>Float</code> is a 64-bit binary floating-point number, written with the suffix
-<code>f</code>: <code>0.5f</code>, <code>6.02e23f</code>, <code>2f</code>. A number with a decimal point and no suffix is
-a <a href="../decimal/">Decimal</a>. Arithmetic on two <code>Float</code> operands gives a <code>Float</code>:</p>
+<p>A <code>Float</code> is a 64-bit binary floating-point number. Use it for measurements
+and scientific values, where a very small rounding error does not matter. A
+<code>Float</code> is written with the suffix <code>f</code>: <code>0.5f</code>, <code>6.02e23f</code>, <code>2f</code>. A number
+with a decimal point and no suffix is a <a href="../decimal/">Decimal</a>. Arithmetic on
+two <code>Float</code> operands gives a <code>Float</code>:</p>
 <div class="highlight"><pre><span></span><code>7.0f / 2.0f
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>3.5
@@ -6777,10 +6779,11 @@ a little off:</p>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>0.30000000000000004
 </code></pre></div>
-<p>That is why a <code>Float</code> is the wrong type for money; a <code>Decimal</code> holds an
+<p>This is why a <code>Float</code> is the wrong type for money. A <code>Decimal</code> holds an
 amount exactly as it is written.</p>
-<p>An <code>Int</code> and a <code>Float</code> do not mix: <code>1 + 2.0f</code> is a type error, and so is a
-<code>Decimal</code> beside a <code>Float</code>. <code>float</code> and <code>int</code> convert, the second truncating:</p>
+<p>A <code>Float</code> does not mix with an <code>Int</code> or a <code>Decimal</code>: <code>1 + 2.0f</code> is a type
+error. <code>float</code> and <code>int</code> convert between <code>Int</code> and <code>Float</code>, and <code>int</code> drops
+the fraction:</p>
 <div class="highlight"><pre><span></span><code>[1.float() + 2.0f, 3.9f.int().float()]
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>[3.0, 3.0]

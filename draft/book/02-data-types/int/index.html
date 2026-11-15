@@ -6764,8 +6764,9 @@
 
 
 <h1 id="int">Int<a class="headerlink" href="#int" title="Permanent link">&para;</a></h1>
-<p>An <code>Int</code> is a whole number: a signed 64-bit integer. Arithmetic on two <code>Int</code>
-operands gives an <code>Int</code>.</p>
+<p>An <code>Int</code> is a whole number: a signed 64-bit integer. Use it for counts,
+positions, page numbers and years. A number written without a decimal point
+is an <code>Int</code>, and arithmetic on two <code>Int</code> operands gives an <code>Int</code>.</p>
 <div class="highlight"><pre><span></span><code>2 + 3 * 4
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>14
@@ -6790,9 +6791,10 @@ and <code>%</code> is the remainder:</p>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>[1024, 5, -1]
 </code></pre></div>
-<p>An <code>Int</code> is <code>Orderable</code>, so <code>&lt;</code>, <code>&gt;</code>, <code>min</code>, <code>max</code> and <code>sort</code> work on it, and
-it compares only with another <code>Int</code>. <code>float</code> turns it into a
-<a href="../float/">Float</a>, and <code>str</code> into a <a href="../string/">String</a>.</p>
+<p>An <code>Int</code> is <code>Orderable</code>, so <code>&lt;</code>, <code>&gt;</code>, <code>min</code>, <code>max</code> and <code>sort</code> work on it. It
+compares with another <code>Int</code> or with a <a href="../decimal/">Decimal</a>, and with no other
+type. <code>float</code> converts it to a <a href="../float/">Float</a>, and <code>str</code> to a
+<a href="../string/">String</a>.</p>
 
 
 

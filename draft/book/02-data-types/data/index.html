@@ -6963,9 +6963,17 @@
 
 
 <h1 id="data-records-and-lists">Data: records and lists<a class="headerlink" href="#data-records-and-lists" title="Permanent link">&para;</a></h1>
-<p>The values JSON and YAML are made of — records of named fields, lists, and
-scalar leaves — are one type in HQL, <code>Data</code>. This page does with <code>Data</code> what
-<code>jq</code> does with JSON: build it, read into it, reshape it, and write it back out.</p>
+<p><code>Data</code> is the type of a JSON or YAML document: a tree of records, lists and
+scalar leaves. Its shape is not part of its type. A <code>Data</code> value can hold any
+document, and the program finds out what is in it by reading it. Data from
+outside the program arrives as <code>Data</code>, and a program works with it much as
+<code>jq</code> works with JSON: it builds trees, reads into them, reshapes them and
+writes them back out.</p>
+<p>Because the type says nothing about the shape, the checker cannot check much
+about a <code>Data</code> value. Reading a field may find nothing, and a leaf may be any
+scalar. A program that relies on a shape names it in a contract, and from
+that point works with typed values.
+<a href="../#validating-the-data">Validating the data</a> shows how.</p>
 <h2 id="a-tree-of-values">A tree of values<a class="headerlink" href="#a-tree-of-values" title="Permanent link">&para;</a></h2>
 <p>A data literal is written in braces, with a key, a colon and a value per field.
 Values may be scalars, lists, or other records:</p>
@@ -7117,11 +7125,9 @@ table:</p>
 <a href="../../21-a-vault/">chapter 21</a> does, or reads a JSON, YAML or CSV file with
 <code>source</code>, as <a href="../../09-io/source/">chapter 9</a> does.</p>
 <h2 id="what-is-next">What is next<a class="headerlink" href="#what-is-next" title="Permanent link">&para;</a></h2>
-<p>How <code>Data</code> differs from a set and from a map, all three written in braces, is
-<a href="../sets-data-and-maps/">the next page</a>. A <code>Data</code> list is one kind of
-collection. <a href="../../03-collections/">Chapter 3</a> meets
-the others — lists, sets and maps of typed values — and the steps that work on
-all of them.</p>
+<p><a href="../sets-data-and-maps/">Sets, Data and maps</a> tells apart the three kinds of
+value written in braces. <a href="../../03-collections/">Chapter 3</a> covers typed
+collections, and how a contract turns a <code>Data</code> list into one.</p>
 
 
 

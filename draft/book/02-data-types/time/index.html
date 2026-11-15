@@ -7020,7 +7020,7 @@ the date they start from.</p>
 <p>A constructor also takes named parts: <code>Date(year =, month =, day =)</code>,
 <code>DateTime(date, hour =, minute =)</code>, <code>Instant(unix_seconds =)</code> and
 <code>Duration(hours =, minutes =, ...)</code>. Text that does not parse, or a part out
-of range, is an evaluation error naming it:</p>
+of range, fails when the program runs, and the error names it:</p>
 <div class="highlight"><pre><span></span><code>Date(year = 2026, month = 2, day = 30)
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>execute failure[invalid-argument]: year 2026, month 2, day 30 is not a date

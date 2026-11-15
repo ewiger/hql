@@ -6770,8 +6770,9 @@ combine them:</p>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>true
 </code></pre></div>
-<p><code>and</code> and <code>or</code> are connectives of the language, so the right side is
-evaluated only when the left side does not decide the answer.</p>
+<p><code>and</code> and <code>or</code> <strong>short-circuit</strong>: the right side is evaluated only when the
+left side does not already give the answer. <code>false and x</code> is <code>false</code> without
+evaluating <code>x</code>.</p>
 <p>A <code>Bool</code> is not a number, and compares only with another <code>Bool</code>:</p>
 <div class="highlight"><pre><span></span><code>true == 1
 </code></pre></div>
@@ -6788,7 +6789,15 @@ by one:</p>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>"long"
 </code></pre></div>
-<p>A <code>Bool</code> is a <code>Scalar</code> but not <code>Orderable</code>: <code>true &lt; false</code> means nothing.</p>
+<p>A <code>Bool</code> has no order, so <code>&lt;</code> and <code>sort</code> reject it:</p>
+<div class="highlight"><pre><span></span><code>true &lt; false
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>check error[type-mismatch]: `&lt;` requires two values of the same Orderable type, not Bool and Bool
+ --&gt; &lt;expression&gt;:1:1
+  |
+1 | true &lt; false
+  | ^^^^^^^^^^^^
+</code></pre></div>
 
 
 
