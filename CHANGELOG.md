@@ -21,6 +21,13 @@ The language continues to be in active development.
   that keeps its cards at its root must say `wiki = "."`**; a vault whose
   cards location does not exist fails to load, naming the setting. A
   directory a host names that holds no `.hmd/` is still read whole.
+- **A reference resolves as HyperMarkdown resolves it**, through its
+  resolver: a `[[name]]` in a card from that card (by path, named import, the
+  card's folder and each above it, imported folders, then the whole vault),
+  and `@[[name]]` in a program from the namespace root. A name two cards
+  share no longer resolves by its stem rule: the nearer card wins, and a
+  search that finds two chooses neither and warns. `owl.hmd` beside `owl.md`:
+  `[[owl]]` is the `.hmd` card, and the other is named `owl.md`.
 - **`--vault` names the vault root**, the directory holding `.hmd/`. A
   directory inside a vault that holds no `.hmd/` is refused, naming the vault
   root above it.

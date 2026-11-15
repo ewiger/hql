@@ -95,7 +95,11 @@ Done on 2026-11-15, for 0.7.0.
   `wiki = "."`, so no path and no hash moved.
 - The corpus case is `examples/projects/shelved`, with two sessions.
 - The VS Code extension passes the vault root as `--vault` from its 0.5.0.
-
-Resolving `@[[...]]` through `Vault::resolve`, the first half of step 1, is
-not done: HQL still names a card by its stem, or its path where stems
-collide. It moved to issue 0080.
+- Every reference resolves through `hypermarkdown::Vault::resolve`, over the
+  same documents HQL loads: a `[[name]]` in a card from that card, by path,
+  named import, the spine, imported directories and autodiscovery, and
+  `@[[name]]` in a program from the namespace root. An ambiguous reference
+  names no card and is a warning listing the candidates; an unresolved one
+  stays a forward reference. A card a `.hmd` file shadows is named with its
+  extension, `owl.md`. `hmd lint` and `hql` name the same card for every
+  reference.

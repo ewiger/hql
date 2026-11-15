@@ -61,6 +61,17 @@ impl RunEnvironment {
         self.vault.as_ref()?.resolve(name)
     }
 
+    /// The card a reference written in a program names, as HyperMarkdown
+    /// resolves it from the namespace root.
+    ///
+    /// # Errors
+    /// The reference is ambiguous: its candidates.
+    pub fn reference(&self, written: &str) -> Result<Option<Arc<Card>>, Vec<String>> {
+        self.vault
+            .as_ref()
+            .map_or(Ok(None), |vault| vault.reference(written))
+    }
+
     /// The edges leaving a node of the vault.
     #[must_use]
     pub fn uplinks(&self, name: &str) -> Vec<&Edge> {

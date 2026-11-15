@@ -435,9 +435,24 @@ impl Evaluator<'_> {
                 }
                 Ok(Value::Data(Arc::new(data)))
             }
-            Kind::DocRef(name) => match self.env.resolve(name) {
-                Some(card) => Ok(Value::Present(Arc::new(Value::Card(card)))),
-                None => {
+            Kind::DocRef(name) => match self.env.reference(name) {
+                Ok(Some(card)) => Ok(Value::Present(Arc::new(Value::Card(card)))),
+                Err(candidates) => {
+                    // HyperMarkdown chooses none of several cards, so neither
+                    // does HQL; qualifying the reference is the remedy.
+                    self.warn(Diagnostic::warning(
+                        crate::diagnostics::Phase::Execute,
+                        crate::diagnostics::Kind::UnresolvedLink,
+                        span,
+                        format!(
+                            "`@[[{name}]]` matches {} cards; qualify it (candidates: {})",
+                            candidates.len(),
+                            candidates.join(", ")
+                        ),
+                    ));
+                    Ok(Value::Absent(TypeRef::CARD))
+                }
+                Ok(None) => {
                     // Permitted: a forward link to a document nobody has
                     // written yet. Said out loud, because absence is easy to
                     // mistake for a match.
