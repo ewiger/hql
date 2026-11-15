@@ -54,7 +54,7 @@ then the archive.
 | todo    | 7      |
 | doing   | 5      |
 | done    | 1      |
-| archive | 60     |
+| archive | 61     |
 <!-- /hql:output -->
 
 ## Board
@@ -84,7 +84,7 @@ range(0, depth)
 <!-- hql:output hash=fc2c6467e9c1 status=ok -->
 | backlog                                                                                        | todo                                                               | doing                                                                    | done                                       |
 | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------ |
-| 0075 Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events | 0079 HQL reads cards from the vault root, not the namespace root   | 0078 Packages: `hql-extensions`, `hql package`, and the `ml` extension   | 0072 Release 0.6.0: fix, finish, tidy, tag |
+| 0075 Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events | 0080 A reference resolves to the card HyperMarkdown resolves it to | 0078 Packages: `hql-extensions`, `hql package`, and the `ml` extension   | 0072 Release 0.6.0: fix, finish, tidy, tag |
 | 0074 Time columns read and written against a live PostgreSQL and Spark                         | 0069 Transports: the core of HQL-0047 and HQL-0048                 | 0077 The knowledge base is hyper-markdown                                |                                            |
 | 0073 Computation plans: align HQL-0056 with the computation life cycle                         | 0063 The result of a write: `Unit` is the wrong answer             | 0054 The website is for HQL users                                        |                                            |
 | 0071 Key vaults: `crypto.keyvault` and its backends                                            | 0058 A value read from a card loses where it came from             | 0046 Renovate `lib/std/**` under the module, package and extension model |                                            |
@@ -108,6 +108,7 @@ issues
 <!-- hql:output hash=b0018109fe7b status=ok -->
 | id   | title                                                                                 |
 | ---- | ------------------------------------------------------------------------------------- |
+| 0079 | HQL reads cards from the vault root, not the namespace root                           |
 | 0076 | `parse_date` and its peers read ISO text without a pattern                            |
 | 0070 | The HQL book catches up with the general-purpose leap                                 |
 | 0067 | `crypto`: keys, signatures, encryption and a key vault                                |

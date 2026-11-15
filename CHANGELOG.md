@@ -8,6 +8,8 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-11-15
+
 ### Changed
 
 - **A vault's cards start where its `wiki` says**
@@ -1372,7 +1374,9 @@ graph traversal that records why each node is present.
   runnable collection queries, including intentional errors for duplicate keys
   and non-orderable sorted-map keys.
 
-[Unreleased]: https://github.com/ewiger/hql/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/ewiger/hql/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/ewiger/hql/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/ewiger/hql/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/ewiger/hql/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/ewiger/hql/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/ewiger/hql/compare/v0.4.2...v0.5.0

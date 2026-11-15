@@ -1165,6 +1165,30 @@ See [CHANGELOG.md](CHANGELOG.md) for changes between releases.
 
 ---
 
+## Packages
+
+A package adds modules to HQL: native functions compiled from a Rust crate,
+with the HQL declarations that type them. The official packages live in
+[hql-extensions](https://github.com/ewiger/hql-extensions), whose
+`hql-packages.yaml` is the registry `hql package` reads. `ml`, the first of
+them, fits and predicts with linear and logistic regression and k-means:
+
+```bash
+hql package install ml          # into this project's .hql/packages/
+hql package install --home ml   # into ~/.hql/packages/, for every run
+```
+
+```hql
+import ml
+```
+
+A project declares what it needs under `[packages] dependencies` in
+`.hql/config.toml`, and `lock.toml` pins it; `hql package install` with no
+name installs from the lock. Building a package needs `cargo`. The book's
+Part V, *Extending HQL*, writes one.
+
+---
+
 ## Learn HQL
 
 The full language documentation is at:
