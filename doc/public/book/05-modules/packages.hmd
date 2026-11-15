@@ -1,8 +1,24 @@
 # Modules and packages
 
-A program imports **modules**. Modules reach a machine in **packages**, and
-the functions a module declares without a body are implemented by an
-**extension**. This page names those units and the two kinds of package.
+A program imports **modules**. Modules are distributed and installed in
+**packages**. Some functions in a module are declared in HQL but implemented
+in Rust, by the package's **extension**. When you only write programs, you
+deal with modules. Packages matter when you install code someone else wrote.
+
+```d2
+direction: down
+
+program: "program\nimport ml.metrics" {shape: page}
+module: "module ml.metrics\nwhat import names" {style.fill: "#eef6ee"}
+package: "package ml\nmodules + extension\ninstalled with hql package install" {style.fill: "#eef6ee"}
+extension: "extension\nRust code for the declarations\nwritten without a body" {style.fill: "#f6efe6"}
+library: "library\nlibhql_ext_ml.dylib\nloaded when hql starts" {style.fill: "#f6efe6"}
+
+program -> module: "imports"
+module -> package: "provided by exactly one"
+package -> extension: "carries one"
+extension -> library: "compiled to"
+```
 
 ## Four units
 
@@ -13,15 +29,15 @@ the functions a module declares without a body are implemented by an
 | extension | the native code of a package: the implementations of the declarations its modules write without a body | `std`, `ml` |
 | library | the compiled file an installed package's extension is loaded from | `libhql_ext_ml.dylib` |
 
-A program never names a package. `import regex` names the module, and which
-package provides it is settled by the environment the program runs in. Each
-module has exactly one provider: an extension, or HQL itself when every
+A program never names a package. `import regex` names the module, and the
+packages installed where the program runs determine which one provides it.
+Each module has exactly one provider: a package, or HQL itself when every
 declaration in the module has a body.
 
-A package carries one extension, named as the package is. A declaration
-such as `fn trim(self) : String` has no body in HQL; the package's
-extension supplies it, and `hql` checks the two against each other before
-the first program runs.
+A package carries one extension, with the same name as the package. A
+declaration such as `fn trim(self) : String` has no body in HQL. The
+package's extension implements it, and `hql` checks that every such
+declaration has an implementation before any program runs.
 
 ## Builtin packages
 
@@ -40,9 +56,9 @@ each module, `collections (std 0.7.0, always available)`
 
 ## Installable packages
 
-An **installable** package is installed on its own. Its extension is built
-into a library on your machine, and `hql` loads the library when it
-starts, so that a program imports the package's modules as it imports a
+An **installable** package is installed separately. Its extension is built
+into a library on your machine, and `hql` loads the library when it starts.
+A program then imports the package's modules the same way it imports a
 standard one:
 
 ```sh

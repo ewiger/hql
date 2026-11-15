@@ -1,9 +1,35 @@
 # How names resolve
 
-Every module is an **import unit**: one scope in which its imports take effect
-and its names resolve. A program is an import unit of its own, the **program
-module**. An import makes a module visible in the importing unit and nowhere
-else.
+When a program writes `lower("ABC")`, the checker must find the one
+declaration `lower` refers to. It may be the program's own function, a
+function of an imported module, or a prelude function. The rules are fixed,
+so a name always resolves to the same declaration, whatever order things are
+written in.
+
+Every module is an **import unit**: one scope in which its imports apply and
+its names resolve. A program is an import unit of its own, the **program
+module**. An import makes a module visible in the unit that imports it, and
+nowhere else.
+
+```d2
+direction: down
+
+name: "a name in a unit\nlower(\"ABC\")" {shape: page}
+own: "declared by this unit?" {shape: diamond}
+imported: "how many imports declare it?" {shape: diamond}
+
+unit: "the unit's own declaration" {style.fill: "#eef6ee"}
+one: "the imported declaration" {style.fill: "#eef6ee"}
+none: "check error\nunknown-name" {style.stroke: "#b23b3b"}
+many: "check error\nambiguous: qualify it,\nstring.lower(...)" {style.stroke: "#b23b3b"}
+
+name -> own
+own -> unit: "yes"
+own -> imported: "no"
+imported -> one: "one"
+imported -> none: "none" {style.stroke: "#b23b3b"; style.stroke-dash: 5}
+imported -> many: "two or more" {style.stroke: "#b23b3b"; style.stroke-dash: 5}
+```
 
 ## Imports are per unit
 
@@ -43,25 +69,24 @@ check error[unknown-name]: `lower` is this unit's own function, which takes no `
   | ^^^^^^^^^^^^^
 ```
 
-A unit owns its own names, so a module that later gains a declaration of the
-same name cannot take one away from it. Which declaration wins does not
-depend on the order the declarations are written in.
+Because the unit's own declaration always wins, adding a function to an
+imported module never changes what an existing program calls. The order in
+which declarations are written does not matter either.
 
 ## Two imports, one name
 
-Two imported declarations of one name, neither the unit's own, are an
-**ambiguity**, and the call naming them is a name error. Qualifying the call
-resolves it, `titles.initials(s)` or `string.split(s, ",")`; the order of the
-imports never decides.
+When two imported modules declare the same name and the unit declares none,
+the name is **ambiguous**, and a call that uses it is a check error. Write
+the module name to choose one: `titles.initials(s)` or
+`string.split(s, ",")`. The order of the imports never decides.
 
 ## A module is a closure
 
-A free name in a module resolves through the module's own declarations and
-its own imports, and through nothing else. A module never sees the program
-module, and no module imports it. The bindings the host seeds into a program
-— `vault`, `cards`, `stdin`, `stdout` and the rest — are not bound in a
-module. What a module needs from a program reaches it as a parameter, a
-function argument or a trait bound:
+A name in a module resolves through the module's own declarations and its
+own imports, and nothing else. A module never sees the program that imports
+it. The bindings `hql` provides to a program, such as `vault`, `cards`,
+`stdin` and `stdout`, are not bound in a module. What a module needs from a
+program must be passed in, as a parameter:
 
 ````hql
 module club.shelf
@@ -69,15 +94,17 @@ module club.shelf
 fn books(cards: Seq<Card>) : Seq<Card> = cards | filter(c => c.metadata.category == "book")
 ````
 
-A program calls it with its own cards, `shelf.books(cards)`. A module
-written this way checks once, and means the same in every program that
-imports it.
+A program calls it with its own cards, `shelf.books(cards)`. A module written
+this way is checked once, and behaves the same in every program that imports
+it.
 
 ## Imports form no cycle
 
-The import graph is acyclic: an import that closes a cycle is a name error,
-and the diagnostic names the cycle. The module name tree is not a dependency graph —
-`club` and `club.reading` see nothing of each other unless one imports the
-other. A child may import its parent; a parent importing its child is
-warned at the import. Two modules that need each other are resolved by moving
-the shared part into a module both import.
+Imports cannot form a cycle. An import that would close one is an error, and
+the error names the modules in the cycle. Two modules that need
+each other are fixed by moving the shared part into a third module that both
+import.
+
+Module names form a tree, but the tree is not a dependency graph: `club` and
+`club.reading` see nothing of each other unless one imports the other. A
+child may import its parent. A parent that imports its child gets a warning.

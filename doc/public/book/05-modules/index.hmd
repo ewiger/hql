@@ -1,31 +1,58 @@
 # 5. Modules
 
-A **module** is a named unit of declarations — functions, types, traits and
-bindings — kept in a file of its own. A program reaches a module's
-declarations by importing it. This page writes a module and imports it; the
-pages after it cover receiver modules, visibility, and how a name resolves.
+A program of a few lines can keep everything in one file. Once several
+programs need the same functions, or a team shares them, the functions need
+a home of their own. A **module** is that home: a named file of declarations
+(functions, types, traits and bindings) that programs import.
+
+A module is also a contract. Its public declarations, with their types, are
+what every importer relies on. The rest is marked `private` and can change
+without breaking anyone. The checker checks every use of a module against
+that contract before the program runs: a call to a function the module does
+not export, or with the wrong arguments, is a check error.
+
+The standard library is built the same way. `"Dune".upper()` calls a function
+of the module `string`, and `import regex` imports a standard module as a
+program imports its own.
+
+```d2
+direction: down
+
+file: "lib/club/reading.hql\nmodule club.reading" {
+  shape: page
+  style.fill: "#f6efe6"
+}
+module: "module club.reading\npublic: days, days_for_all\nprivate: rounded_up" {
+  style.fill: "#eef6ee"
+}
+program: "program\nimport club.reading\nreading.days(412, 40)" {
+  shape: page
+}
+
+file -> module: "its place under the module root lib/\ngives its name"
+module -> program: "import makes the public\ndeclarations visible as reading"
+```
 
 ## A module is a file under a module root
 
-A project module is an HQL file under a **module root**, named by its
-position under the root: `lib/club/reading.hql` is the module `club.reading`,
-and `lib/club/mod.hql` would be `club`. The roots come from `.hql/config.toml`:
+A project module is an HQL file under a **module root**. Its name is its
+path under the root: `lib/club/reading.hql` is the module `club.reading`, and
+`lib/club/mod.hql` would be `club`. The roots come from `.hql/config.toml`:
 
 ```toml
 [modules]
 roots = ["lib"]
 ```
 
-or from `--modules lib` on the command line. The reading-club's project configures
-`lib/` as its root, and keeps the book's modules there. Roots outside every
-project come from the user's `~/.hql/modules/`, from `[modules] roots` in
-`~/.hql/config.toml`, and from `$HQL_PATH`; the
-[[13-working-with-hql#the-execution-context|execution context]] lists
-them all. A module provided under two roots is an error, whichever layers
-the roots come from.
+or from `--modules lib` on the command line. The reading club's project
+uses `lib/` as its root, and keeps the book's modules there. Roots that apply
+outside any project come from `~/.hql/modules/`, from `[modules] roots` in
+`~/.hql/config.toml`, and from `$HQL_PATH`. The
+[[13-working-with-hql#the-execution-context|execution context]] lists them
+all. A module found under two roots is an error.
 
-Every module file opens with its name, which is checked against the file's
-place under its root. This is `lib/club/reading.hql`:
+Every module file starts with its name, and the checker compares the name
+with the file's path under its root. This is `lib/club/reading.hql`:
 
 ````hql
 /// Reading plans: how long a book takes at a number of pages a day.
@@ -43,9 +70,9 @@ fn days_for_all(shelf: List<Int>, per_day: Int) : Int {
 }
 ````
 
-A `///` line is a doc string: it documents the declaration after it, and
+A `///` line is a **doc string**. It documents the declaration after it, and
 `hql help club.reading` prints it. `private` keeps `rounded_up` inside the
-module, which [[visibility]] covers.
+module; [[visibility|Visibility]] covers this.
 
 ## Importing a module
 
@@ -74,7 +101,8 @@ plan.days(412, 40)
 11
 ```
 
-A module's function is a value like any other, and takes holes:
+A module's function is a value like any other, and can be partially
+applied:
 
 ```hql
 import club.reading
@@ -86,8 +114,8 @@ import club.reading
 [11, 7]
 ```
 
-Imports sit at the head of a source unit, before its declarations and
-expressions. Two imports may not share a local name:
+Imports come first in a file, before its declarations and expressions. Two
+imports cannot use the same local name:
 
 ```hql
 import club.reading
@@ -103,7 +131,7 @@ check error[unknown-name]: `reading` already names the module `club.reading` her
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
-A module that is not imported is not visible, however it is spelled:
+A module that is not imported cannot be used:
 
 ```hql
 reading.days(412, 40)
@@ -119,9 +147,9 @@ check error[unknown-name]: `reading` is not bound
 
 ## The standard modules
 
-The standard library is modules of the same kind. The **prelude** is the
-list of modules every program imports without writing it: `string`, `seq`,
-`math`, `option` and `result`, among others. `"a,b".split(",")` calls the
+The standard library is made of modules of the same kind. The **prelude** is
+the list of modules every program imports without writing an `import`:
+`string`, `seq`, `math`, `option` and `result`, among others. `"a,b".split(",")` calls the
 prelude's `string.split`. Other standard modules are imported by name:
 
 ```hql
@@ -136,7 +164,7 @@ regex.split("a1b22c", "[0-9]+")
 
 The [[reference]] has a page per standard module.
 
-## The pages of this chapter
+## In this chapter
 
 | Page | What it covers |
 | --- | --- |
@@ -147,5 +175,5 @@ The [[reference]] has a page per standard module.
 
 ## What is next
 
-With functions and modules in hand, [[06-sql-like-queries|chapter 6]]
-asks the questions SQL asks: where, order by, group by, and the aggregates.
+[[06-sql-like-queries|Chapter 6]] uses functions over collections to ask
+the questions SQL asks: where, order by, group by, and the aggregates.
