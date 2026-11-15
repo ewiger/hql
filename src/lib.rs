@@ -1,10 +1,12 @@
 //! HQL — Hyper Query Language: a typed language for querying and computing
 //! over structured knowledge.
 //!
-//! The core is pure and names no source. A [`vault::Vault`] is one source of
-//! documents, supplied from outside; a program without one still runs, and
-//! anything needing a vault says so rather than pretending to have found
-//! nothing.
+//! The core is pure and names no source. A program is checked and run
+//! against an [`environment::RunEnvironment`]: the configuration of the HQL
+//! project, and a [`vault::Vault`] when the run has one. A vault is one
+//! source of documents, supplied from outside; a program without one still
+//! runs, and anything needing a vault says so rather than pretending to have
+//! found nothing.
 //!
 //! Running a program yields an [`Outcome`]: a value, and the contents of the
 //! run's diagnostic channel (HQL-0045). The diagnostics come back beside the
@@ -45,6 +47,7 @@ pub mod diagnostics;
 pub mod docs;
 pub mod document;
 pub mod endpoints;
+pub mod environment;
 pub mod ext;
 pub mod extensions;
 pub mod graph;
@@ -65,9 +68,9 @@ pub mod types;
 pub mod vault;
 
 use diagnostics::{Diagnostic, Disposition, Kind, Phase, Severity};
+use environment::RunEnvironment;
 use reporting::Mode;
 use types::{TypeRef, Value};
-use vault::Vault;
 
 /// What running a program produced: a value, if one survived, and the run's
 /// diagnostics.
@@ -98,12 +101,12 @@ struct Run {
 }
 
 impl Run {
-    fn open(vault: &Vault) -> Self {
+    fn open(env: &RunEnvironment) -> Self {
         let owner = io::open_diagnostics();
         // The loader ran before this run: what it wrote is the first thing on
         // the channel, unless a host already wrote it there.
         if owner {
-            for diagnostic in &vault.warnings {
+            for diagnostic in env.warnings() {
                 io::write_diagnostic(diagnostic.clone());
             }
         }
@@ -142,9 +145,8 @@ fn parsed(source: &str) -> Result<ast::Program, Diagnostic> {
 }
 
 /// Check a program under `strict`, its failure the checker's.
-fn checked(program: &ast::Program, vault: &Vault) -> Result<execution::Program, Diagnostic> {
-    checker::check(program, vault)
-        .map_err(|diagnostic| checked_diagnostic(diagnostic, Mode::Strict))
+fn checked(program: &ast::Program, env: &RunEnvironment) -> Result<execution::Program, Diagnostic> {
+    checker::check(program, env).map_err(|diagnostic| checked_diagnostic(diagnostic, Mode::Strict))
 }
 
 /// A checker's diagnostic: a module's syntax failure keeps its parser's
@@ -168,16 +170,17 @@ fn checked_diagnostic(diagnostic: Diagnostic, mode: Mode) -> Diagnostic {
 ///
 /// Returns the first syntax, type or name failure.
 pub fn check(source: &str) -> Result<TypeRef, Diagnostic> {
-    check_in(source, &Vault::empty())
+    check_in(source, &RunEnvironment::bare())
 }
 
-/// Parse and type-check a program against a vault, without evaluating it.
+/// Parse and type-check a program against a run environment, without
+/// evaluating it.
 ///
 /// # Errors
 ///
 /// Returns the first syntax, type or name failure.
-pub fn check_in(source: &str, vault: &Vault) -> Result<TypeRef, Diagnostic> {
-    checked(&parsed(source)?, vault).map(|program| program.result)
+pub fn check_in(source: &str, env: &RunEnvironment) -> Result<TypeRef, Diagnostic> {
+    checked(&parsed(source)?, env).map(|program| program.result)
 }
 
 /// The steps of the pipeline a program's last expression ends, first to
@@ -190,7 +193,7 @@ pub fn check_in(source: &str, vault: &Vault) -> Result<TypeRef, Diagnostic> {
 ///
 /// Returns the first syntax, type or name failure.
 pub fn pipeline(source: &str) -> Result<Vec<(String, extensions::Shape)>, Diagnostic> {
-    let program = checked(&parsed(source)?, &Vault::empty())?;
+    let program = checked(&parsed(source)?, &RunEnvironment::bare())?;
     let last = program
         .statements
         .iter()
@@ -259,10 +262,10 @@ pub struct PlannedPipeline {
 /// Returns the first syntax, type or name failure.
 pub fn plan(
     source: &str,
-    vault: &Vault,
+    env: &RunEnvironment,
     backend: &backends::Registered,
 ) -> Result<Vec<PlannedPipeline>, Diagnostic> {
-    let program = checked(&parsed(source)?, vault)?;
+    let program = checked(&parsed(source)?, env)?;
     backend.plan(&program);
     let mut planned = Vec::new();
     for statement in &program.statements {
@@ -309,17 +312,14 @@ pub struct InspectedBoundary {
 /// check, the source or the type is unknown, or every boundary error.
 pub fn inspect_boundary(
     types: &str,
-    vault: &Vault,
+    env: &RunEnvironment,
     id: &str,
     element: Option<&str>,
 ) -> Result<InspectedBoundary, String> {
-    let program = checker::check(
-        &parser::parse(types).map_err(|error| error.message())?,
-        vault,
-    )
-    .map_err(|error| error.message())?;
+    let program = checker::check(&parser::parse(types).map_err(|error| error.message())?, env)
+        .map_err(|error| error.message())?;
     types::program::install(std::sync::Arc::clone(&program.lattice));
-    let configured = vault.endpoints.get(id).ok_or_else(|| {
+    let configured = env.endpoints.get(id).ok_or_else(|| {
         format!("no endpoint `{id}` is configured; an endpoint is declared under `[endpoint.<id>]`")
     })?;
     let written = element
@@ -431,10 +431,10 @@ fn planned_steps(end: &execution::Expr) -> (Vec<PlannedStep>, &execution::Expr) 
 /// Returns the first failure producing a value.
 pub fn stream(
     traversal: &traversal::Traversal,
-    vault: &Vault,
+    env: &RunEnvironment,
     mut sink: impl FnMut(Value) -> bool,
 ) -> Result<(), Diagnostic> {
-    evaluation::traverse(traversal, vault, &mut sink)
+    evaluation::traverse(traversal, env, &mut sink)
 }
 
 /// Parse, type-check, then evaluate a program with no vault.
@@ -444,17 +444,17 @@ pub fn stream(
 /// Returns the first failure from any stage.
 pub fn eval(source: &str) -> Result<Value, Diagnostic> {
     let program = parsed(source)?;
-    let program = checked(&program, &Vault::empty())?;
+    let program = checked(&program, &RunEnvironment::bare())?;
     backends::LOCALHOST
-        .run(&program, &Vault::empty(), Vec::new(), Mode::Strict)
+        .run(&program, &RunEnvironment::bare(), Vec::new(), Mode::Strict)
         .0
         .map_err(|diagnostic| produced_by(Phase::Execute, diagnostic))
 }
 
 /// Type-check a program, reporting under a mode.
 #[must_use]
-pub fn check_reported(source: &str, vault: &Vault, mode: Mode) -> Outcome {
-    let run = Run::open(vault);
+pub fn check_reported(source: &str, env: &RunEnvironment, mode: Mode) -> Outcome {
+    let run = Run::open(env);
     let program = match parser::parse(source) {
         Ok(program) => program,
         Err(diagnostic) => {
@@ -462,7 +462,7 @@ pub fn check_reported(source: &str, vault: &Vault, mode: Mode) -> Outcome {
             return run.finish(None, None);
         }
     };
-    let (checked, found) = infer(&program, vault, mode);
+    let (checked, found) = infer(&program, env, mode);
     for diagnostic in found {
         run.write(diagnostic);
     }
@@ -502,24 +502,30 @@ pub fn check_reported(source: &str, vault: &Vault, mode: Mode) -> Outcome {
     run.finish(None, checked.map(|program| program.result))
 }
 
-/// Run a program against a vault under a reporting mode, on `localhost`.
+/// Run a program against a run environment under a reporting mode, on
+/// `localhost`.
 ///
 /// Checking runs over the whole program before anything is evaluated. In
 /// [`Mode::Collect`] every statement is checked even after one fails, so the
 /// channel holds the whole list rather than only the first diagnostic.
 #[must_use]
-pub fn run(source: &str, vault: &Vault, mode: Mode) -> Outcome {
-    run_on(source, vault, mode, backends::Selection::standard())
+pub fn run(source: &str, env: &RunEnvironment, mode: Mode) -> Outcome {
+    run_on(source, env, mode, backends::Selection::standard())
 }
 
-/// Run a program against a vault under a reporting mode, on a selected
-/// backend. The backend receives the checked program and nothing earlier:
-/// parsing and checking have run before it is reached. Every phase writes
+/// Run a program against a run environment under a reporting mode, on a
+/// selected backend. The backend receives the checked program and nothing
+/// earlier: parsing and checking have run before it is reached. Every phase writes
 /// into the run's diagnostic channel, opened here unless a host holds it
 /// open.
 #[must_use]
-pub fn run_on(source: &str, vault: &Vault, mode: Mode, selection: backends::Selection) -> Outcome {
-    let run = Run::open(vault);
+pub fn run_on(
+    source: &str,
+    env: &RunEnvironment,
+    mode: Mode,
+    selection: backends::Selection,
+) -> Outcome {
+    let run = Run::open(env);
     let program = match parser::parse(source) {
         Ok(program) => program,
         Err(diagnostic) => {
@@ -527,7 +533,7 @@ pub fn run_on(source: &str, vault: &Vault, mode: Mode, selection: backends::Sele
             return run.finish(None, None);
         }
     };
-    let (checked, found) = infer(&program, vault, mode);
+    let (checked, found) = infer(&program, env, mode);
     let refused = found.iter().any(Diagnostic::is_error);
     for diagnostic in found {
         run.write(diagnostic);
@@ -540,7 +546,7 @@ pub fn run_on(source: &str, vault: &Vault, mode: Mode, selection: backends::Sele
         run.write(warning.clone());
     }
     let inferred = program.result.clone();
-    let (value, log) = selection.backend.run(&program, vault, Vec::new(), mode);
+    let (value, log) = selection.backend.run(&program, env, Vec::new(), mode);
     for entry in log {
         run.write(produced_by(Phase::Execute, entry));
     }
@@ -557,7 +563,7 @@ pub fn run_on(source: &str, vault: &Vault, mode: Mode, selection: backends::Sele
 /// giving the cell's diagnostics with spans into its body.
 pub(crate) fn check_cell(
     source: &str,
-    vault: &Vault,
+    env: &RunEnvironment,
     mode: Mode,
     bound: &[(String, TypeRef)],
 ) -> (Option<execution::Program>, Vec<Diagnostic>) {
@@ -566,12 +572,12 @@ pub(crate) fn check_cell(
         Err(diagnostic) => return (None, vec![produced_by(Phase::Parse, diagnostic)]),
     };
     let (checked, mut found) = match mode {
-        Mode::Strict => match checker::check_with(&program, vault, bound) {
+        Mode::Strict => match checker::check_with(&program, env, bound) {
             Ok(program) => (Some(program), Vec::new()),
             Err(diagnostic) => (None, vec![checked_diagnostic(diagnostic, mode)]),
         },
         Mode::Collect => {
-            let (checked, found) = checker::check_collecting_with(&program, vault, bound);
+            let (checked, found) = checker::check_collecting_with(&program, env, bound);
             (
                 checked,
                 found
@@ -594,11 +600,11 @@ pub(crate) fn check_cell(
 /// `localhost`.
 pub(crate) fn evaluate_cell(
     program: &execution::Program,
-    vault: &Vault,
+    env: &RunEnvironment,
     bound: Vec<(String, Value)>,
     mode: Mode,
 ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
-    let (value, log) = backends::LOCALHOST.run(program, vault, bound, mode);
+    let (value, log) = backends::LOCALHOST.run(program, env, bound, mode);
     (
         value.map_err(|diagnostic| produced_by(Phase::Execute, diagnostic)),
         log.into_iter()
@@ -609,15 +615,15 @@ pub(crate) fn evaluate_cell(
 
 fn infer(
     program: &ast::Program,
-    vault: &Vault,
+    env: &RunEnvironment,
     mode: Mode,
 ) -> (Option<execution::Program>, Vec<Diagnostic>) {
     let (checked, found) = match mode {
-        Mode::Strict => match checker::check(program, vault) {
+        Mode::Strict => match checker::check(program, env) {
             Ok(program) => (Some(program), Vec::new()),
             Err(diagnostic) => (None, vec![diagnostic]),
         },
-        Mode::Collect => checker::check_collecting(program, vault),
+        Mode::Collect => checker::check_collecting(program, env),
     };
     (
         checked,

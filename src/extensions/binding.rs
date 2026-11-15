@@ -1692,8 +1692,8 @@ mod tests {
         for source in ["[3, 1, 2] | sort", "\"a\".upper()", "1 + 2"] {
             assert!(crate::check(source).is_ok(), "{source}");
         }
-        let vault = crate::vault::Vault::empty();
-        let config = vault.extensions.clone();
+        let env = crate::environment::RunEnvironment::bare();
+        let config = env.extensions.clone();
         let runtime = Runtime::process(&config).unwrap();
         assert!(Arc::ptr_eq(&runtime, &Runtime::process(&config).unwrap()));
         assert!(runtime.resolution.environment().same(before));

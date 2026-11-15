@@ -20,10 +20,10 @@
 
 use crate::ast::{Arg, Expr};
 use crate::diagnostics::Diagnostic;
+use crate::environment::RunEnvironment;
 use crate::execution::{Arg as TypedArg, Expr as TypedExpr};
 use crate::types::TypeRef;
 use crate::types::Value;
-use crate::vault::Vault;
 
 use std::ops::Range;
 use std::path::Path;
@@ -150,8 +150,8 @@ pub type Eval = fn(&mut dyn EvalCx, Value, &[TypedArg], Range<usize>) -> Result<
 /// An argument arrives as unevaluated syntax, because a step such as
 /// `filter(c => …)` applies its argument once per element rather than once.
 pub(crate) trait CheckCx: Send {
-    /// The vault the program is checked against.
-    fn vault(&self) -> &Vault;
+    /// What the program is checked against.
+    fn environment(&self) -> &RunEnvironment;
     /// The configured id a binding holds, where the binding's value is
     /// `configured("id")` (HQL-0051), so a read or a write through the
     /// binding is checked as one by the id.
@@ -180,8 +180,8 @@ pub(crate) trait CheckCx: Send {
 
 /// What evaluating a step may ask of the evaluator around it.
 pub trait EvalCx: Send {
-    /// The vault the program runs against.
-    fn vault(&self) -> &Vault;
+    /// What the program runs against.
+    fn environment(&self) -> &RunEnvironment;
     /// The value of an argument expression.
     fn evaluate(&mut self, expression: &TypedExpr) -> Result<Value, Diagnostic>;
     /// Drive a traversal, handing each value to `sink` until the values run
@@ -1131,12 +1131,12 @@ impl Resolution {
         resolution
     }
 
-    /// What a vault starts every program with: the configured layer of the
+    /// What a run starts every program with: the configured layer of the
     /// process's runtime environment, resolved once per configuration.
     ///
     /// A configured import fails the same way a written one does, at a span
-    /// pointing at the program's start, because the fault is in the vault
-    /// rather than in the line a reader is looking at.
+    /// pointing at the program's start, because the fault is in the
+    /// configuration rather than in the line a reader is looking at.
     pub(crate) fn new(config: &Config) -> Result<Self, Diagnostic> {
         binding::Runtime::process(config).map(|runtime| runtime.resolution.clone())
     }
@@ -1638,7 +1638,7 @@ pub struct Provider {
     pub origin: Origin,
     /// The version that extension reports.
     pub version: &'static str,
-    /// Whether a program in this vault has the module without asking.
+    /// Whether a program of this run has the module without asking.
     pub availability: Availability,
     /// The steps the module declares.
     pub steps: Vec<Listing>,

@@ -632,7 +632,7 @@ fn a_host_supplies_the_vault_and_keeps_the_user_configuration() {
     let mut vault = context.load().unwrap();
     // A host that supplies a vault injects `import hmd`.
     vault.host();
-    assert_eq!(vault.cards.len(), 1);
+    assert_eq!(vault.cards().len(), 1);
     let outcome = hql::run(
         "import units\n[units.km(2000), cards | count]",
         &vault,

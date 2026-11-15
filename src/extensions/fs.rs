@@ -305,7 +305,7 @@ fn walked(
     let full = listed_folder(folder, span)?;
     let mut bounded = Bounded {
         folder,
-        most: cx.vault().endpoints.bounds.max_elements,
+        most: cx.environment().endpoints.bounds.max_elements,
         entries: Vec::new(),
     };
     walk::walk::<Failure>(&full, LISTED, &mut |listed| {
@@ -347,7 +347,7 @@ fn eval_entries(
         .map_err(|error| Diagnostic::io_failure(span.clone(), format!("{folder}: {error}")))?;
     let mut bounded = Bounded {
         folder: &folder,
-        most: cx.vault().endpoints.bounds.max_elements,
+        most: cx.environment().endpoints.bounds.max_elements,
         entries: Vec::new(),
     };
     for listed in &listed {

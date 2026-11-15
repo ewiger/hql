@@ -7,13 +7,13 @@ use crate::traversal::{Source, Traversal};
 use crate::data::Data;
 use crate::diagnostics::Diagnostic;
 use crate::document::Kind as CardKind;
+use crate::environment::RunEnvironment;
 use crate::extensions::{EvalCx, Operation};
 use crate::graph::Edge;
 use crate::reporting::Mode;
 use crate::search;
 use crate::types::TypeRef;
 use crate::types::{Closure, Value};
-use crate::vault::Vault;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Range;
@@ -46,26 +46,26 @@ thread_local! {
 #[cfg(test)]
 pub(crate) fn evaluate(
     program: &Program,
-    vault: &Vault,
+    env: &RunEnvironment,
 ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
-    evaluate_with(program, vault, Vec::new(), Mode::Strict)
+    evaluate_with(program, env, Vec::new(), Mode::Strict)
 }
 
 /// Evaluate a program with further names bound: the values of a document's
 /// other cells.
 pub(crate) fn evaluate_with(
     program: &Program,
-    vault: &Vault,
+    env: &RunEnvironment,
     bound: Vec<(String, Value)>,
     mode: Mode,
 ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
     // Values are read against the declarations they were checked under.
     crate::types::program::install(std::sync::Arc::clone(&program.lattice));
     CONTRACTS.with(|held| held.borrow_mut().clear());
-    let mut scope = base(vault);
+    let mut scope = base(env);
     // The program module's bindings over `vault`, each its own program.
-    for (name, library) in crate::checker::library(vault) {
-        let (value, log) = evaluate_in(&library, vault, base(vault), mode);
+    for (name, library) in crate::checker::library(env) {
+        let (value, log) = evaluate_in(&library, env, base(env), mode);
         match value {
             Ok(value) => {
                 scope.insert(name, value);
@@ -74,7 +74,7 @@ pub(crate) fn evaluate_with(
         }
     }
     scope.extend(bound);
-    evaluate_in(program, vault, scope, mode)
+    evaluate_in(program, env, scope, mode)
 }
 
 /// Drive a stream a program returned, handing each value to `sink` until the
@@ -82,12 +82,12 @@ pub(crate) fn evaluate_with(
 /// arrives.
 pub(crate) fn traverse(
     traversal: &Traversal,
-    vault: &Vault,
+    env: &RunEnvironment,
     sink: &mut dyn FnMut(Value) -> bool,
 ) -> Result<(), Diagnostic> {
     let mut evaluator = Evaluator {
-        vault,
-        scope: base(vault),
+        env,
+        scope: base(env),
         log: Vec::new(),
         impls: Vec::new(),
         mode: Mode::Strict,
@@ -99,7 +99,7 @@ pub(crate) fn traverse(
 }
 
 /// What a host seeds before the library: `vault`, when there is one.
-fn base(vault: &Vault) -> HashMap<String, Value> {
+fn base(env: &RunEnvironment) -> HashMap<String, Value> {
     let mut scope: HashMap<String, Value> = crate::extensions::io::BINDINGS
         .iter()
         .map(|(name, endpoint)| {
@@ -112,7 +112,7 @@ fn base(vault: &Vault) -> HashMap<String, Value> {
     if matches!(crate::io::policy(), crate::io::Policy::Document { .. }) {
         scope.insert("cell".to_owned(), Value::Cell);
     }
-    if vault.is_present() {
+    if env.has_vault() {
         scope.insert(crate::checker::VAULT.to_owned(), Value::Vault(None));
     }
     scope
@@ -120,13 +120,13 @@ fn base(vault: &Vault) -> HashMap<String, Value> {
 
 fn evaluate_in(
     program: &Program,
-    vault: &Vault,
+    env: &RunEnvironment,
     scope: HashMap<String, Value>,
     mode: Mode,
 ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
     crate::io::begin();
     let mut evaluator = Evaluator {
-        vault,
+        env,
         scope,
         log: Vec::new(),
         impls: Vec::new(),
@@ -146,7 +146,7 @@ fn evaluate_in(
 }
 
 struct Evaluator<'a> {
-    vault: &'a Vault,
+    env: &'a RunEnvironment,
     scope: HashMap<String, Value>,
     /// Entries in the order evaluation produced them, which on this
     /// sequential evaluator is the order of their traces.
@@ -435,7 +435,7 @@ impl Evaluator<'_> {
                 }
                 Ok(Value::Data(Arc::new(data)))
             }
-            Kind::DocRef(name) => match self.vault.resolve(name) {
+            Kind::DocRef(name) => match self.env.resolve(name) {
                 Some(card) => Ok(Value::Present(Arc::new(Value::Card(card)))),
                 None => {
                     // Permitted: a forward link to a document nobody has
@@ -621,7 +621,7 @@ impl Evaluator<'_> {
                     {
                         let mut warnings = Vec::new();
                         let read = crate::extensions::io::configured_source(
-                            self.vault,
+                            self.env,
                             id,
                             &expression.ty,
                             at,
@@ -643,7 +643,7 @@ impl Evaluator<'_> {
                     let endpoint = value.clone();
                     let produced = self.step(step, value, arguments, at.clone())?;
                     return crate::extensions::io::decoded(
-                        self.vault,
+                        self.env,
                         &endpoint,
                         produced,
                         &expression.ty,
@@ -810,7 +810,7 @@ impl Evaluator<'_> {
                 ));
             }
         };
-        let system = crate::mutation::shared_system(&participants, self.vault).map_err(failed)?;
+        let system = crate::mutation::shared_system(&participants, self.env).map_err(failed)?;
         // A `TransactionFailure` record, as an `Invalid` is built: its
         // fields in declaration order, the optional ones absent.
         let failure = |kind: &str, reason: String, attempt: i64, detail: Option<String>| {
@@ -1443,7 +1443,16 @@ impl Evaluator<'_> {
                 _ => Err(missing()),
             },
             Value::Vault(configured) => {
-                let vault = configured.as_deref().unwrap_or(self.vault);
+                // The run's own vault, or the configured one loaded for an
+                // endpoint.
+                let vault = configured.as_deref().or(self.env.vault.as_ref());
+                let cards = || -> Vec<Value> {
+                    vault
+                        .into_iter()
+                        .flat_map(|vault| &vault.cards)
+                        .map(|card| Value::Card(Arc::clone(card)))
+                        .collect()
+                };
                 match field {
                     Field::Cards => Ok(match configured {
                         None => Value::Traversal(Arc::new(Traversal::new(
@@ -1453,35 +1462,26 @@ impl Evaluator<'_> {
                         ))),
                         // A configured vault's cards, in the order its sorted
                         // walk gave them, from the snapshot loaded once.
-                        Some(_) => Value::Traversal(Arc::new(Traversal::kept(
-                            TypeRef::CARD,
-                            vault
-                                .cards
-                                .iter()
-                                .map(|card| Value::Card(Arc::clone(card)))
-                                .collect(),
-                        ))),
+                        Some(_) => {
+                            Value::Traversal(Arc::new(Traversal::kept(TypeRef::CARD, cards())))
+                        }
                     }),
                     Field::Name => Ok(text(
                         &vault
-                            .root
-                            .file_name()
+                            .and_then(|vault| vault.root.file_name())
                             .map(|name| name.to_string_lossy().into_owned())
                             .unwrap_or_default(),
                     )),
-                    Field::Root => Ok(text(&vault.root.display().to_string())),
-                    Field::Graph => {
-                        let cards = vault
-                            .cards
-                            .iter()
-                            .map(|card| Value::Card(Arc::clone(card)))
-                            .collect();
-                        crate::extensions::graph::construct(
-                            vault,
-                            Value::list(cards, TypeRef::CARD),
-                            span,
-                        )
-                    }
+                    Field::Root => Ok(text(
+                        &vault
+                            .map(|vault| vault.root.display().to_string())
+                            .unwrap_or_default(),
+                    )),
+                    Field::Graph => crate::extensions::graph::construct(
+                        vault,
+                        Value::list(cards(), TypeRef::CARD),
+                        span,
+                    ),
                     _ => Err(missing()),
                 }
             }
@@ -1510,7 +1510,7 @@ impl Evaluator<'_> {
                     graph
                         .nodes
                         .iter()
-                        .filter_map(|name| self.vault.resolve(name))
+                        .filter_map(|name| self.env.resolve(name))
                         .map(Value::Card)
                         .collect(),
                     TypeRef::CARD,
@@ -1607,7 +1607,7 @@ impl Evaluator<'_> {
             Source::Cards => {
                 // A sorted walk: path components compare one by one, so a
                 // directory's entries follow it in name order, depth first.
-                let mut walk: Vec<_> = self.vault.cards.iter().collect();
+                let mut walk: Vec<_> = self.env.cards().iter().collect();
                 walk.sort_by(|left, right| left.document.path.cmp(&right.document.path));
                 for card in walk {
                     if !sink(self, Value::Card(Arc::clone(card)))? {
@@ -2230,8 +2230,8 @@ impl Evaluator<'_> {
 }
 
 impl EvalCx for Evaluator<'_> {
-    fn vault(&self) -> &Vault {
-        self.vault
+    fn environment(&self) -> &RunEnvironment {
+        self.env
     }
 
     fn traverse(

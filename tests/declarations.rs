@@ -127,7 +127,7 @@ fn every_module_of_the_standard_library_checks_over_its_own_imports() {
     // module leaning on one it does not import fails here. A package's own
     // prelude does not apply to its own modules, so the library checks with
     // none: each file names what it imports.
-    let mut vault = hql::vault::Vault::empty();
+    let mut vault = hql::environment::RunEnvironment::bare();
     vault.extensions.prelude = false;
     let source_of = |name: &str| {
         library::MODULES
@@ -585,7 +585,7 @@ fn every_name_the_binary_provides_follows_its_kind() {
         }
     }
     // Every name `lib/std/` declares passes: checking it reports no warning.
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     let outcome = hql::check_reported(&library::source(), &vault, hql::reporting::Mode::Strict);
     let warnings: Vec<_> = outcome
         .diagnostics
@@ -598,7 +598,7 @@ fn every_name_the_binary_provides_follows_its_kind() {
 
 #[test]
 fn a_name_off_its_kinds_convention_is_a_warning_at_the_name() {
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     for (source, name, message) in [
         (
             "birdCards = 1\nbirdCards",

@@ -16,6 +16,7 @@ use super::spec::{ArgumentSpec, OperationSpec, Output as O, TypeParameter, TypeP
 use super::{EvalCx, Operation, Purity, named_or_first};
 use crate::diagnostics::Diagnostic;
 use crate::document::Card;
+use crate::environment::RunEnvironment;
 use crate::execution::Arg as TypedArg;
 use crate::search::{self, Retrieval};
 use crate::types::Value;
@@ -111,8 +112,8 @@ fn eval_semantic(
         return Err(wrong("semantic", "a collection of cards", &span));
     }
 
-    let path = configured(cx.vault(), &span)?;
-    let index = Index::open(&path, cx.vault(), &span)?;
+    let (vault, path) = configured(cx.environment().vault.as_ref(), &span)?;
+    let index = Index::open(&path, vault, &span)?;
     let asked = index.query(&query, &span)?;
 
     let mut scored = Vec::new();
@@ -186,26 +187,28 @@ pub struct Check {
 /// A card the index has no current vector for is reported after the chain
 /// holds: queries still answer, and the ranking says which cards it skipped.
 #[must_use]
-pub fn doctor(vault: &Vault) -> Vec<Check> {
+pub fn doctor(env: &RunEnvironment) -> Vec<Check> {
     let mut checks = Vec::new();
     let mut check = |part, ok, detail: String| {
         checks.push(Check { part, ok, detail });
         ok
     };
-    if !check(
-        "vault",
-        vault.is_present(),
-        if vault.is_present() {
-            format!("{} ({} cards)", vault.root.display(), vault.cards.len())
-        } else {
-            "no vault: run inside one or pass --vault <directory>".to_owned()
-        },
-    ) {
+    let Some(vault) = &env.vault else {
+        check(
+            "vault",
+            false,
+            "no vault: run inside one or pass --vault <directory>".to_owned(),
+        );
         return checks;
-    }
+    };
+    check(
+        "vault",
+        true,
+        format!("{} ({} cards)", vault.root.display(), vault.cards.len()),
+    );
     let config = vault.root.join(VAULT_CONFIG);
-    let path = match configured(vault, &(0..0)) {
-        Ok(path) => {
+    let path = match configured(Some(vault), &(0..0)) {
+        Ok((_, path)) => {
             check(
                 "config",
                 true,
@@ -281,9 +284,14 @@ pub fn doctor(vault: &Vault) -> Vec<Check> {
     checks
 }
 
-/// The index path a vault configures, resolved inside the vault root.
-fn configured(vault: &Vault, span: &Range<usize>) -> Result<PathBuf, Diagnostic> {
-    let named = vault.semantics.index.as_deref().ok_or_else(|| {
+/// The vault and the index path it configures, resolved inside the vault
+/// root. A run with no vault configures no index.
+fn configured<'v>(
+    vault: Option<&'v Vault>,
+    span: &Range<usize>,
+) -> Result<(&'v Vault, PathBuf), Diagnostic> {
+    let configured = vault.and_then(|vault| Some((vault, vault.semantics.index.as_deref()?)));
+    let (vault, named) = configured.ok_or_else(|| {
         Diagnostic::name(
             span.clone(),
             format!(
@@ -292,12 +300,13 @@ fn configured(vault: &Vault, span: &Range<usize>) -> Result<PathBuf, Diagnostic>
             ),
         )
     })?;
-    within(&vault.root, Path::new(named)).ok_or_else(|| {
+    let path = within(&vault.root, Path::new(named)).ok_or_else(|| {
         Diagnostic::name(
             span.clone(),
             format!("the configured index `{named}` is outside the vault"),
         )
-    })
+    })?;
+    Ok((vault, path))
 }
 
 /// A vault-relative path, refused if it climbs out of the vault.
@@ -525,7 +534,7 @@ fn check_semantic(
     _: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
-    configured(cx.vault(), &span)?;
+    configured(cx.environment().vault.as_ref(), &span)?;
     Ok(())
 }
 

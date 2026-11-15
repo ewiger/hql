@@ -3,8 +3,8 @@
 //! a listing is held to, and the run context's bound on what a listing
 //! holds. Every case lists a tree built in a temporary directory.
 
+use hql::environment::RunEnvironment;
 use hql::reporting::Mode;
-use hql::vault::{self, Vault};
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
@@ -45,12 +45,12 @@ fn root(dir: &TempDir) -> String {
     dir.path().join("t").display().to_string()
 }
 
-fn empty() -> Vault {
-    Vault::empty()
+fn empty() -> RunEnvironment {
+    RunEnvironment::bare()
 }
 
 /// A program's value as its text, the module imported.
-fn value(source: &str, vault: &Vault) -> String {
+fn value(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(&format!("import io.fs\n{source}"), vault, Mode::Strict);
     assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
     outcome
@@ -59,7 +59,7 @@ fn value(source: &str, vault: &Vault) -> String {
         .unwrap_or_default()
 }
 
-fn refusal(source: &str, vault: &Vault) -> String {
+fn refusal(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(&format!("import io.fs\n{source}"), vault, Mode::Strict);
     assert!(outcome.failed(), "{source} ran");
     outcome
@@ -91,7 +91,7 @@ fn walk_is_the_sorted_walk_and_the_vaults_order() {
     );
     // The cards of a vault over the tree are its walk's documents, in the
     // same order; the vault skips hidden entries.
-    let vault = vault::load(Path::new(&root)).unwrap();
+    let vault = hql::environment::load(Path::new(&root)).unwrap();
     let cards = hql::run("vault.cards | map(c => c.path)", &vault, Mode::Strict)
         .value
         .unwrap()
@@ -350,7 +350,7 @@ fn a_listing_is_bounded_by_the_run_context() {
         "[execution]\nmax_elements = 3\n",
     )
     .unwrap();
-    let vault = vault::load(dir.path()).unwrap();
+    let vault = hql::environment::load(dir.path()).unwrap();
     let root = root(&dir);
     let refused = refusal(&format!("folder({root:?}) | walk"), &vault);
     assert!(refused.contains("max_elements = 3"), "{refused}");

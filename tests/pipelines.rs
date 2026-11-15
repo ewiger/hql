@@ -507,7 +507,7 @@ fn a_value_at_an_operation_type_is_the_function_its_type_states() {
 fn the_localhost_plan_puts_every_step_in_one_stage() {
     let planned = hql::plan(
         &format!("{OPERATIONS}[3, 1, 2] | filter(n => n > 1) | doubled | sort | take(1) | total"),
-        &hql::vault::Vault::empty(),
+        &hql::environment::RunEnvironment::bare(),
         &hql::backends::LOCALHOST,
     )
     .unwrap();

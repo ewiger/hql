@@ -237,7 +237,7 @@ fn eval_configured(
         ));
     };
     let failed = |message: String| Diagnostic::runtime(span.clone(), message);
-    let held = configured(id, cx.vault()).map_err(failed)?;
+    let held = configured(id, cx.environment()).map_err(failed)?;
     let ty = configured_transport(held).map_err(failed)?;
     Ok(Value::Endpoint(Arc::new(Endpoint::Configured {
         id: id.to_string(),
@@ -349,7 +349,7 @@ pub(crate) fn result(
     call: &CheckedCall<'_>,
     cx: &dyn CheckCx,
 ) -> Result<TypeRef, Diagnostic> {
-    let vault = cx.vault();
+    let env = cx.environment();
     if name == "configured" {
         let span = call
             .input_expr
@@ -362,7 +362,7 @@ pub(crate) fn result(
                  evaluation",
             ));
         };
-        let held = configured(id, vault).map_err(|message| {
+        let held = configured(id, env).map_err(|message| {
             if crate::endpoints::is_id(id) {
                 Diagnostic::name(span.clone(), message)
             } else {
@@ -375,10 +375,10 @@ pub(crate) fn result(
         .input_expr
         .and_then(|expression| bound_id(expression, cx));
     if call.input.is(&TypeRef::STR) || bound_id.is_some() {
-        let read = configured_type(call, vault, bound_id.as_deref())?;
+        let read = configured_type(call, env, bound_id.as_deref())?;
         if name != "tap" {
             if let Some(id) = bound_id.as_deref()
-                && let Ok(configured) = configured(id, vault)
+                && let Ok(configured) = configured(id, env)
                 && configured.kind.is_live()
             {
                 return Err(Diagnostic::typing(
@@ -415,7 +415,7 @@ pub(crate) fn result(
 /// kind's own document type.
 fn configured_type(
     call: &CheckedCall<'_>,
-    vault: &crate::vault::Vault,
+    env: &crate::environment::RunEnvironment,
     bound: Option<&str>,
 ) -> Result<TypeRef, Diagnostic> {
     let span = call
@@ -434,7 +434,7 @@ fn configured_type(
             "a configured endpoint's format is its kind's, set in its configuration; name none",
         ));
     }
-    let configured = configured(id, vault).map_err(|message| {
+    let configured = configured(id, env).map_err(|message| {
         if crate::endpoints::is_id(id) {
             Diagnostic::name(span.clone(), message)
         } else {
@@ -484,9 +484,9 @@ fn live_by_source(id: &str, kind: &crate::endpoints::Kind) -> String {
 /// (HQL-0051).
 pub(crate) fn configured_endpoint<'v>(
     id: &str,
-    vault: &'v crate::vault::Vault,
+    env: &'v crate::environment::RunEnvironment,
 ) -> Result<&'v crate::endpoints::Configured, String> {
-    configured(id, vault)
+    configured(id, env)
 }
 
 /// The literal id an endpoint expression names, `"id"` or
@@ -500,10 +500,10 @@ pub(crate) fn literal_endpoint_id(expression: &Expr) -> Option<&str> {
 /// the variable naming a `postgres` endpoint's connection string.
 pub(crate) fn configured_system(
     id: &str,
-    vault: &crate::vault::Vault,
+    env: &crate::environment::RunEnvironment,
 ) -> Result<(String, Option<String>), String> {
     use crate::endpoints::Kind as Source;
-    let held = configured(id, vault)?;
+    let held = configured(id, env)?;
     let system = match &held.kind {
         Source::Sqlite { path, .. } => Some(path.display().to_string()),
         Source::Postgres { dsn_env, .. } => Some(dsn_env.clone()),
@@ -521,9 +521,9 @@ pub(crate) fn configured_system(
 /// `None` where it names none.
 pub(crate) fn configured_element(
     id: &str,
-    vault: &crate::vault::Vault,
+    env: &crate::environment::RunEnvironment,
 ) -> Result<Option<TypeRef>, String> {
-    let held = configured(id, vault)?;
+    let held = configured(id, env)?;
     match &held.element {
         Some(written) => crate::types::named(written, &[]).map(Some).ok_or_else(|| {
             format!("endpoint `{id}` names the element type `{written}`, which is not a type")
@@ -536,7 +536,7 @@ pub(crate) fn configured_element(
 /// configured.
 fn configured<'v>(
     id: &str,
-    vault: &'v crate::vault::Vault,
+    env: &'v crate::environment::RunEnvironment,
 ) -> Result<&'v crate::endpoints::Configured, String> {
     if !crate::endpoints::is_id(id) {
         return Err(
@@ -550,8 +550,8 @@ fn configured<'v>(
             },
         );
     }
-    vault.endpoints.get(id).ok_or_else(|| {
-        let hint = vault.endpoints.nearest(id).map_or_else(
+    env.endpoints.get(id).ok_or_else(|| {
+        let hint = env.endpoints.nearest(id).map_or_else(
             || {
                 "; an endpoint is declared under `[endpoint.<id>]` in the project's .hql/config.toml"
                     .to_owned()
@@ -679,7 +679,7 @@ fn check_target(
         return Ok(());
     }
     if let Some(id) = written_endpoint(call).and_then(|endpoint| bound_id(endpoint, cx)) {
-        return check_configured_target(cx.vault(), &id, call, &span);
+        return check_configured_target(cx.environment(), &id, call, &span);
     }
     if call.input.is_stream() && !call.input.is_collection() {
         return Err(Diagnostic::typing(
@@ -722,12 +722,12 @@ fn check_target(
 /// vault, no format is named beside it, and what is written is a table or a
 /// sequence of a declared record, which the boundary accepts.
 fn check_configured_target(
-    vault: &crate::vault::Vault,
+    env: &crate::environment::RunEnvironment,
     id: &str,
     call: &CheckedCall<'_>,
     span: &Range<usize>,
 ) -> Result<(), Diagnostic> {
-    let configured = configured(id, vault).map_err(|message| {
+    let configured = configured(id, env).map_err(|message| {
         if crate::endpoints::is_id(id) {
             Diagnostic::name(span.clone(), message)
         } else {
@@ -776,7 +776,7 @@ fn check_configured_target(
 /// `xs | sink("id")`: the id names a Kafka topic, which takes any value as
 /// a message, or a PostgreSQL table, which takes rows of a declared record.
 fn check_configured_sink(
-    vault: &crate::vault::Vault,
+    env: &crate::environment::RunEnvironment,
     id: &str,
     call: &CheckedCall<'_>,
     element: &TypeRef,
@@ -784,7 +784,7 @@ fn check_configured_sink(
 ) -> Result<(), Diagnostic> {
     use crate::endpoints::Kind as Source;
     refuse_in_documents(span)?;
-    let configured = configured(id, vault).map_err(|message| {
+    let configured = configured(id, env).map_err(|message| {
         if crate::endpoints::is_id(id) {
             Diagnostic::name(span.clone(), message)
         } else {
@@ -824,7 +824,7 @@ fn check_sink(
 ) -> Result<(), Diagnostic> {
     let element = call.input.iterated().unwrap_or(TypeRef::NEVER);
     if let Some(id) = written_endpoint(call).and_then(|endpoint| bound_id(endpoint, cx)) {
-        return check_configured_sink(cx.vault(), &id, call, &element, &span);
+        return check_configured_sink(cx.environment(), &id, call, &element, &span);
     }
     if check_channel_write(cx, call, &element, &span)? {
         return Ok(());
@@ -1127,7 +1127,7 @@ fn eval_source(
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     if let Some(id) = configured_id(&input) {
-        return read_configured(id, cx.vault(), None, &span);
+        return read_configured(id, cx.environment(), None, &span);
     }
     let endpoint = endpoint(&input, &span)?;
     if let Endpoint::Channel(name, element) = endpoint.as_ref() {
@@ -1174,7 +1174,7 @@ fn eval_tap(
     span: Range<usize>,
 ) -> Result<Value, Diagnostic> {
     if let Some(id) = configured_id(&input) {
-        return tap_configured(id, cx.vault(), &span);
+        return tap_configured(id, cx.environment(), &span);
     }
     let endpoint = endpoint(&input, &span)?;
     if let Endpoint::Channel(name, element) = endpoint.as_ref() {
@@ -1530,7 +1530,7 @@ pub(crate) fn remapped(
 /// boundary reads; a table's columns and a CSV file's header are checked
 /// against the boundary before any element is decoded.
 pub(crate) fn configured_source(
-    vault: &crate::vault::Vault,
+    env: &crate::environment::RunEnvironment,
     id: &str,
     wanted: &TypeRef,
     span: &Range<usize>,
@@ -1538,10 +1538,10 @@ pub(crate) fn configured_source(
 ) -> Result<Value, Diagnostic> {
     use crate::endpoints::Kind as Source;
     let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
-    let configured = configured(id, vault).map_err(failed)?;
+    let configured = configured(id, env).map_err(failed)?;
     let element = wanted.args.first().cloned().unwrap_or(TypeRef::DATA);
     let endpoint = Value::Str(id.into());
-    let plain = |columns: Option<&[String]>| read_configured(id, vault, columns, span);
+    let plain = |columns: Option<&[String]>| read_configured(id, env, columns, span);
     let boundary = match &configured.kind {
         Source::Vault { .. } => None,
         Source::Sqlite { path, table, .. } => {
@@ -1608,7 +1608,7 @@ pub(crate) fn configured_source(
     };
     let Some(boundary) = boundary else {
         let produced = plain(None)?;
-        return decoded(vault, &endpoint, produced, wanted, &[], span);
+        return decoded(env, &endpoint, produced, wanted, &[], span);
     };
     let read: Vec<String> = boundary
         .fields
@@ -1671,17 +1671,17 @@ pub(crate) fn configured_source(
 /// of a file or table, in the source's order, within the run context's
 /// bounds; of a table, only `columns` where a boundary names them.
 /// Configuration is the access boundary, so a document reads every source
-/// its vault configures.
+/// its project configures.
 fn read_configured(
     id: &str,
-    vault: &crate::vault::Vault,
+    env: &crate::environment::RunEnvironment,
     columns: Option<&[String]>,
     span: &Range<usize>,
 ) -> Result<Value, Diagnostic> {
     use crate::endpoints::Kind as Source;
     let failed = |message: String| Diagnostic::io_failure(span.clone(), message);
-    let configured = configured(id, vault).map_err(failed)?;
-    let bounds = vault.endpoints.bounds;
+    let configured = configured(id, env).map_err(failed)?;
+    let bounds = env.endpoints.bounds;
     let within = |count: usize| match bounds.max_elements {
         Some(most) if count > most => Err(failed(format!(
             "endpoint `{id}` holds {count} elements, more than `max_elements = {most}`; take it \
@@ -1762,11 +1762,11 @@ fn read_configured(
 /// whole, then produced as a stream.
 fn tap_configured(
     id: &str,
-    vault: &crate::vault::Vault,
+    env: &crate::environment::RunEnvironment,
     span: &Range<usize>,
 ) -> Result<Value, Diagnostic> {
     let configured =
-        configured(id, vault).map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
+        configured(id, env).map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     if let crate::endpoints::Kind::Kafka {
         brokers,
         topic,
@@ -1829,7 +1829,7 @@ fn tap_configured(
         let reading = Reading::file(path.clone(), TypeConstructor(format));
         return Ok(live(reading, TypeRef::DATA, span.clone()));
     }
-    let Value::Traversal(read) = read_configured(id, vault, None, span)? else {
+    let Value::Traversal(read) = read_configured(id, env, None, span)? else {
         return Err(Diagnostic::runtime(
             span.clone(),
             format!("endpoint `{id}` is not read one element at a time"),
@@ -1859,7 +1859,7 @@ pub(crate) fn reads(step: &Operation) -> bool {
 /// otherwise. A CSV cell is text, so it is parsed as the scalar its field
 /// wants; a Json, Yaml or JsonLines leaf keeps the type it was written with.
 pub(crate) fn decoded(
-    vault: &crate::vault::Vault,
+    env: &crate::environment::RunEnvironment,
     endpoint: &Value,
     produced: Value,
     wanted: &TypeRef,
@@ -1874,7 +1874,7 @@ pub(crate) fn decoded(
     }
     let (format, from) = match configured_id(endpoint) {
         Some(id) => (
-            match configured(id, vault).map(|configured| &configured.kind) {
+            match configured(id, env).map(|configured| &configured.kind) {
                 Ok(crate::endpoints::Kind::File { format, .. }) => *format,
                 _ => "Data",
             },
@@ -1900,7 +1900,7 @@ pub(crate) fn decoded(
     // always is: what `sink("id")` writes through the boundary, a `Decimal`
     // as text among it, reads back as it was written.
     let boundary = match (configured_id(endpoint), endpoint) {
-        (Some(id), _) if traversal.element == TypeRef::DATA => configured(id, vault)
+        (Some(id), _) if traversal.element == TypeRef::DATA => configured(id, env)
             .ok()
             .filter(|configured| !configured.fields.is_empty() || configured.kind.is_live())
             .map(|configured| boundary_for(configured, element, None))
@@ -2210,7 +2210,7 @@ fn sink_configured(
             "endpoint `{id}`: a document writes nothing outside itself"
         )));
     }
-    let configured = configured(id, cx.vault()).map_err(failed)?.clone();
+    let configured = configured(id, cx.environment()).map_err(failed)?.clone();
     let element = match &input {
         Value::Traversal(traversal) => traversal.element.clone(),
         other => other.type_of().element().unwrap_or(TypeRef::DATA),
@@ -2331,7 +2331,7 @@ fn write_configured(
     input: Value,
     span: &Range<usize>,
 ) -> Result<Value, Diagnostic> {
-    let configured = configured(id, cx.vault())
+    let configured = configured(id, cx.environment())
         .map_err(|message| Diagnostic::io_failure(span.clone(), message))?
         .clone();
     write_to(cx, &configured, input, span)
@@ -2588,7 +2588,7 @@ fn write_to(
                             format,
                             0,
                             None,
-                            &cx.vault().formats,
+                            &cx.environment().formats,
                         )
                     }
                     "Json" => crate::extensions::format::render(
@@ -2596,7 +2596,7 @@ fn write_to(
                         format,
                         0,
                         None,
-                        &cx.vault().formats,
+                        &cx.environment().formats,
                     ),
                     _ => values
                         .iter()
@@ -2679,8 +2679,9 @@ fn eval_target(
         }
         other => other.clone(),
     };
-    let text = crate::extensions::format::render(&whole, format, 0, None, &cx.vault().formats)
-        .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
+    let text =
+        crate::extensions::format::render(&whole, format, 0, None, &cx.environment().formats)
+            .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
     match endpoint.as_ref() {
         Endpoint::FileEnd(_) => {
             let (mut destination, _) = Destination::open(&endpoint)

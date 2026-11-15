@@ -4,7 +4,6 @@
 //! a time value crosses.
 
 use hql::reporting::Mode;
-use hql::vault;
 use std::fs;
 use std::process::Command;
 
@@ -397,7 +396,7 @@ fn a_declared_field_reads_its_text_and_is_written_as_it() {
     )
     .unwrap();
     hql::io::set_host(hql::io::Policy::Open, root.to_path_buf());
-    let vault = vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     let run = |source: &str| {
         let outcome = hql::run(source, &vault, Mode::Strict);
         outcome
@@ -459,7 +458,7 @@ fn an_sqlite_table_keeps_a_time_value_as_its_text() {
         "[endpoint.log]\nkind = \"sqlite\"\npath = \"log.sqlite\"\ntable = \"log\"\n",
     )
     .unwrap();
-    let vault = vault::load(directory.path()).unwrap();
+    let vault = hql::environment::load(directory.path()).unwrap();
     let declared =
         "type LogRow {\n    id : Int\n    on : Date\n    at : Instant\n    took : Duration\n}\n";
     let written = hql::run(

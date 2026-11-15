@@ -4,22 +4,22 @@
 //! record a column per field. Every case runs against a file in a
 //! temporary directory.
 
+use hql::environment::RunEnvironment;
 use hql::reporting::Mode;
-use hql::vault::{self, Vault};
 use std::path::Path;
 use tempfile::{TempDir, tempdir};
 
 const ORDER: &str =
     "type Order { id : Int, customer : String, total : Decimal, paid : Bool, note? : String }\n";
 
-fn empty() -> (TempDir, Vault) {
+fn empty() -> (TempDir, RunEnvironment) {
     let dir = tempdir().unwrap();
-    let vault = vault::load(dir.path()).unwrap();
+    let vault = hql::environment::load(dir.path()).unwrap();
     (dir, vault)
 }
 
 /// A program's value as compact JSON.
-fn value(source: &str, vault: &Vault) -> String {
+fn value(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
     outcome
@@ -28,7 +28,7 @@ fn value(source: &str, vault: &Vault) -> String {
         .unwrap_or_default()
 }
 
-fn refusal(source: &str, vault: &Vault) -> String {
+fn refusal(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(outcome.failed(), "{source} ran");
     outcome
@@ -43,7 +43,7 @@ fn database(dir: &Path) -> String {
     dir.join("shop.db").display().to_string()
 }
 
-fn seeded(dir: &Path, vault: &Vault) -> String {
+fn seeded(dir: &Path, vault: &RunEnvironment) -> String {
     let path = database(dir);
     value(
         &format!(

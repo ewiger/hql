@@ -1299,24 +1299,25 @@ impl ExecutionContext {
     ///
     /// The vault cannot be read, or the project's configuration is
     /// malformed, naming the directory.
-    pub fn load(&self) -> Result<crate::vault::Vault, String> {
-        let mut vault = match self.vault() {
-            None => crate::vault::Vault::empty(),
-            Some(root) => crate::vault::load_documents(root)
-                .map_err(|error| format!("{}: {error}", root.display()))?,
-        };
+    pub fn load(&self) -> Result<crate::environment::RunEnvironment, String> {
+        let mut env = crate::environment::RunEnvironment::bare();
+        if let Some(root) = self.vault() {
+            env.vault = Some(
+                crate::vault::load_documents(root)
+                    .map_err(|error| format!("{}: {error}", root.display()))?,
+            );
+        }
         if let Some(root) = self.project_root() {
-            vault
-                .configure_project(root)
+            env.configure_project(root)
                 .map_err(|error| format!("{}: {error}", root.display()))?;
         }
-        self.configure(&mut vault.extensions);
+        self.configure(&mut env.extensions);
         // A run with a vault, found by the walk or named, imports `hmd`: the
         // vault is what `hmd` reads, so its presence activates the package.
-        if vault.is_present() {
-            vault.host();
+        if env.has_vault() {
+            env.host();
         }
-        Ok(vault)
+        Ok(env)
     }
 
     /// Every configuration file of the layering, in order, present or not.

@@ -629,7 +629,7 @@ pub(crate) fn evaluate(
         let input = inputs
             .pop()
             .ok_or_else(|| Diagnostic::runtime(span.clone(), "Graph needs an argument"))?;
-        return crate::extensions::graph::construct(cx.vault(), input, &span);
+        return crate::extensions::graph::construct(cx.environment().vault.as_ref(), input, &span);
     }
     let element = |index: usize| expected.args.get(index).cloned().unwrap_or(TypeRef::NEVER);
     let elements = |index: usize| {

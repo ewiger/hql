@@ -741,7 +741,7 @@ fn written(
         let whole = Value::list(values, traversal.element.clone());
         return written(cx, &whole, format, limit, renderer, span);
     }
-    let text = render(input, format, limit, renderer, &cx.vault().formats)
+    let text = render(input, format, limit, renderer, &cx.environment().formats)
         .map_err(|message| Diagnostic::runtime(span, message))?;
     Ok(Value::Formatted(Arc::new(Formatted { text, format })))
 }

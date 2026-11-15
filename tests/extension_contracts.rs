@@ -50,7 +50,7 @@ fn invalid_structural_signatures_are_rejected_before_use() {
 
 #[test]
 fn contracts_reject_unknown_duplicate_missing_and_mistyped_arguments() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     for source in [
         "[1] | take(1, 2)",
         "[1] | take(n = 1, n = 2)",
@@ -87,7 +87,7 @@ fn contracts_reject_unknown_duplicate_missing_and_mistyped_arguments() {
 
 #[test]
 fn every_registered_step_runs_at_its_declared_result_type() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/birds")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/birds")).unwrap();
     for source in [
         "[1, 1] | size",
         "[1, 1] | count(1)",
@@ -131,7 +131,7 @@ fn every_registered_step_runs_at_its_declared_result_type() {
 /// states.
 #[test]
 fn an_overloaded_operation_takes_the_first_declaration_a_call_fits() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/birds")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/birds")).unwrap();
     for (source, expected) in [
         ("[3, 1] | sort", "List<Int>"),
         ("{3, 1} | sort", "List<Int>"),
@@ -199,7 +199,7 @@ fn an_overloaded_operation_takes_the_first_declaration_a_call_fits() {
 /// only: the value counted, tested, looked up or raised to is never named.
 #[test]
 fn an_argument_declared_positional_only_is_refused_by_name() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     for (source, argument) in [
         ("[1] | count(value = 1)", "value"),
         ("[1] | contains(value = 1)", "value"),
@@ -231,7 +231,7 @@ fn an_argument_declared_positional_only_is_refused_by_name() {
 /// takes its arguments, the refusal names both forms.
 #[test]
 fn an_overload_is_chosen_by_its_arguments_types_too() {
-    let vault = hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
+    let vault = hql::environment::load(std::path::Path::new("tests/fixtures/vault")).unwrap();
     for source in ["2 | pow(2.0f)", "2.0f | pow(2)"] {
         let outcome = hql::run(source, &vault, Mode::Strict);
         let message = outcome
@@ -264,7 +264,7 @@ fn an_overload_is_chosen_by_its_arguments_types_too() {
 /// present.
 #[test]
 fn a_step_over_a_value_is_lifted_over_absence() {
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     for (source, ty, json) in [
         ("none | abs", "Option<Int>", "null"),
         ("none | sqrt", "Option<Float>", "null"),
@@ -297,7 +297,7 @@ fn a_step_over_a_value_is_lifted_over_absence() {
 /// any other value.
 #[test]
 fn fmt_and_format_take_the_signatures_their_declarations_state() {
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     for (source, ty) in [
         ("fmt(\"{} {}\", 1, \"a\")", "String"),
         ("fmt(\"{}\", some(1))", "String"),

@@ -102,7 +102,8 @@ impl VaultSource for Memory {
 
 #[test]
 fn memory_sources_get_the_same_names_knowledge_and_extension_metadata() {
-    let vault = hql::vault::load_source(&Memory).unwrap();
+    let loaded = hql::environment::load_source(&Memory).unwrap();
+    let vault = loaded.vault.as_ref().unwrap();
     assert_eq!(
         vault
             .cards

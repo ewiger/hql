@@ -77,9 +77,9 @@ fn eval_links(
             .as_card()
             .ok_or_else(|| wrong(name, "a card or cards", span))?;
         let found = if name == "uplinks" {
-            cx.vault().uplinks(card.name())
+            cx.environment().uplinks(card.name())
         } else {
-            cx.vault().downlinks(card.name())
+            cx.environment().downlinks(card.name())
         };
         edges.extend(
             found
@@ -124,18 +124,16 @@ fn eval_expand(
             format!("`direction` is `uplinks`, `downlinks` or `both`, not `{direction}`"),
         ));
     }
-    let seeded = project(cx.vault(), &input, &span)?;
+    let vault = cx.environment().vault.as_ref();
+    let seeded = project(vault, &input, &span)?;
     Ok(Value::Graph(Arc::new(expand(
-        cx.vault(),
-        seeded,
-        depth,
-        &direction,
+        vault, seeded, depth, &direction,
     ))))
 }
 
 /// `Graph(xs)`: the projection of cards, hits or a ranking into a graph.
 pub(crate) fn construct(
-    vault: &Vault,
+    vault: Option<&Vault>,
     input: Value,
     span: &Range<usize>,
 ) -> Result<Value, Diagnostic> {
@@ -193,7 +191,7 @@ pub(crate) fn from_edges(
 /// Project a collection of cards into a graph, recording why each node is
 /// present. A relation card contributes its endpoints and does not become a node;
 /// its endpoints arrive as the nodes the edge needs.
-fn project(vault: &Vault, input: &Value, span: &Range<usize>) -> Result<Graph, Diagnostic> {
+fn project(vault: Option<&Vault>, input: &Value, span: &Range<usize>) -> Result<Graph, Diagnostic> {
     if let Value::Graph(graph) = input {
         return Ok(graph.as_ref().clone());
     }
@@ -224,12 +222,16 @@ fn project(vault: &Vault, input: &Value, span: &Range<usize>) -> Result<Graph, D
         }
         presence.insert(card.name().to_owned(), how);
     }
-    edges.extend(vault.edges.iter().cloned());
+    edges.extend(
+        vault
+            .into_iter()
+            .flat_map(|vault| vault.edges.iter().cloned()),
+    );
     Ok(Graph::new(presence, edges))
 }
 
 /// Breadth-first traversal outwards from the nodes already present.
-fn expand(vault: &Vault, seeded: Graph, depth: usize, direction: &str) -> Graph {
+fn expand(vault: Option<&Vault>, seeded: Graph, depth: usize, direction: &str) -> Graph {
     let mut presence = seeded.presence;
     let mut queue: VecDeque<(String, String, usize)> = presence
         .keys()
@@ -243,16 +245,16 @@ fn expand(vault: &Vault, seeded: Graph, depth: usize, direction: &str) -> Graph 
         if direction != "downlinks" {
             neighbours.extend(
                 vault
-                    .uplinks(&node)
                     .into_iter()
+                    .flat_map(|vault| vault.uplinks(&node))
                     .map(|edge| edge.target.clone()),
             );
         }
         if direction != "uplinks" {
             neighbours.extend(
                 vault
-                    .downlinks(&node)
                     .into_iter()
+                    .flat_map(|vault| vault.downlinks(&node))
                     .map(|edge| edge.source.clone()),
             );
         }
@@ -278,7 +280,7 @@ fn check_downlinks(
     _: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
-    if !cx.vault().is_present() {
+    if !cx.environment().has_vault() {
         return Err(Diagnostic::name(
             span,
             "`downlinks` needs a vault: a document cannot know what points at it",
@@ -291,7 +293,7 @@ fn check_expand(
     call: &super::spec::CheckedCall<'_>,
     span: Range<usize>,
 ) -> Result<(), Diagnostic> {
-    if !cx.vault().is_present() {
+    if !cx.environment().has_vault() {
         return Err(Diagnostic::name(span, "`expand` needs a vault to traverse"));
     }
     let depth = call

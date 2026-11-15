@@ -19,13 +19,13 @@ use std::ops::Range;
 /// participant a table of one SQLite file or of one PostgreSQL database.
 pub(crate) fn shared_system(
     participants: &[std::sync::Arc<crate::io::Endpoint>],
-    vault: &crate::vault::Vault,
+    env: &crate::environment::RunEnvironment,
 ) -> Result<crate::transaction::System, String> {
     use crate::transaction::System;
     let mut shared: Option<System> = None;
     for endpoint in participants {
         let configured = match endpoint.configured_id() {
-            Some(id) => crate::extensions::io::configured_endpoint(id, vault)?.clone(),
+            Some(id) => crate::extensions::io::configured_endpoint(id, env)?.clone(),
             None => crate::extensions::io::constructed_table(endpoint).ok_or_else(|| {
                 format!(
                     "{} takes part in no transaction: a participant is a table of a database",
@@ -164,7 +164,7 @@ pub(crate) fn run(
         }
     };
     let configured = match endpoint.configured_id() {
-        Some(id) => crate::extensions::io::configured_endpoint(id, cx.vault())
+        Some(id) => crate::extensions::io::configured_endpoint(id, cx.environment())
             .map_err(failed)?
             .clone(),
         None => crate::extensions::io::constructed_table(&endpoint).ok_or_else(|| {

@@ -20,7 +20,7 @@ with `--vault`, and in a run that imports it, with `import hmd`,
   over it;
 - a document reference, `@[[name]]`, resolves against the vault.
 
-`hql render` and `hql::vault::load` are hosts: they import `hmd` themselves.
+`hql render` and `hql::environment::load` are hosts: they import `hmd` themselves.
 
 | Module | Declares | |
 | --- | --- | --- |

@@ -5,8 +5,8 @@
 //! tests everything.
 
 use hql::reporting::Mode;
+use hql::run;
 use hql::types::Value;
-use hql::{run, vault};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::{TempDir, tempdir};
@@ -56,11 +56,11 @@ const PAIRS: &[(&str, &[&str])] = &[
     ),
 ];
 
-fn birds() -> vault::Vault {
-    vault::load(Path::new(BIRDS)).expect("the birds vault loads")
+fn birds() -> hql::environment::RunEnvironment {
+    hql::environment::load(Path::new(BIRDS)).expect("the birds vault loads")
 }
 
-fn top_three(step: &str, query: &str, vault: &vault::Vault) -> Vec<String> {
+fn top_three(step: &str, query: &str, vault: &hql::environment::RunEnvironment) -> Vec<String> {
     let source =
         format!("import hmd\ncards | {step}(\"{query}\") | take(3) | map(h => h.value.name)");
     let outcome = run(&source, vault, Mode::Collect);
@@ -100,7 +100,7 @@ fn spoil(root: &Path, statements: &str) {
 }
 
 fn failure(root: &Path, source: &str) -> String {
-    let vault = vault::load(root).expect("the copied vault loads");
+    let vault = hql::environment::load(root).expect("the copied vault loads");
     let outcome = run(source, &vault, Mode::Collect);
     outcome
         .diagnostics
@@ -188,7 +188,7 @@ fn a_card_the_index_has_not_seen_is_absent_from_the_ranking_and_counted() {
         "---\ntitle: Kakapo\n---\n# Kakapo\n\nA flightless nocturnal parrot of New Zealand.\n",
     )
     .expect("a new card");
-    let vault = vault::load(&root).expect("the copied vault loads");
+    let vault = hql::environment::load(&root).expect("the copied vault loads");
     let outcome = run(
         "import hmd\ncards | semantic(\"night hunting birds\") | count",
         &vault,
@@ -210,7 +210,7 @@ fn a_card_edited_since_the_build_still_ranks_and_says_it_is_stale() {
     let path = root.join("barn-owl.hmd");
     let edited = fs::read_to_string(&path).expect("the card") + "\nAn added sentence.\n";
     fs::write(&path, edited).expect("the edit");
-    let vault = vault::load(&root).expect("the copied vault loads");
+    let vault = hql::environment::load(&root).expect("the copied vault loads");
     let outcome = run(
         "import hmd\ncards | semantic(\"night hunting birds\") | count",
         &vault,
@@ -288,7 +288,8 @@ fn a_query_the_index_has_no_vector_for_says_so_rather_than_inventing_one() {
 fn a_vault_with_no_index_is_told_to_build_one_rather_than_falling_back() {
     // `semantic` never falls back to `lexical`: a silent fallback restores the
     // confusion that renaming the matcher removed.
-    let vault = vault::load(Path::new("tests/fixtures/vault")).expect("the fixture vault");
+    let vault =
+        hql::environment::load(Path::new("tests/fixtures/vault")).expect("the fixture vault");
     let outcome = run(
         "import hmd\ncards | semantic(\"bearer token authorization\")",
         &vault,
@@ -354,7 +355,7 @@ fn a_vault_that_declares_an_embedder_still_answers_and_its_scores_name_the_index
          dimensions = 1536\n",
     )
     .expect("the configuration");
-    let vault = vault::load(&root).expect("the copied vault loads");
+    let vault = hql::environment::load(&root).expect("the copied vault loads");
     let outcome = run(
         "import hmd\ncards | semantic(\"night hunting birds\")",
         &vault,
@@ -405,7 +406,8 @@ fn doctor_walks_the_chain_and_reports_every_part_present() {
 fn doctor_stops_at_the_first_missing_part_and_names_the_next_command() {
     let (_directory, root) = copied();
     fs::remove_file(root.join(".hmd/index.sqlite")).expect("the index removed");
-    let checks = hql::extensions::semantic::doctor(&vault::load(&root).expect("the vault"));
+    let checks =
+        hql::extensions::semantic::doctor(&hql::environment::load(&root).expect("the vault"));
     let last = checks.last().expect("a check");
     assert_eq!(last.part, "index");
     assert!(!last.ok);
@@ -417,11 +419,12 @@ fn doctor_stops_at_the_first_missing_part_and_names_the_next_command() {
 
     let (_directory, root) = copied();
     spoil(&root, "DELETE FROM query");
-    let checks = hql::extensions::semantic::doctor(&vault::load(&root).expect("the vault"));
+    let checks =
+        hql::extensions::semantic::doctor(&hql::environment::load(&root).expect("the vault"));
     let last = checks.last().expect("a check");
     assert_eq!((last.part, last.ok), ("queries", false));
 
-    let checks = hql::extensions::semantic::doctor(&vault::Vault::empty());
+    let checks = hql::extensions::semantic::doctor(&hql::environment::RunEnvironment::bare());
     assert_eq!(checks.len(), 1);
     assert_eq!((checks[0].part, checks[0].ok), ("vault", false));
 }
@@ -432,7 +435,8 @@ fn doctor_counts_a_card_edited_since_the_build() {
     let path = root.join("barn-owl.hmd");
     let edited = fs::read_to_string(&path).expect("the card") + "\nAn added sentence.\n";
     fs::write(&path, edited).expect("the edit");
-    let checks = hql::extensions::semantic::doctor(&vault::load(&root).expect("the vault"));
+    let checks =
+        hql::extensions::semantic::doctor(&hql::environment::load(&root).expect("the vault"));
     let last = checks.last().expect("a check");
     assert_eq!((last.part, last.ok), ("cards", false));
     assert!(last.detail.starts_with("1 card has"), "{}", last.detail);

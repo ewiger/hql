@@ -493,7 +493,7 @@ fn a_step_named_as_a_type_names_its_constructor() {
     for (source, replacement) in [("@[[oauth]] | graph", "`Graph`"), ("1 | table", "`Table`")] {
         let failed = hql::check_in(
             source,
-            &hql::vault::load(std::path::Path::new("tests/fixtures/vault")).unwrap(),
+            &hql::environment::load(std::path::Path::new("tests/fixtures/vault")).unwrap(),
         )
         .expect_err(source);
         assert!(
@@ -739,7 +739,7 @@ fn a_call_with_a_hole_is_a_function_of_the_arguments_left_open() {
 
 #[test]
 fn a_type_test_that_always_holds_is_a_warning() {
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     let outcome = hql::run(
         "[1, 2] | of_type(Int)",
         &vault,
@@ -804,7 +804,7 @@ fn a_generic_body_relies_only_on_what_its_parameter_promises() {
 
 #[test]
 fn an_alias_is_a_function_whose_types_the_checker_writes() {
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     let signature = |source: &str| {
         let outcome = hql::check_reported(source, &vault, hql::reporting::Mode::Strict);
         assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
@@ -847,7 +847,7 @@ fn an_alias_whose_body_fixes_no_type_is_refused() {
     );
     let input = check("double(x) := x * 2\n1").expect_err("an expression needs its input typed");
     assert!(input.message().contains("annotated"), "{}", input.message());
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     let shadow = hql::run(
         "sum := take(1)\n[1] | sum",
         &vault,

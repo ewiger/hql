@@ -4,8 +4,8 @@
 //! database; the round trips run against the containers of the `hql-demo`
 //! repository.
 
+use hql::environment::RunEnvironment;
 use hql::reporting::Mode;
-use hql::vault::{self, Vault};
 use std::fs;
 use tempfile::{TempDir, tempdir};
 
@@ -42,15 +42,15 @@ path = "counts.csv"
 
 const ORDER: &str = "type Order { id : Int, customer : String, total : Decimal }\n";
 
-fn configured() -> (TempDir, Vault) {
+fn configured() -> (TempDir, RunEnvironment) {
     let dir = tempdir().unwrap();
     fs::write(project_config(dir.path()), CONFIG).unwrap();
     fs::write(dir.path().join("counts.csv"), "species,count\nwren,3\n").unwrap();
-    let vault = vault::load(dir.path()).unwrap();
+    let vault = hql::environment::load(dir.path()).unwrap();
     (dir, vault)
 }
 
-fn refusal(source: &str, vault: &Vault) -> String {
+fn refusal(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(outcome.failed(), "{source} ran");
     outcome
@@ -61,7 +61,7 @@ fn refusal(source: &str, vault: &Vault) -> String {
         .join("\n")
 }
 
-fn checks(source: &str, vault: &Vault) {
+fn checks(source: &str, vault: &RunEnvironment) {
     if let Err(error) = hql::check_in(source, vault) {
         panic!("{source}: {error:?}");
     }
@@ -178,7 +178,7 @@ fn a_malformed_topic_or_table_refuses_the_vault() {
             format!("[endpoint.db]\n{entry}"),
         )
         .unwrap();
-        let error = vault::load(dir.path()).unwrap_err().to_string();
+        let error = hql::environment::load(dir.path()).unwrap_err().to_string();
         assert!(error.contains(says), "{entry}: {error}");
     }
 }

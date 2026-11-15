@@ -20,10 +20,10 @@ mod plan;
 pub use plan::{Execution, Stage, Strategy, topology};
 
 use crate::diagnostics::Diagnostic;
+use crate::environment::RunEnvironment;
 use crate::execution::Program;
 use crate::reporting::{CONFIG_FILE, Mode};
 use crate::types::Value;
-use crate::vault::Vault;
 use std::path::Path;
 use std::{env, fs};
 
@@ -32,13 +32,14 @@ pub(crate) trait Backend: Sync {
     /// What it executes, which the planner reads to cut stages.
     fn execution(&self) -> Execution;
 
-    /// Evaluate a checked program against a vault, with further names bound:
+    /// Evaluate a checked program against a run environment, with further
+    /// names bound:
     /// the value, or the diagnostic `localhost` would report, and the log the
     /// run wrote.
     fn run(
         &self,
         program: &Program,
-        vault: &Vault,
+        env: &RunEnvironment,
         bound: Vec<(String, Value)>,
         mode: Mode,
     ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>);
@@ -68,7 +69,7 @@ impl Registered {
     pub(crate) fn run(
         &self,
         program: &Program,
-        vault: &Vault,
+        env: &RunEnvironment,
         bound: Vec<(String, Value)>,
         mode: Mode,
     ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
@@ -76,7 +77,7 @@ impl Registered {
         crate::time::begin_evaluation();
         crate::random::begin_evaluation();
         self.plan(program);
-        self.execute(program, vault, bound, mode)
+        self.execute(program, env, bound, mode)
     }
 
     /// Annotate every step of a checked program with its stage on this
@@ -96,7 +97,7 @@ impl Registered {
     pub(crate) fn execute(
         &self,
         program: &Program,
-        vault: &Vault,
+        env: &RunEnvironment,
         bound: Vec<(String, Value)>,
         mode: Mode,
     ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
@@ -108,7 +109,7 @@ impl Registered {
                 Vec::new(),
             );
         }
-        self.backend.run(program, vault, bound, mode)
+        self.backend.run(program, env, bound, mode)
     }
 }
 
@@ -273,7 +274,11 @@ mod tests {
     }
 
     fn checked(source: &str) -> Program {
-        crate::checker::check(&crate::parser::parse(source).unwrap(), &Vault::empty()).unwrap()
+        crate::checker::check(
+            &crate::parser::parse(source).unwrap(),
+            &RunEnvironment::bare(),
+        )
+        .unwrap()
     }
 
     /// A backend that cuts stages by shape and evaluates as `localhost`
@@ -288,11 +293,11 @@ mod tests {
         fn run(
             &self,
             program: &Program,
-            vault: &Vault,
+            env: &RunEnvironment,
             bound: Vec<(String, Value)>,
             mode: Mode,
         ) -> (Result<Value, Diagnostic>, Vec<Diagnostic>) {
-            crate::evaluation::evaluate_with(program, vault, bound, mode)
+            crate::evaluation::evaluate_with(program, env, bound, mode)
         }
     }
 
@@ -312,13 +317,15 @@ mod tests {
     #[test]
     fn a_backend_refuses_a_pipeline_that_is_not_planned() {
         let program = checked("[1, 2, 3] | map(n => n + 1) | size");
-        let (value, _) = LOCALHOST.execute(&program, &Vault::empty(), Vec::new(), Mode::Strict);
+        let (value, _) =
+            LOCALHOST.execute(&program, &RunEnvironment::bare(), Vec::new(), Mode::Strict);
         let refused = value.unwrap_err().to_string();
         assert!(refused.contains("`localhost`"), "{refused}");
         assert!(refused.contains("stage annotation"), "{refused}");
         // Planned, the same program runs.
         LOCALHOST.plan(&program);
-        let (value, _) = LOCALHOST.execute(&program, &Vault::empty(), Vec::new(), Mode::Strict);
+        let (value, _) =
+            LOCALHOST.execute(&program, &RunEnvironment::bare(), Vec::new(), Mode::Strict);
         assert_eq!(value.unwrap(), Value::Int(3));
     }
 
@@ -350,9 +357,14 @@ mod tests {
         for source in PROGRAMS {
             let on_localhost = checked(source);
             let split = checked(source);
-            let (expected, _) =
-                LOCALHOST.run(&on_localhost, &Vault::empty(), Vec::new(), Mode::Strict);
-            let (produced, _) = SPLITTING.run(&split, &Vault::empty(), Vec::new(), Mode::Strict);
+            let (expected, _) = LOCALHOST.run(
+                &on_localhost,
+                &RunEnvironment::bare(),
+                Vec::new(),
+                Mode::Strict,
+            );
+            let (produced, _) =
+                SPLITTING.run(&split, &RunEnvironment::bare(), Vec::new(), Mode::Strict);
             assert_eq!(produced.unwrap(), expected.unwrap(), "{source}");
             // The plans differ, so the agreement is not a tautology.
             let stages = |program: &Program| -> Vec<Stage> {

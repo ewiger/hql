@@ -1,9 +1,9 @@
 //! `format` writes a value as text of a presentation format, and a vault's
 //! `.hql/config.toml` chooses which renderer writes a type in a format.
 
+use hql::environment::RunEnvironment;
 use hql::reporting::Mode;
 use hql::types::Value;
-use hql::vault::Vault;
 use std::path::Path;
 
 /// The configuration file of a directory that is both a project and a vault,
@@ -17,12 +17,12 @@ fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
     dir.join(".hql/config.toml")
 }
 
-fn fixture() -> Vault {
-    hql::vault::load(Path::new("tests/fixtures/vault")).unwrap()
+fn fixture() -> RunEnvironment {
+    hql::environment::load(Path::new("tests/fixtures/vault")).unwrap()
 }
 
 /// The text a query writes and the name of its format type.
-fn written(source: &str, vault: &Vault) -> (String, String) {
+fn written(source: &str, vault: &RunEnvironment) -> (String, String) {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
     match outcome.value {
@@ -33,7 +33,7 @@ fn written(source: &str, vault: &Vault) -> (String, String) {
     }
 }
 
-fn refused(source: &str, vault: &Vault) -> String {
+fn refused(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(outcome.failed(), "{source}");
     format!("{:?}", outcome.diagnostics)
@@ -146,12 +146,12 @@ fn text_of_one_format_is_itself_plain_text_or_a_fence() {
     assert_eq!(format, "Json");
 }
 
-fn configured(toml: &str) -> std::io::Result<Vault> {
+fn configured(toml: &str) -> std::io::Result<RunEnvironment> {
     let directory = tempfile::tempdir().unwrap();
     std::fs::write(directory.path().join("a.hmd"), "# A\n\nSee [[b]].\n").unwrap();
     std::fs::write(directory.path().join("b.hmd"), "# B\n").unwrap();
     std::fs::write(project_config(directory.path()), toml).unwrap();
-    hql::vault::load(directory.path())
+    hql::environment::load(directory.path())
 }
 
 #[test]

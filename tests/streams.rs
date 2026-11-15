@@ -7,7 +7,7 @@ fn check(source: &str) -> Result<TypeRef, String> {
 }
 
 fn eval(source: &str) -> Value {
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     let outcome = hql::run(source, &vault, hql::reporting::Mode::Strict);
     assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
     outcome.value.expect("a value")
@@ -268,7 +268,7 @@ fn formatting_a_stream_gives_a_stream_of_pieces() {
 
 #[test]
 fn a_host_writes_a_stream_as_it_arrives_and_stops_when_the_reader_does() {
-    let vault = hql::vault::Vault::empty();
+    let vault = hql::environment::RunEnvironment::bare();
     let outcome = hql::run(
         &format!("{NATURALS}naturals(1) | yaml"),
         &vault,

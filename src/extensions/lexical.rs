@@ -134,7 +134,7 @@ fn eval_lexical(
         crate::types::TypeRef::CARD,
         Retrieval {
             query: query.to_string(),
-            index: cx.vault().index_name(),
+            index: cx.environment().index_name(),
             model: MODEL.to_owned(),
             revision: env!("CARGO_PKG_VERSION").to_owned(),
             metric: METRIC.to_owned(),

@@ -2,10 +2,11 @@
 //! the document graph their references write.
 //!
 //! An extension owns type knowledge and operations, never the data. This
-//! module coordinates source, document, knowledge, and extension assembly.
+//! module coordinates source, document and knowledge assembly. A vault is
+//! HyperMarkdown's and holds nothing of an HQL project: the project's
+//! configuration is the [`crate::environment::RunEnvironment`]'s (HQL-0059).
 
 use crate::document::Card;
-use crate::extensions::Config;
 use crate::extensions::semantic::Semantics;
 use crate::graph::Edge;
 use std::collections::BTreeMap;
@@ -26,83 +27,15 @@ pub struct Vault {
     pub edges: Vec<Edge>,
     /// What loading wanted to say without refusing to load.
     pub warnings: Vec<crate::diagnostics::Diagnostic>,
-    /// The root of the HQL project the run is configured by; empty when the
-    /// run has none. A project is not the vault: the two are found apart
-    /// (HQL-0059), and may be one directory or two.
-    pub project: PathBuf,
-    /// What the project's `.hql/config.toml` says about modules and
-    /// packages.
-    pub extensions: Config,
     /// What the vault's `.hmd/config.toml` says about its embedding index.
     pub semantics: Semantics,
-    /// Which renderer writes a type in a presentation format, from the
-    /// project.
-    pub formats: crate::extensions::format::Renderers,
-    /// The endpoints the project's `.hql/config.toml` configures, by id.
-    pub endpoints: crate::endpoints::Endpoints,
 }
 
 impl Vault {
-    /// An empty vault, which is what a program outside every vault gets.
-    #[must_use]
-    pub fn empty() -> Self {
-        Self {
-            root: PathBuf::new(),
-            cards: Vec::new(),
-            by_name: BTreeMap::new(),
-            edges: Vec::new(),
-            warnings: Vec::new(),
-            project: PathBuf::new(),
-            extensions: Config::default(),
-            semantics: Semantics::default(),
-            formats: crate::extensions::format::Renderers::default(),
-            endpoints: crate::endpoints::Endpoints::default(),
-        }
-    }
-
-    /// Whether a vault was supplied at all.
-    #[must_use]
-    pub fn is_present(&self) -> bool {
-        !self.root.as_os_str().is_empty()
-    }
-
-    /// Make `hmd` active for every program run against this vault, as a
-    /// HyperMarkdown host does by injecting `import hmd`.
-    pub fn host(&mut self) {
-        if !self.extensions.hmd_active() {
-            self.extensions.imports.push("hmd".to_owned());
-        }
-    }
-
-    /// The project root, when the run has a project.
-    #[must_use]
-    pub fn project_root(&self) -> Option<&Path> {
-        (!self.project.as_os_str().is_empty()).then_some(self.project.as_path())
-    }
-
-    /// Take the configuration of the project at `root`: its packages,
-    /// renderers and endpoints, each relative path read against `root`.
-    ///
-    /// # Errors
-    ///
-    /// A malformed renderer or endpoint entry, naming it.
-    pub fn configure_project(&mut self, root: &Path) -> io::Result<()> {
-        let invalid = |message: String| io::Error::new(io::ErrorKind::InvalidData, message);
-        self.extensions = Config::read(root);
-        self.formats = crate::extensions::format::Renderers::read(root).map_err(invalid)?;
-        self.endpoints = crate::endpoints::Endpoints::read(root).map_err(invalid)?;
-        self.project = root.to_path_buf();
-        Ok(())
-    }
-
     /// The name this vault reports as the index a retrieval used.
     #[must_use]
     pub fn index_name(&self) -> String {
-        if self.is_present() {
-            self.root.display().to_string()
-        } else {
-            "<no vault>".to_owned()
-        }
+        self.root.display().to_string()
     }
 
     /// Where a document of this vault is on disk: the root joined with its
@@ -153,40 +86,21 @@ pub fn is_root(dir: &Path) -> bool {
 }
 
 /// Read every Markdown and HyperMarkdown document under a directory as the
-/// cards of a vault, with the vault's own index configuration, and nothing
-/// of any project.
+/// cards of a vault, with the vault's own index configuration.
 ///
 /// # Errors
 ///
 /// Returns the underlying I/O failure when the root cannot be read.
 pub fn load_documents(root: &Path) -> io::Result<Vault> {
-    load_source(&crate::sources::Filesystem::new(root))
+    assemble(&crate::sources::Filesystem::new(root))
 }
 
-/// Read a directory as a vault, as a HyperMarkdown host that names it does:
-/// its documents are cards whether or not it holds `.hmd/`; when it is also a
-/// project, holding `.hql/config.toml`, the run takes that project's
-/// configuration; and `hmd` is active, as a host that supplies a vault
-/// injects `import hmd` (HQL-0059).
-///
-/// # Errors
-///
-/// Returns the underlying I/O failure when the root cannot be read, and a
-/// malformed project configuration.
-pub fn load(root: &Path) -> io::Result<Vault> {
-    let mut vault = load_documents(root)?;
-    if crate::context::is_project(root) {
-        vault.configure_project(root)?;
-    }
-    vault.host();
-    Ok(vault)
-}
-
-/// Load a source through document and knowledge assembly.
+/// Assemble the vault of a source: its documents as cards, their edges, and
+/// its index configuration.
 ///
 /// # Errors
 /// Returns a source read failure before assembly starts.
-pub fn load_source(source: &dyn crate::sources::VaultSource) -> io::Result<Vault> {
+pub fn assemble(source: &dyn crate::sources::VaultSource) -> io::Result<Vault> {
     let snapshot = source.read()?;
     let root = snapshot.root.clone();
     let store = crate::document::DocumentStore::from_source(snapshot);
@@ -212,15 +126,7 @@ pub fn load_source(source: &dyn crate::sources::VaultSource) -> io::Result<Vault
         .collect();
     let edges = crate::knowledge::build_edges(&cards);
     Ok(Vault {
-        project: PathBuf::new(),
-        extensions: source.extensions(),
         semantics: source.semantics(),
-        formats: source
-            .formats()
-            .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?,
-        endpoints: source
-            .endpoints()
-            .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?,
         root,
         cards,
         by_name,

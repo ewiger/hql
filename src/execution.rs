@@ -2006,22 +2006,22 @@ mod tests {
 
     #[test]
     fn execution_owns_its_tree_and_never_resolves_imports_again() {
-        let mut vault = crate::vault::Vault::empty();
+        let mut env = crate::environment::RunEnvironment::bare();
         let syntax = crate::parser::parse("[1, 2] | map(n => n + 1) | markdown").unwrap();
-        let program = crate::checker::check(&syntax, &vault).unwrap();
+        let program = crate::checker::check(&syntax, &env).unwrap();
         drop(syntax);
-        vault.extensions.prelude = false;
-        vault.extensions.imports.push("unregistered".to_owned());
-        let (value, log) = crate::evaluation::evaluate(&program, &vault);
+        env.extensions.prelude = false;
+        env.extensions.imports.push("unregistered".to_owned());
+        let (value, log) = crate::evaluation::evaluate(&program, &env);
         assert_eq!(value.unwrap().type_of(), program.result);
         assert!(log.is_empty());
     }
 
     #[test]
     fn failed_collecting_checks_never_produce_an_executable_program() {
-        let vault = crate::vault::Vault::empty();
+        let env = crate::environment::RunEnvironment::bare();
         let syntax = crate::parser::parse("[1] | take(true)\n[2] | take(1)").unwrap();
-        let (program, errors) = crate::checker::check_collecting(&syntax, &vault);
+        let (program, errors) = crate::checker::check_collecting(&syntax, &env);
         assert!(program.is_none());
         assert_eq!(errors.len(), 1);
     }
@@ -2038,7 +2038,7 @@ mod tests {
                 declarations(input, found);
             }
         }
-        let vault = crate::vault::Vault::empty();
+        let env = crate::environment::RunEnvironment::bare();
         let mut found = Vec::new();
         for source in [
             "\"x\".pad_left(3, \"0\")",
@@ -2047,7 +2047,7 @@ mod tests {
             "pad_left(\"x\", 3, \"0\")",
         ] {
             let syntax = crate::parser::parse(source).unwrap();
-            let program = crate::checker::check(&syntax, &vault).unwrap();
+            let program = crate::checker::check(&syntax, &env).unwrap();
             let [statement] = program.statements.as_slice() else {
                 panic!("one statement");
             };
@@ -2059,7 +2059,7 @@ mod tests {
         assert_eq!(found, vec!["string.pad_left"; 4]);
         // An overloaded name resolves the form the call took.
         let syntax = crate::parser::parse("[2, 1] | sort").unwrap();
-        let program = crate::checker::check(&syntax, &vault).unwrap();
+        let program = crate::checker::check(&syntax, &env).unwrap();
         let Stmt::Expr(expression) = &program.statements[0] else {
             panic!("an expression");
         };

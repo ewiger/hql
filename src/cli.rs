@@ -4,10 +4,10 @@
 //! only the binary can reach is logic that cannot be tested.
 
 use crate::diagnostics::Diagnostic;
+use crate::environment::RunEnvironment;
 use crate::lexer::Token;
 use crate::reporting::{Level, Mode, Settings, Severity};
 use crate::types::{TypeConstructor, Value};
-use crate::vault::Vault;
 use crate::{render, transclude};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use rustyline::completion::Completer;
@@ -415,7 +415,7 @@ fn reference(
 fn help(
     name: Option<&str>,
     file: Option<&Path>,
-    vault: &Vault,
+    env: &RunEnvironment,
     out: &mut impl Write,
     err: &mut impl Write,
 ) -> Result<u8, String> {
@@ -430,7 +430,7 @@ fn help(
         )),
         None => None,
     };
-    let modules = crate::help::scope(program, &vault.extensions.module_roots);
+    let modules = crate::help::scope(program, &env.extensions.module_roots);
     match crate::help::help(name, &modules) {
         Ok(text) => {
             write!(out, "{text}").map_err(|error| error.to_string())?;
@@ -660,8 +660,8 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
     // The run's diagnostic channel exists before the loader runs, so the
     // loader writes into it as every later phase does.
     let opened = crate::io::open_diagnostics();
-    let result = context.load().and_then(|vault| {
-        for diagnostic in &vault.warnings {
+    let result = context.load().and_then(|env| {
+        for diagnostic in env.warnings() {
             crate::io::write_diagnostic(diagnostic.clone());
         }
         // The packages of the process, before the first program is
@@ -674,8 +674,8 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             .chain(context.layers.home.as_ref().map(|home| home.path.clone()))
             .collect();
         undeclared(&levels)?;
-        crate::package::activate_configured(&vault.extensions.package_paths, &levels);
-        dispatch(cli, &context, &vault, out, err)
+        crate::package::activate_configured(&env.extensions.package_paths, &levels);
+        dispatch(cli, &context, &env, out, err)
     });
     // Every diagnostic was delivered before the run ends: the channel
     // closes, and only then is the exit status returned.
@@ -1320,7 +1320,7 @@ fn write_context(
 fn dispatch(
     cli: &Cli,
     context: &crate::context::ExecutionContext,
-    vault: &Vault,
+    env: &RunEnvironment,
     out: &mut impl Write,
     err: &mut impl Write,
 ) -> Result<u8, String> {
@@ -1400,7 +1400,7 @@ fn dispatch(
         Command::Builtins => {
             // One module per heading, with the extension providing it: a
             // step is reached by importing its module, never its package.
-            for provider in crate::extensions::catalogue(&vault.extensions) {
+            for provider in crate::extensions::catalogue(&env.extensions) {
                 writeln!(
                     out,
                     "{} ({} {}, {})",
@@ -1450,7 +1450,7 @@ fn dispatch(
         }
         Command::Package { .. } => Err("`hql package` runs before a project is loaded".to_owned()),
         Command::Doctor => {
-            let checks = crate::extensions::semantic::doctor(vault);
+            let checks = crate::extensions::semantic::doctor(env);
             for check in &checks {
                 writeln!(
                     out,
@@ -1495,11 +1495,10 @@ fn dispatch(
                 level.origin,
                 backend.backend.name,
                 backend.origin.label(),
-                if vault.is_present() {
-                    format!("{} ({} cards)", vault.root.display(), vault.cards.len())
-                } else {
-                    "none".to_owned()
-                }
+                env.vault.as_ref().map_or_else(
+                    || "none".to_owned(),
+                    |vault| format!("{} ({} cards)", vault.root.display(), vault.cards.len())
+                )
             )
             .map_err(|error| error.to_string())?;
             Ok(0)
@@ -1510,14 +1509,14 @@ fn dispatch(
         }
         Command::Eval { expression } => {
             crate::io::set_host(crate::io::Policy::Open, PathBuf::from("."));
-            let outcome = crate::run_on(expression, vault, settings.mode, backend);
+            let outcome = crate::run_on(expression, env, settings.mode, backend);
             emit(
                 &outcome,
                 expression,
                 "<expression>",
                 HQL,
                 &cli.options,
-                vault,
+                env,
                 shown,
                 out,
                 err,
@@ -1529,14 +1528,14 @@ fn dispatch(
             if file == "-" {
                 crate::io::set_program_on_stdin();
             }
-            let outcome = crate::run_on(&source, vault, settings.mode, backend);
+            let outcome = crate::run_on(&source, env, settings.mode, backend);
             emit(
                 &outcome,
                 &source,
                 &origin,
                 HQL,
                 &cli.options,
-                vault,
+                env,
                 shown,
                 out,
                 err,
@@ -1544,14 +1543,14 @@ fn dispatch(
         }
         Command::Check { file } => {
             let (source, origin) = read(file)?;
-            let outcome = crate::check_reported(&source, vault, settings.mode);
+            let outcome = crate::check_reported(&source, env, settings.mode);
             emit(
                 &outcome,
                 &source,
                 &origin,
                 TEXT,
                 &cli.options,
-                vault,
+                env,
                 shown,
                 out,
                 err,
@@ -1559,16 +1558,16 @@ fn dispatch(
         }
         Command::Plan { file } => {
             let (source, origin) = read(file)?;
-            let Ok(planned) = crate::plan(&source, vault, backend.backend) else {
+            let Ok(planned) = crate::plan(&source, env, backend.backend) else {
                 // What stopped it is what checking reports.
-                let outcome = crate::check_reported(&source, vault, settings.mode);
+                let outcome = crate::check_reported(&source, env, settings.mode);
                 return emit(
                     &outcome,
                     &source,
                     &origin,
                     TEXT,
                     &cli.options,
-                    vault,
+                    env,
                     shown,
                     out,
                     err,
@@ -1579,7 +1578,7 @@ fn dispatch(
         }
         Command::Boundary { file, id, element } => {
             let (source, _) = read(file)?;
-            match crate::inspect_boundary(&source, vault, id, element.as_deref()) {
+            match crate::inspect_boundary(&source, env, id, element.as_deref()) {
                 Ok(inspected) => {
                     write_boundary(&inspected, &cli.options, out)?;
                     Ok(0)
@@ -1606,11 +1605,11 @@ fn dispatch(
                 // or the nearest at or above the document. In none, no cell
                 // runs.
                 let found;
-                let vault = match document_vault(file, cli, context, vault)? {
-                    Some(Found::Loaded) => vault,
+                let env = match document_vault(file, cli, context, env)? {
+                    Some(Found::Loaded) => env,
                     Some(Found::Own(own)) => {
                         let own = *own;
-                        for diagnostic in &own.warnings {
+                        for diagnostic in own.warnings() {
                             crate::io::write_diagnostic(diagnostic.clone());
                         }
                         found = own;
@@ -1625,15 +1624,15 @@ fn dispatch(
                 };
                 // `hql render` is a HyperMarkdown host: it injects `import
                 // hmd` into every cell (HQL-0059).
-                let mut hosted = vault.clone();
+                let mut hosted = env.clone();
                 hosted.host();
-                let vault = &hosted;
+                let env = &hosted;
                 // A document reads beside itself and writes nothing outside.
                 let root = directory_of(file);
                 crate::io::set_host(crate::io::Policy::Document { root: root.clone() }, root);
                 let rendered = transclude::render_cell(
                     &source,
-                    vault,
+                    env,
                     settings.mode,
                     (*emit).into(),
                     cell.as_deref(),
@@ -1719,9 +1718,9 @@ fn dispatch(
             Ok(code)
         }
         Command::Reference { dir, check } => reference(dir, *check, out, err),
-        Command::Help { name, file } => help(name.as_deref(), file.as_deref(), vault, out, err),
+        Command::Help { name, file } => help(name.as_deref(), file.as_deref(), env, out, err),
         Command::Repl => repl(
-            &repl_vault(vault, shown, &cli.options, err)?,
+            &repl_session(env, shown, &cli.options, err)?,
             settings.mode,
             backend,
             shown,
@@ -1957,12 +1956,13 @@ fn write_steps(
     Ok(())
 }
 
-/// The vault a document renders in, besides the one the run loaded.
+/// What a document renders against, besides what the run loaded.
 enum Found {
-    /// The vault the run already loaded.
+    /// The vault the run already loaded, under the run's project.
     Loaded,
-    /// The document's own vault, found from it and loaded for it.
-    Own(Box<Vault>),
+    /// The document's own vault and project, found from it and loaded for
+    /// it.
+    Own(Box<RunEnvironment>),
 }
 
 /// The vault of the document `file`, and the project its cells run in.
@@ -1977,14 +1977,14 @@ fn document_vault(
     file: &str,
     cli: &Cli,
     context: &crate::context::ExecutionContext,
-    loaded: &Vault,
+    loaded: &RunEnvironment,
 ) -> Result<Option<Found>, String> {
     let named = context
         .vault
         .as_ref()
         .is_some_and(|vault| vault.origin.is_explicit());
     if named || file == "-" {
-        return Ok(loaded.is_present().then_some(Found::Loaded));
+        return Ok(loaded.has_vault().then_some(Found::Loaded));
     }
     if context.bare {
         return Ok(None);
@@ -2086,7 +2086,7 @@ fn presented(
     value: &Value,
     to: Option<&Presentation>,
     host: TypeConstructor,
-    vault: &Vault,
+    env: &RunEnvironment,
     compact: bool,
 ) -> Result<Option<String>, String> {
     // A program that ends in a write has said everything it had to.
@@ -2108,7 +2108,7 @@ fn presented(
             .map(Some)
             .map_err(|error| error.to_string());
     }
-    crate::extensions::format::render(value, format, 0, None, &vault.formats).map(Some)
+    crate::extensions::format::render(value, format, 0, None, &env.formats).map(Some)
 }
 
 /// Write a stream as it arrives, one piece per value, each flushed so a
@@ -2117,7 +2117,7 @@ fn streamed(
     traversal: &crate::traversal::Traversal,
     to: Option<&Presentation>,
     host: TypeConstructor,
-    vault: &Vault,
+    env: &RunEnvironment,
     compact: bool,
     out: &mut impl Write,
 ) -> Result<(), String> {
@@ -2126,7 +2126,7 @@ fn streamed(
         _ => host,
     };
     let (mut first, mut failed) = (true, None);
-    crate::stream(traversal, vault, |value| {
+    crate::stream(traversal, env, |value| {
         let text = match (&value, to) {
             (Value::Formatted(formatted), None) => Ok(formatted.text.clone()),
             // Each document pretty-printed, one after another, as `jq .`
@@ -2156,7 +2156,7 @@ fn emit(
     origin: &str,
     host: TypeConstructor,
     options: &Options,
-    vault: &Vault,
+    env: &RunEnvironment,
     shown: Severity,
     out: &mut impl Write,
     err: &mut impl Write,
@@ -2172,7 +2172,7 @@ fn emit(
             ));
         }
         if !matches!(to, Some(Presentation::Nothing)) {
-            streamed(traversal, to.as_ref(), host, vault, options.compact, out)?;
+            streamed(traversal, to.as_ref(), host, env, options.compact, out)?;
         }
         deliver(&outcome.diagnostics, source, origin, shown, options, err)?;
         return Ok(u8::from(outcome.failed()));
@@ -2183,7 +2183,7 @@ fn emit(
             let value = match (&outcome.value, &to) {
                 (Some(_), Some(Presentation::Nothing)) | (None, _) => serde_json::Value::Null,
                 (Some(value), Some(_)) => {
-                    presented(value, to.as_ref(), host, vault, options.compact)?
+                    presented(value, to.as_ref(), host, env, options.compact)?
                         .map_or(serde_json::Value::Null, serde_json::Value::String)
                 }
                 (Some(value), None) => value.to_json(),
@@ -2206,7 +2206,7 @@ fn emit(
         }
         Shape::Text => {
             if let Some(value) = &outcome.value {
-                if let Some(text) = presented(value, to.as_ref(), host, vault, options.compact)? {
+                if let Some(text) = presented(value, to.as_ref(), host, env, options.compact)? {
                     writeln!(out, "{text}").map_err(|error| error.to_string())?;
                 }
             } else if outcome.value.is_none()
@@ -2298,18 +2298,20 @@ fn deliver(
     Ok(())
 }
 
-/// The vault a REPL session runs against. Each line typed is its own run,
+/// What a REPL session runs against. Each line typed is its own run,
 /// with its own diagnostic channel; what the loader wrote is delivered once,
 /// before the first, and the host's channel is closed.
-fn repl_vault(
-    vault: &Vault,
+fn repl_session(
+    env: &RunEnvironment,
     shown: Severity,
     options: &Options,
     err: &mut impl Write,
-) -> Result<Vault, String> {
+) -> Result<RunEnvironment, String> {
     deliver(&crate::io::close_diagnostics(), "", "", shown, options, err)?;
-    let mut session = vault.clone();
-    session.warnings.clear();
+    let mut session = env.clone();
+    if let Some(vault) = &mut session.vault {
+        vault.warnings.clear();
+    }
     Ok(session)
 }
 
@@ -2318,7 +2320,7 @@ fn repl_vault(
 /// Bindings persist by replaying the statements that succeeded, which keeps
 /// the session a program rather than a sequence of unrelated runs.
 fn repl(
-    vault: &Vault,
+    env: &RunEnvironment,
     mode: Mode,
     backend: crate::backends::Selection,
     shown: Severity,
@@ -2380,11 +2382,10 @@ fn repl(
                 writeln!(
                     out,
                     "{}",
-                    if vault.is_present() {
-                        format!("{} ({} cards)", vault.root.display(), vault.cards.len())
-                    } else {
-                        "no vault".to_owned()
-                    }
+                    env.vault.as_ref().map_or_else(
+                        || "no vault".to_owned(),
+                        |vault| format!("{} ({} cards)", vault.root.display(), vault.cards.len())
+                    )
                 )
                 .map_err(|error| error.to_string())?;
                 continue;
@@ -2399,7 +2400,7 @@ fn repl(
         if let Some(name) = line.strip_prefix(":help ") {
             let modules = crate::help::scope(
                 (!prelude.is_empty()).then(|| crate::help::Module::program(&prelude.join("\n\n"))),
-                &vault.extensions.module_roots,
+                &env.extensions.module_roots,
             );
             match crate::help::help(name.trim(), &modules) {
                 Ok(text) => write!(out, "{text}").map_err(|error| error.to_string())?,
@@ -2414,7 +2415,7 @@ fn repl(
         {
             let modules = crate::help::scope(
                 (!prelude.is_empty()).then(|| crate::help::Module::program(&prelude.join("\n\n"))),
-                &vault.extensions.module_roots,
+                &env.extensions.module_roots,
             );
             if let Some(text) = crate::help::types(name, &modules) {
                 write!(out, "{text}").map_err(|error| error.to_string())?;
@@ -2440,9 +2441,9 @@ fn repl(
             None => (join(&prelude, line), false),
         };
         let outcome = if typing {
-            crate::check_reported(&source, vault, mode)
+            crate::check_reported(&source, env, mode)
         } else {
-            crate::run_on(&source, vault, mode, backend)
+            crate::run_on(&source, env, mode, backend)
         };
         let origin = format!("<repl:{typed}>");
         let at = source.len() - line.len();
@@ -2459,7 +2460,7 @@ fn repl(
             &origin,
             HQL,
             options,
-            vault,
+            env,
             shown,
             out,
             err,

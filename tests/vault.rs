@@ -6,8 +6,8 @@ use hql::types::Value;
 use hql::{run, vault};
 use std::path::Path;
 
-fn fixture() -> vault::Vault {
-    vault::load(Path::new("tests/fixtures/vault")).expect("the fixture vault loads")
+fn fixture() -> hql::environment::RunEnvironment {
+    hql::environment::load(Path::new("tests/fixtures/vault")).expect("the fixture vault loads")
 }
 
 fn value(source: &str) -> Value {
@@ -24,7 +24,7 @@ fn text(source: &str) -> String {
 #[test]
 fn loads_markdown_and_hypermarkdown_alike() {
     let vault = fixture();
-    let names: Vec<&str> = vault.cards.iter().map(|card| card.name()).collect();
+    let names: Vec<&str> = vault.cards().iter().map(|card| card.name()).collect();
     assert_eq!(
         names,
         [
@@ -59,7 +59,7 @@ fn a_declared_relation_is_checked_rather_than_trusted() {
         "the failed claim is kept"
     );
     assert!(
-        vault.warnings.iter().any(|warning| warning
+        vault.warnings().iter().any(|warning| warning
             .origin
             .as_deref()
             .is_some_and(|origin| origin.contains("broken-relation"))),
@@ -588,16 +588,16 @@ fn a_nested_vault_is_not_part_of_the_vault_around_it() {
     std::fs::write(outer.join("site/index.hmd"), "# Site").unwrap();
     std::fs::write(outer.join("site/learn/time.hmd"), "# Time, taught").unwrap();
 
-    let names = |vault: &vault::Vault| {
+    let names = |vault: &hql::environment::RunEnvironment| {
         vault
-            .cards
+            .cards()
             .iter()
             .map(|card| card.name().to_owned())
             .collect::<Vec<_>>()
     };
-    assert_eq!(names(&vault::load(outer).unwrap()), ["time"]);
+    assert_eq!(names(&hql::environment::load(outer).unwrap()), ["time"]);
     assert_eq!(
-        names(&vault::load(&outer.join("site")).unwrap()),
+        names(&hql::environment::load(&outer.join("site")).unwrap()),
         ["index", "time"]
     );
 }

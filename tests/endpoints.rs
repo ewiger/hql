@@ -2,8 +2,8 @@
 //! `source("id")`, typed offline from the configuration and bounded by the
 //! run context. See doc/proposals/HQL-0012/index.hmd.
 
+use hql::environment::RunEnvironment;
 use hql::reporting::Mode;
-use hql::vault::{self, Vault};
 use std::fs;
 use tempfile::{TempDir, tempdir};
 
@@ -20,7 +20,7 @@ fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
 
 /// A vault with two vault endpoints, a CSV file, a JSON array and an SQLite
 /// table, configured by `config` appended to the endpoints every case shares.
-fn configured(extra: &str) -> (TempDir, Vault) {
+fn configured(extra: &str) -> (TempDir, RunEnvironment) {
     let dir = tempdir().unwrap();
     let root = dir.path();
     for (path, text) in [
@@ -79,11 +79,11 @@ table = "birds"
         ),
     )
     .unwrap();
-    let vault = vault::load(root).unwrap();
+    let vault = hql::environment::load(root).unwrap();
     (dir, vault)
 }
 
-fn value(source: &str, vault: &Vault) -> String {
+fn value(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
     let messages: Vec<_> = outcome
         .diagnostics
@@ -96,7 +96,7 @@ fn value(source: &str, vault: &Vault) -> String {
         .to_string()
 }
 
-fn refusal(source: &str, vault: &Vault) -> String {
+fn refusal(source: &str, vault: &RunEnvironment) -> String {
     let outcome = hql::run(source, vault, Mode::Strict);
     assert!(outcome.failed(), "{source} ran");
     outcome
@@ -246,7 +246,7 @@ fn a_malformed_configuration_refuses_the_vault() {
     ] {
         let dir = tempdir().unwrap();
         fs::write(project_config(dir.path()), entry).unwrap();
-        let error = vault::load(dir.path()).unwrap_err().to_string();
+        let error = hql::environment::load(dir.path()).unwrap_err().to_string();
         assert!(error.contains(says), "{entry}: {error}");
     }
     let dir = tempdir().unwrap();
@@ -255,7 +255,7 @@ fn a_malformed_configuration_refuses_the_vault() {
         "[endpoint.db]\nkind = \"sqlite\"\npath = \"x\"\ntable = \"t\"\npassword_env = \"DB_PASSWORD\"\n",
     )
     .unwrap();
-    assert!(vault::load(dir.path()).is_ok());
+    assert!(hql::environment::load(dir.path()).is_ok());
 }
 
 #[test]
@@ -417,7 +417,7 @@ fn a_boundary_is_configured_field_by_field() {
     ] {
         let dir = tempdir().unwrap();
         fs::write(project_config(dir.path()), format!("{source}{fields}")).unwrap();
-        let error = vault::load(dir.path()).unwrap_err().to_string();
+        let error = hql::environment::load(dir.path()).unwrap_err().to_string();
         assert!(error.contains(says), "{fields}: {error}");
     }
     let dir = tempdir().unwrap();
@@ -426,7 +426,7 @@ fn a_boundary_is_configured_field_by_field() {
         "[endpoint.notes]\nkind = \"vault\"\nroot = \"notes\"\n[endpoint.notes.fields.id]\nname = \"x\"\n",
     )
     .unwrap();
-    let error = vault::load(dir.path()).unwrap_err().to_string();
+    let error = hql::environment::load(dir.path()).unwrap_err().to_string();
     assert!(error.contains("no `fields`"), "{error}");
 }
 
@@ -478,7 +478,7 @@ fn a_null_reads_as_absent_unless_the_boundary_says_otherwise() {
             format!("[endpoint.readings]\nkind = \"json\"\npath = \"data/readings.json\"\n{extra}"),
         )
         .unwrap();
-        vault::load(dir.path()).unwrap()
+        hql::environment::load(dir.path()).unwrap()
     };
     assert_eq!(value(reading, &config("")), "[none]");
     let error = refusal(
@@ -529,7 +529,7 @@ mode = "create"
 "#,
     )
     .unwrap();
-    let vault = vault::load(dir.path()).unwrap();
+    let vault = hql::environment::load(dir.path()).unwrap();
     let types = "type Tally {\n    species : String\n    count : Int\n}\n\
                  type Person {\n    id : String\n    name : String\n    balance : Decimal\n}\n\
                  type Bird {\n    id : Int\n    name : String\n    note? : String\n}\n";
@@ -733,7 +733,7 @@ fn an_unreadable_configuration_is_an_error_not_an_empty_one() {
         b"# caf\xe9\n[endpoint.prices]\nkind = \"json\"\npath = \"p.json\"\n",
     )
     .unwrap();
-    let error = match vault::load(dir.path()) {
+    let error = match hql::environment::load(dir.path()) {
         Err(error) => error.to_string(),
         Ok(vault) => refusal("xs : Seq<Data> = source(\"prices\")\nxs | List", &vault),
     };
