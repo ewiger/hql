@@ -194,7 +194,7 @@ are its kind's keys, so a program reaches a subject with no `.hql/config.toml`:
 
 <!-- run: skip -->
 ```hql
-import io.msg.nats_jetstream
+from io.msg.nats_jetstream import nats_jetstream
 
 orders = nats_jetstream("events.orders", stream = "EVENTS", url_env = "NATS_URL", idle_ms = 2000)
 
@@ -214,7 +214,7 @@ supertypes state:
 
 <!-- run: check -->
 ```hql
-import io.msg.nats
+from io.msg.nats import nats
 
 nats("orders.order_placed", url_env = "NATS_URL") | is(Network)
 ```

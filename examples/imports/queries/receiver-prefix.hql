@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: String.* as String.bar_* binds each String receiver under a prefixed name, with no wrapper
-// implementation: pending
-// proposal: doc/proposals/HQL-0060/index.hmd
+// implementation: implemented
 // environment: pure
 // modules: imports/lib
 // expected-type: List<String>

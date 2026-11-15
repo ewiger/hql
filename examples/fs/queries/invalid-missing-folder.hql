@@ -7,6 +7,6 @@
 // severity: failure
 // expected-type: Seq<Entry>
 
-import io.fs
+from io.fs import folder, entries
 
 folder("no-such-folder") | entries

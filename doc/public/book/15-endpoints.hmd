@@ -224,7 +224,7 @@ configuration:
 
 <!-- run: check --project examples/pipelines/shop -->
 ```hql
-import io.msg.nats_jetstream
+from io.msg.nats_jetstream import nats_jetstream
 
 tap(nats_jetstream("orders.raw", stream = "ORDERS", url_env = "NATS_URL", idle_ms = 2000))
 ```
@@ -239,7 +239,7 @@ naming one is a check error:
 
 <!-- run: check --project examples/pipelines/shop -->
 ```hql
-import io.db.sqlite
+from io.db.sqlite import sqlite
 
 source(sqlite("data/shop.db", table = "orders", order = ["id"]))
 ```

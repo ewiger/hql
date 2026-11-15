@@ -1,6 +1,8 @@
 # The project of the execution-context cases: its own module root, and
-# one module imported into every unit it runs.
+# one import statement run at the head of every unit it runs: an entry is
+# `import m` when it names a module, and the statement itself when it is a
+# `from` statement (HQL-0060).
 
 [modules]
 roots = ["lib"]
-import = ["stats"]
+import = ["from stats import mean"]

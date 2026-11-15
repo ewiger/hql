@@ -5,7 +5,7 @@
 // expected-type: List<Bool>
 // expected: [true, true]
 
-import random
+from random import uuid
 
 ids = range(0, 20) | map(_ => uuid())
 [ids == sort(ids), size(Set(ids)) == 20]

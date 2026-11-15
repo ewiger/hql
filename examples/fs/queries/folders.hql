@@ -6,6 +6,6 @@
 // expected-type: Seq<String>
 // expected: ["assets", "data"]
 
-import io.fs
+from io.fs import folder, entries
 
 folder("../tree") | entries | filter(e => e.kind == "folder") | map(e => e.name)

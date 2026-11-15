@@ -5,7 +5,7 @@
 // expected-type: List<Option<Float>>
 // expected: [none, none, none]
 
-import stats
+from stats import mean, stdev, correlation
 
 none_above = [1, 2, 3] | filter(x => x > 5)
 [none_above | mean, [4] | stdev, zip([1, 2], [3, 3]) | correlation]

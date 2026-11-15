@@ -17,9 +17,9 @@ and no documents:
 | Case | What it shows | Result |
 | --- | --- | --- |
 | [module root](queries/project-module-root.hql) | `import club.shelf`, found under the project's module root | `["Dune", "Middlemarch"]` |
-| [configured import](queries/project-import.hql) | `mean` from `stats` with no `import` line | `3.0`, an `Option<Float>` |
+| [configured import](queries/project-import.hql) | `mean`, which the project imports with `from stats import mean`, with no import line | `3.0`, an `Option<Float>` |
 | [prelude declined](queries/invalid-prelude-declined.hql) | `trim` without `import string` where the prelude is declined | a name error |
-| [prelude declined, imported](queries/prelude-declined-import.hql) | the same program with `import string` | `owl` |
+| [prelude declined, imported](queries/prelude-declined-import.hql) | the same program with `from string import trim` | `owl` |
 
 From the repository root, `--project` names the project in place of the
 upward walk from the program's folder, and `hql context` writes the context

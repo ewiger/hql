@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: from binds a workspace module's functions unqualified, the same as a standard module's
-// implementation: pending
-// proposal: doc/proposals/HQL-0060/index.hmd
+// implementation: implemented
 // environment: pure
 // modules: imports/lib
 // expected-type: List<String>

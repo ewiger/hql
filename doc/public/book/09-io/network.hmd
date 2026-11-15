@@ -10,7 +10,7 @@ decodes the response body, so `source` gives a `Seq`:
 
 <!-- run: check -->
 ```hql
-import net
+from net import http
 source(http("https://api.example.com/birds"), Json)
 ```
 
@@ -23,7 +23,7 @@ so reading it gives a `Stream`:
 
 <!-- run: check -->
 ```hql
-import net
+from net import websocket
 tap(websocket("wss://events.example.com"), Json)
 ```
 
@@ -38,7 +38,7 @@ failure naming the URL:
 
 <!-- run: check -->
 ```hql
-import net
+from net import http
 source(file("examples/io/sightings.jsonl"))
 | target(http("https://api.example.com/report", method = "POST"), Json)
 ```
@@ -62,7 +62,7 @@ bound of one `http` endpoint, in milliseconds above 0:
 
 <!-- run: check -->
 ```hql
-import net
+from net import http
 source(http("https://api.example.com/birds", timeout_ms = 5000), Json)
 ```
 
@@ -80,7 +80,7 @@ source(http("https://api.example.com/birds"), Json)
 ```
 
 ```text
-check error[unknown-name]: `http` is declared in the module `io.net`: write `import net`
+check error[unknown-name]: `http` is declared in the module `io.net`: write `from net import http`
  --> <expression>:1:8
   |
 1 | source(http("https://api.example.com/birds"), Json)

@@ -55,7 +55,7 @@ fn a_logger_is_imported() {
 #[test]
 fn a_log_file_is_appended_to_one_json_document_per_event() {
     let dir = tempdir().unwrap();
-    let program = "import logging\n\
+    let program = "from logging import *\n\
                    log = Logger(file(\"app.log\").end, Json, name = \"a\", level = Debug)\n\
                    log | debug(\"one\")\n\
                    info(log, \"two\", {n: 2})";
@@ -73,7 +73,7 @@ fn a_log_file_is_appended_to_one_json_document_per_event() {
 #[test]
 fn a_threshold_drops_less_severe_events() {
     let dir = tempdir().unwrap();
-    let program = "import logging\n\
+    let program = "from logging import *\n\
                    log = Logger(file(\"q.log\"), Text, name = \"q\", level = Warn)\n\
                    log | info(\"dropped\")\n\
                    log | error(\"kept\")";
@@ -87,7 +87,7 @@ fn a_threshold_drops_less_severe_events() {
 #[test]
 fn logs_in_a_channel_are_data_a_program_queries() {
     let dir = tempdir().unwrap();
-    let program = "import logging\n\
+    let program = "from logging import *\n\
                    c = Channel<LogEvent>(\"logs\")\n\
                    log = Logger(c, name = \"x\")\n\
                    log | info(\"a\")\n\
@@ -97,7 +97,7 @@ fn logs_in_a_channel_are_data_a_program_queries() {
     refused(
         &hql_in(
             dir.path(),
-            &["import logging\nc = Channel<Int>(\"n\")\nLogger(c, name = \"x\")"],
+            &["from logging import *\nc = Channel<Int>(\"n\")\nLogger(c, name = \"x\")"],
         ),
         "writes LogEvents",
     );
@@ -110,7 +110,7 @@ fn a_cell_logs_to_its_own_channel_and_saves_only_its_result() {
     std::fs::write(project_config(dir.path()), "").unwrap();
     fs::write(
         dir.path().join("doc.md"),
-        "```hql\nimport logging\nlog = Logger(cell.logs, name = \"r\")\n\
+        "```hql\nfrom logging import *\nlog = Logger(cell.logs, name = \"r\")\n\
          log | info(\"hi\")\n[1, 2] | size\n```\n",
     )
     .unwrap();
@@ -118,7 +118,7 @@ fn a_cell_logs_to_its_own_channel_and_saves_only_its_result() {
     assert_eq!(rendered.trim(), "2");
     fs::write(
         dir.path().join("loud.md"),
-        "```hql\nimport logging\nlog = Logger(stderr, Text, name = \"r\")\n1\n```\n",
+        "```hql\nfrom logging import *\nlog = Logger(stderr, Text, name = \"r\")\n1\n```\n",
     )
     .unwrap();
     refused(

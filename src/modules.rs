@@ -148,6 +148,11 @@ pub(crate) struct ProjectModule {
     pub traits: HashMap<String, crate::checker::TraitInfo>,
     /// The implementations it declares.
     pub impls: Vec<crate::checker::ImplInfo>,
+    /// The public types and traits it declares, by name: what a `from`
+    /// statement may name besides its functions.
+    pub types: Vec<String>,
+    /// The names it declares `private`: named by no `from` statement.
+    pub private: Vec<String>,
 }
 
 /// One exported function of a project module, with what the checker needs

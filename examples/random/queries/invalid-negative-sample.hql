@@ -7,6 +7,6 @@
 // severity: failure
 // expected-type: List<Int>
 
-import random
+from random import sample
 
 [1, 2, 3] | sample(-1, seed = 1)

@@ -11,10 +11,11 @@
 /// `Contract.f` of kind `rule`.
 module validators
 
-import core
-import string
-import seq
-import option
+from core import *
+from collections import *
+from string import *
+from seq import *
+from option import *
 
 /// An email address: one `@` with text before it, and a domain after it
 /// holding a `.` that neither opens nor closes it.

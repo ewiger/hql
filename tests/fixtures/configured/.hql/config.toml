@@ -1,6 +1,6 @@
 # A project that states every capability its programs use: no prelude, and
 # HyperMarkdown with its lexical retrieval imported once here rather than in
-# every query.
+# every query. Each entry is an import statement (HQL-0060).
 [modules]
-import = ["hmd", "hmd.search.lexical"]
+import = ["hmd", "from hmd.search.lexical import lexical", "from collections import count"]
 prelude = false

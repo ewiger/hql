@@ -6,7 +6,7 @@
 // expected-type: List<Option<Data>>
 // expected: ["heron", "owl"]
 
-import io.fs
+from io.fs import folder, glob, Glob
 
 // Every row of every CSV file directly in data/, read through `file`.
 folder("../tree/data")

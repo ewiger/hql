@@ -3,7 +3,8 @@
 use crate::ast::{
     ALIAS_INPUT, AliasDecl, AliasParam, Arg, Arith, Arm, BlockStmt, Expr, ExternalDecl, FORK_INPUT,
     Field, FnDecl, ImplDecl, Kind, Logic, MethodDecl, Param, Passing, Pattern, Program, Relation,
-    Rule, Severity, Stmt, TEE_INPUT, TraitDecl, TypeAnn, TypeDecl, optional_read, presence,
+    Rule, Selector, Severity, Stmt, TEE_INPUT, TraitDecl, TypeAnn, TypeDecl, optional_read,
+    presence,
 };
 use crate::diagnostics::Diagnostic;
 use crate::lexer::{self, Spanned, Token};
@@ -113,6 +114,213 @@ impl Parser {
             self.index += 1;
         }
         token
+    }
+
+    /// Whether a `from` statement starts here: `from`, a module path and
+    /// `import`. `from` is a keyword only there, so a binding named `from`
+    /// stays valid.
+    fn at_from_statement(&self) -> bool {
+        if self.nesting > 0 || !matches!(self.peek(), Token::Ident(word) if word == "from") {
+            return false;
+        }
+        let mut index = self.index + 1;
+        loop {
+            if !matches!(self.tokens[index].token, Token::Ident(_)) {
+                return false;
+            }
+            index += 1;
+            if matches!(self.tokens[index].token, Token::Dot) {
+                index += 1;
+                continue;
+            }
+            return matches!(&self.tokens[index].token, Token::Ident(word) if word == "import");
+        }
+    }
+
+    /// `from a.b import entry, …` (HQL-0060).
+    fn import_from(&mut self) -> Result<Stmt, Diagnostic> {
+        let head = self.advance();
+        let mut path = Vec::new();
+        loop {
+            let named = self.advance();
+            let Token::Ident(name) = named.token else {
+                return Err(Diagnostic::syntax(named.span, "expected a module name"));
+            };
+            path.push(name);
+            if !self.eat(&Token::Dot) {
+                break;
+            }
+        }
+        self.advance();
+        let mut entries = Vec::new();
+        loop {
+            entries.push(self.import_entry()?);
+            if !self.eat(&Token::Comma) {
+                break;
+            }
+        }
+        let end = entries.last().map_or(head.span.end, |entry| entry.span.end);
+        Ok(Stmt::From {
+            path,
+            entries,
+            span: head.span.start..end,
+        })
+    }
+
+    /// One entry of a `from` statement: a selector, an `except` after a
+    /// group, and an `as`.
+    fn import_entry(&mut self) -> Result<crate::ast::ImportEntry, Diagnostic> {
+        let start = self.peek_span().start;
+        let (selector, mut end) = self.selector()?;
+        let mut except = Vec::new();
+        if matches!(self.peek(), Token::Ident(word) if word == "except") {
+            let written = self.advance();
+            if !selector.is_group() {
+                return Err(Diagnostic::syntax(
+                    written.span,
+                    format!(
+                        "`except` follows a group, `*` or `T.*`; `{selector}` names what it \
+                         selects already"
+                    ),
+                ));
+            }
+            if self.peek() == &Token::OpenParen {
+                self.advance();
+                self.nesting += 1;
+                loop {
+                    let at = self.peek_span();
+                    let (excluded, excluded_end) = self.selector()?;
+                    except.push((excluded, at.start..excluded_end));
+                    if !self.eat(&Token::Comma) {
+                        break;
+                    }
+                }
+                self.nesting -= 1;
+                end = self
+                    .expect(&Token::CloseParen, "after the names `except` leaves out")?
+                    .span
+                    .end;
+            } else {
+                let at = self.peek_span();
+                let (excluded, excluded_end) = self.selector()?;
+                except.push((excluded, at.start..excluded_end));
+                end = excluded_end;
+            }
+            if let Some((excluded, at)) = except
+                .iter()
+                .find(|(excluded, _)| *excluded == Selector::All)
+            {
+                return Err(Diagnostic::syntax(
+                    at.clone(),
+                    format!("`except {excluded}` would leave nothing to import"),
+                ));
+            }
+        }
+        let alias = if matches!(self.peek(), Token::Ident(word) if word == "as") {
+            self.advance();
+            let (alias, alias_end) = self.rename()?;
+            end = alias_end;
+            Some(alias)
+        } else {
+            None
+        };
+        Ok(crate::ast::ImportEntry {
+            selector,
+            except,
+            alias,
+            span: start..end,
+        })
+    }
+
+    /// `*`, `f`, `T.*` or `T.f`, with where it ends.
+    fn selector(&mut self) -> Result<(Selector, usize), Diagnostic> {
+        let written = self.advance();
+        match written.token {
+            Token::Star => Ok((Selector::All, written.span.end)),
+            Token::Ident(name) => {
+                if self.peek() != &Token::Dot {
+                    return Ok((Selector::Name(name), written.span.end));
+                }
+                self.advance();
+                let member = self.advance();
+                match member.token {
+                    Token::Star => Ok((Selector::TypeAll(name), member.span.end)),
+                    Token::Ident(function) => {
+                        if self.peek() == &Token::Dot {
+                            return Err(Diagnostic::syntax(
+                                self.peek_span(),
+                                "a selector is `f`, `T.f` or `T.*`; a module is named after \
+                                 `from`",
+                            ));
+                        }
+                        Ok((Selector::TypeName(name, function), member.span.end))
+                    }
+                    _ => Err(Diagnostic::syntax(
+                        member.span,
+                        format!("expected a function name or `*` after `{name}.`"),
+                    )),
+                }
+            }
+            _ => Err(Diagnostic::syntax(
+                written.span,
+                "expected what to import: a name, `*`, `T.f` or `T.*`",
+            )),
+        }
+    }
+
+    /// The name after `as`: `g`, `T.g`, or a pattern with one `*` written
+    /// against its text, `bar_*`, `*_v2`, `T.bar_*`.
+    fn rename(&mut self) -> Result<(crate::ast::Rename, usize), Diagnostic> {
+        let start = self.peek_span().start;
+        let mut ty = None;
+        if let Token::Ident(name) = self.peek().clone()
+            && self.tokens[self.index + 1].token == Token::Dot
+        {
+            self.advance();
+            self.advance();
+            ty = Some(name);
+        }
+        let mut name = String::new();
+        let mut end: Option<usize> = None;
+        loop {
+            let span = self.tokens[self.index].span.clone();
+            // A pattern's parts touch: `bar_ *` is two names, not one.
+            if end.is_some_and(|end| end != span.start) {
+                break;
+            }
+            match self.tokens[self.index].token.clone() {
+                Token::Ident(part) if !name.ends_with(|c: char| c != '*') || name.is_empty() => {
+                    name.push_str(&part);
+                }
+                Token::Star => name.push('*'),
+                _ => break,
+            }
+            self.index += 1;
+            end = Some(span.end);
+        }
+        let Some(end) = end else {
+            return Err(Diagnostic::syntax(
+                self.peek_span(),
+                "expected a name or a pattern after `as`",
+            ));
+        };
+        let stars = name.matches('*').count();
+        if stars > 1 || name == "*" {
+            return Err(Diagnostic::syntax(
+                start..end,
+                format!(
+                    "`{name}` is no pattern: a pattern holds one `*` and text beside it, \
+                     `bar_*` or `*_v2`"
+                ),
+            ));
+        }
+        if name.starts_with(|c: char| c.is_ascii_digit()) {
+            return Err(Diagnostic::syntax(
+                start..end,
+                format!("`{name}` would bind names that are no identifiers"),
+            ));
+        }
+        Ok((crate::ast::Rename { ty, name }, end))
     }
 
     /// The `_` of a constructor parameter, `F<_>`.
@@ -326,7 +534,7 @@ impl Parser {
                          checked for",
                     ));
                 }
-                Stmt::Import { .. } | Stmt::Module { .. } | Stmt::Expr(_) => {
+                Stmt::Import { .. } | Stmt::From { .. } | Stmt::Module { .. } | Stmt::Expr(_) => {
                     return Err(Diagnostic::syntax(
                         span,
                         "`private` marks a declaration: a function, a type, a trait or a \
@@ -400,6 +608,9 @@ impl Parser {
                 alias,
                 span: head.span.start..end,
             });
+        }
+        if self.at_from_statement() {
+            return self.import_from();
         }
         if let Token::Ident(keyword) = self.peek().clone()
             && keyword == "module"

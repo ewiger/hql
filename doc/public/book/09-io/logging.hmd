@@ -6,7 +6,7 @@ producer and the destination it writes to:
 
 <!-- run: skip -->
 ```hql
-import logging
+from logging import Logger, info, debug
 
 log = Logger(stderr, Text, name = "club")
 unread = ["The Hobbit", "Leaves of Grass", "The Common Reader"]
@@ -34,7 +34,7 @@ otherwise, so the `debug` call above writes nothing. A level is a type, and
 the threshold is passed as one:
 
 ```hql
-import logging
+from logging import Logger, info, warn
 
 log = Logger(stdout, Text, name = "club", level = Warn)
 log | info("quiet")
@@ -66,7 +66,7 @@ name, the message, then the data unless it is empty. In `Json` each event is
 one document with four keys:
 
 ```hql
-import logging
+from logging import Logger, warn
 
 log = Logger(stdout, Json, name = "club")
 log | warn("low stock", {title: "Dune"})
@@ -89,7 +89,7 @@ its events as values, which the rest of the program can query. A level is a
 type, so it is tested with `is`:
 
 ```hql
-import logging
+from logging import Logger, debug, warn, error
 
 events = Channel<LogEvent>("events")
 log = Logger(events, name = "club", level = Debug)

@@ -28,7 +28,7 @@ fn keys() -> tempfile::TempDir {
     let directory = tempfile::tempdir().unwrap();
     let (_, error, ok) = run(
         directory.path(),
-        "import crypto\n\
+        "from crypto import *\n\
          pair = generate_key_pair(X25519)\n\
          pair.private.export_private(Age) | target(file(\"identity.txt\"), Text)\n\
          pair.public.to_text(Age) | target(file(\"recipient.txt\"), Text)\n",
@@ -46,10 +46,10 @@ fn keys() -> tempfile::TempDir {
     directory
 }
 
-const READ: &str = "import crypto\n\
+const READ: &str = "from crypto import *\n\
     identity = read_private_key(file(\"identity.txt\"), Age, X25519)\n";
 
-const WRITE: &str = "import crypto\n\
+const WRITE: &str = "from crypto import *\n\
     recipient = read_public_key(file(\"recipient.txt\"), Age, X25519)\n";
 
 #[test]
@@ -200,7 +200,7 @@ fn an_identity_that_opens_no_stanza_names_the_stanza_types() {
     .unwrap();
     let (_, error, ok) = run(
         directory.path(),
-        "import crypto\n\
+        "from crypto import *\n\
          other = read_private_key(file(\"other.txt\"), Age, X25519)\n\
          source(decrypted_with(file(\"a.jsonl.age\"), other))\n",
     );
@@ -218,7 +218,7 @@ fn an_identity_that_opens_no_stanza_names_the_stanza_types() {
 #[test]
 fn encrypting_to_a_files_end_is_a_check_error() {
     let failed = hql::check(
-        "import crypto\n\
+        "from crypto import *\n\
          pair = generate_key_pair(X25519)\n\
          [1] | sink(encrypted_to(file(\"x.jsonl.age\").end, [pair.public]))",
     )
@@ -239,7 +239,7 @@ fn a_rendered_document_draws_nothing_from_the_host_generator() {
     let document = vault.path().join("keys.md");
     std::fs::write(
         &document,
-        "# Keys\n\n```hql\nimport crypto\ngenerate_key_pair(Ed25519).public.thumbprint()\n```\n",
+        "# Keys\n\n```hql\nfrom crypto import *\ngenerate_key_pair(Ed25519).public.thumbprint()\n```\n",
     )
     .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_hql"))

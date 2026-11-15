@@ -498,7 +498,7 @@ fn a_function_that_reads_or_logs_is_effectful() {
     let dir = tempdir().unwrap();
     fs::write(
         dir.path().join("q.hql"),
-        "import logging\n\
+        "from logging import *\n\
          fn load(p: String) : Seq<Data> = source(file(p), Json)\n\
          fn total(p: String) : Int = load(p) | size\n\
          fn next(x: Int) : Int = x + 1\n\

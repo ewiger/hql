@@ -5,6 +5,6 @@
 // expected-type: Option<Float>
 // expected: 2.5
 
-import stats
+from stats import median
 
 [3, 1, 4, 2] | median

@@ -50,7 +50,7 @@ The two forms agree: the digest of `Bytes(s)` is the digest of `s`:
 
 ```hql
 import crypto.digest
-import encoding
+from encoding import Bytes
 Bytes("68656c6c6f", Hex).digest(Sha256) == "hello".digest(Sha256)
 ```
 
@@ -66,7 +66,7 @@ keys sorted, no whitespace, a number as its digits without trailing zeros,
 a time value as its ISO 8601 text and a `Bytes` leaf as its base64 text:
 
 ```hql
-import crypto.digest
+from crypto.digest import canonical
 canonical({title: "Dune", pages: 412, price: 9.50, on: Date("2026-10-24")})
 ```
 
@@ -79,7 +79,7 @@ fingerprint. Key order, whitespace and `1.10` against `1.1` in the source
 text change neither:
 
 ```hql
-import crypto.digest
+from crypto.digest import fingerprint
 a = Data("{\"b\": 1, \"a\": [1.10, \"x\"]}", Json)
 b = Data("{ \"a\" : [1.1, \"x\"],\n  \"b\": 1.0 }", Json)
 [fingerprint(a), fingerprint(b)]
@@ -93,7 +93,7 @@ A value's type does count: the number `9.50` and the text `"9.50"` are
 different leaves, with different fingerprints:
 
 ```hql
-import crypto.digest
+from crypto.digest import fingerprint
 [fingerprint({price: 9.50}) == fingerprint({price: 9.5}), fingerprint({price: 9.50}) == fingerprint({price: "9.50"})]
 ```
 
@@ -160,7 +160,7 @@ value and fails on invalid text. The page [[02-data-types/bytes|Bytes]]
 shows each:
 
 ```hql
-import encoding
+from encoding import Bytes, encode
 b = Bytes("ff00", Hex)
 [b.encode(Hex), b.encode(Base64), b.encode(Base64Url)]
 ```
@@ -189,7 +189,7 @@ another program wrote them, still match the keys of an earlier load. Here
 and only the new record passes:
 
 ```hql
-import crypto.digest
+from crypto.digest import fingerprint
 loaded = {"106815777291"}
 incoming = [{to: "ada", id: 1}, {id: 2, to: "bo"}]
 incoming | filter(r => not loaded.contains(fingerprint(r)[0:12]))

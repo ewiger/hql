@@ -47,7 +47,7 @@ fn seeded(dir: &Path, vault: &RunEnvironment) -> String {
     let path = database(dir);
     value(
         &format!(
-            "import io.db.sqlite\n{ORDER}\
+            "from io.db.sqlite import *\n{ORDER}\
              [Order(id = 2, customer = \"grace\", total = 42.00, paid = false), \
               Order(id = 1, customer = \"ada\", total = 120.50, paid = true, note = \"it's\")]\n\
              | target(sqlite({path:?}, table = \"orders\"))"
@@ -63,7 +63,7 @@ fn a_record_written_to_a_table_reads_back_as_the_record() {
     let path = seeded(dir.path(), &vault);
     let read = value(
         &format!(
-            "import io.db.sqlite\n{ORDER}\
+            "from io.db.sqlite import *\n{ORDER}\
              orders : Seq<Order> = source(sqlite({path:?}, table = \"orders\", order = [\"id\"]))\n\
              orders | map(o => [o.id, o.total, o.paid])"
         ),
@@ -73,7 +73,7 @@ fn a_record_written_to_a_table_reads_back_as_the_record() {
     // A record that reads some of the columns reads only those.
     let some = value(
         &format!(
-            "import io.db.sqlite\ntype Who {{ id : Int, customer : String }}\n\
+            "from io.db.sqlite import *\ntype Who {{ id : Int, customer : String }}\n\
              who : Seq<Who> = source(sqlite({path:?}, table = \"orders\", order = [\"id\"]))\n\
              who | map(w => w.customer)"
         ),
@@ -83,7 +83,7 @@ fn a_record_written_to_a_table_reads_back_as_the_record() {
     // Without an annotation a row is the table's own values.
     let rows = value(
         &format!(
-            "import io.db.sqlite\n\
+            "from io.db.sqlite import *\n\
              source(sqlite({path:?}, \"orders\", [\"id\"])) | map(r => r.paid)"
         ),
         &vault,
@@ -96,14 +96,14 @@ fn a_table_is_a_seq_its_rows_may_be_tapped_and_a_write_replaces_it() {
     let (dir, vault) = empty();
     let path = seeded(dir.path(), &vault);
     let types = hql::check_in(
-        &format!("import io.db.sqlite\nsource(sqlite({path:?}, table = \"orders\"))"),
+        &format!("from io.db.sqlite import *\nsource(sqlite({path:?}, table = \"orders\"))"),
         &vault,
     )
     .unwrap();
     assert_eq!(types.to_string(), "Seq<Data>");
     let tapped = value(
         &format!(
-            "import io.db.sqlite\n{ORDER}\
+            "from io.db.sqlite import *\n{ORDER}\
              orders : Stream<Order> = tap(sqlite({path:?}, table = \"orders\"))\n\
              orders | map(o => o.id) | take(1)"
         ),
@@ -113,7 +113,7 @@ fn a_table_is_a_seq_its_rows_may_be_tapped_and_a_write_replaces_it() {
     // A second write replaces the rows the first one wrote.
     value(
         &format!(
-            "import io.db.sqlite\n{ORDER}\
+            "from io.db.sqlite import *\n{ORDER}\
              [Order(id = 9, customer = \"linus\", total = 7.99, paid = true)]\n\
              | target(sqlite({path:?}, table = \"orders\"))"
         ),
@@ -121,7 +121,7 @@ fn a_table_is_a_seq_its_rows_may_be_tapped_and_a_write_replaces_it() {
     );
     let ids = value(
         &format!(
-            "import io.db.sqlite\nsource(sqlite({path:?}, table = \"orders\")) | map(r => r.id)"
+            "from io.db.sqlite import *\nsource(sqlite({path:?}, table = \"orders\")) | map(r => r.id)"
         ),
         &vault,
     );
@@ -132,7 +132,7 @@ fn a_table_is_a_seq_its_rows_may_be_tapped_and_a_write_replaces_it() {
 fn a_table_takes_no_format_rows_of_a_declared_record_and_no_sink() {
     let (_dir, vault) = empty();
     let error = refusal(
-        "import io.db.sqlite\nsource(sqlite(\"x.db\", table = \"t\"), Json)",
+        "from io.db.sqlite import *\nsource(sqlite(\"x.db\", table = \"t\"), Json)",
         &vault,
     );
     assert!(
@@ -140,13 +140,13 @@ fn a_table_takes_no_format_rows_of_a_declared_record_and_no_sink() {
         "{error}"
     );
     let error = refusal(
-        "import io.db.sqlite\n[{a: 1}] | target(sqlite(\"x.db\", table = \"t\"))",
+        "from io.db.sqlite import *\n[{a: 1}] | target(sqlite(\"x.db\", table = \"t\"))",
         &vault,
     );
     assert!(error.contains("rows of a declared record"), "{error}");
     let error = refusal(
         &format!(
-            "import io.db.sqlite\n{ORDER}\
+            "from io.db.sqlite import *\n{ORDER}\
              [Order(id = 1, customer = \"a\", total = 1.0, paid = true)] \
              | sink(sqlite(\"x.db\", table = \"t\"))"
         ),
@@ -159,17 +159,19 @@ fn a_table_takes_no_format_rows_of_a_declared_record_and_no_sink() {
 fn the_constructor_is_imported_by_its_module_and_is_a_direct_row_transport() {
     let (_dir, vault) = empty();
     let error = refusal(r#"source(sqlite("x.db", table = "t"))"#, &vault);
-    assert!(error.contains("import io.db.sqlite"), "{error}");
+    assert!(error.contains("from io.db.sqlite import sqlite"), "{error}");
     for supertype in ["Direct", "RowTransport", "Replayable", "Writable"] {
         let checked = hql::check_in(
-            &format!("import io.db.sqlite\nsqlite(\"x.db\", table = \"t\") | is({supertype})"),
+            &format!(
+                "from io.db.sqlite import *\nsqlite(\"x.db\", table = \"t\") | is({supertype})"
+            ),
             &vault,
         )
         .unwrap();
         assert_eq!(checked.to_string(), "Bool", "{supertype}");
     }
     let error = refusal(
-        "import io.db.sqlite\nsource(sqlite(\"missing.db\", table = \"nope\"))",
+        "from io.db.sqlite import *\nsource(sqlite(\"missing.db\", table = \"nope\"))",
         &vault,
     );
     assert!(error.contains("table `nope`"), "{error}");

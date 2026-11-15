@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: from encoding imports a type and one receiver, without the module name
-// implementation: pending
-// proposal: doc/proposals/HQL-0060/index.hmd
+// implementation: implemented
 // environment: pure
 // expected-type: Option<String>
 // expected: hé

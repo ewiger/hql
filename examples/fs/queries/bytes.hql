@@ -6,7 +6,7 @@
 // expected-type: Int
 // expected: 24
 
-import io.fs
+from io.fs import folder, walk
 
 // How many bytes the files under assets/ take.
 folder("../tree/assets")

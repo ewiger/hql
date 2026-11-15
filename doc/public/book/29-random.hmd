@@ -22,25 +22,25 @@ of `random` is fit for a key, a token or any other secret.
 in the input:
 
 ```hql
-import random
+from random import sample
 range(1, 21) | sample(5, seed = 7)
 ```
 
 ```text
-[1, 5, 9, 13, 16]
+[4, 6, 13, 16, 17]
 ```
 
 `shuffle` is every element in a uniformly random order, and `choice` one
 element drawn uniformly:
 
 ```hql
-import random
+from random import shuffle, choice
 titles = cards | filter(c => c.metadata.category == "book") | map(c => c.title)
 {shuffled: titles | shuffle(seed = 7), picked: titles | choice(seed = 7)}
 ```
 
 ```text
-{picked: "A Room of One's Own", shuffled: ["The Hobbit", "Frankenstein", "The Common Reader", "Mrs Dalloway", "Dune", "A Room of One's Own", "Leaves of Grass"]}
+{picked: "Frankenstein", shuffled: ["The Common Reader", "Leaves of Grass", "Mrs Dalloway", "The Hobbit", "Dune", "A Room of One's Own", "Frankenstein"]}
 ```
 
 `choice` is an `Option`: over an empty input it is `none`. `sample(n)` with
@@ -48,7 +48,7 @@ titles = cards | filter(c => c.metadata.category == "book") | map(c => c.title)
 evaluation error:
 
 ```hql
-import random
+from random import choice
 nothing = [1, 2, 3] | filter(n => n > 5)
 [nothing | choice(seed = 1), [1, 2, 3] | choice(seed = 1)]
 ```
@@ -67,13 +67,13 @@ text, as well as of its seed. Two calls with one seed at two places are two
 draws:
 
 ```hql
-import random
+from random import shuffle
 deck = ["a", "b", "c", "d", "e"]
 [deck | shuffle(seed = 1), deck | shuffle(seed = 1)]
 ```
 
 ```text
-[["e", "c", "b", "d", "a"], ["a", "c", "e", "b", "d"]]
+[["b", "a", "e", "c", "d"], ["c", "a", "e", "d", "b"]]
 ```
 
 One call site with one seed gives one result each time it is reached. A
@@ -81,13 +81,13 @@ seeded draw inside a `map` repeats; a seed that varies with the element
 varies the draw:
 
 ```hql
-import random
+from random import shuffle
 deck = ["a", "b", "c", "d"]
 {same: range(0, 3) | map(_ => deck | shuffle(seed = 1)), varied: range(0, 3) | map(i => deck | shuffle(seed = i))}
 ```
 
 ```text
-{same: [["c", "b", "d", "a"], ["c", "b", "d", "a"], ["c", "b", "d", "a"]], varied: [["d", "c", "b", "a"], ["c", "a", "d", "b"], ["d", "c", "a", "b"]]}
+{same: [["b", "c", "d", "a"], ["b", "c", "d", "a"], ["b", "c", "d", "a"]], varied: [["d", "b", "c", "a"], ["a", "b", "c", "d"], ["d", "c", "a", "b"]]}
 ```
 
 Moving a seeded call to another place in the program text changes its
@@ -103,13 +103,13 @@ one `--seed` writes the same values:
 
 <!-- run: --seed 7 -->
 ```hql
-import random
+from random import sample, shuffle, choice
 xs = range(1, 11)
 {sample: xs | sample(3), shuffled: xs | shuffle, picked: xs | choice}
 ```
 
 ```text
-{picked: 9, sample: [1, 2, 4], shuffled: [10, 2, 1, 4, 9, 5, 6, 8, 7, 3]}
+{picked: 7, sample: [5, 6, 7], shuffled: [1, 10, 7, 3, 2, 4, 9, 8, 6, 5]}
 ```
 
 An evaluation that takes its seed from the host reports it at `info`, with
@@ -131,7 +131,7 @@ every draw holds of each: a sample of `n` has `n` elements, and a shuffle
 holds every element once:
 
 ```hql
-import random
+from random import sample, shuffle
 [range(0, 1000) | sample(3) | size, (range(0, 29) | shuffle | sort) == range(0, 29)]
 ```
 
@@ -148,19 +148,19 @@ makes them repeatable:
 
 <!-- run: --seed 7 -->
 ```hql
-import random
+from random import random_int, random_float
 {dice: range(0, 5) | map(_ => random_int(1, 6)), fraction: random_float()}
 ```
 
 ```text
-{dice: [4, 6, 4, 1, 6], fraction: 0.5037399186078297}
+{dice: [1, 1, 6, 1, 4], fraction: 0.13923385323560944}
 ```
 
 `high` below `low` is an evaluation error:
 
 <!-- run: --seed 7 -->
 ```hql
-import random
+from random import random_int
 random_int(6, 1)
 ```
 
@@ -180,7 +180,7 @@ draw. The namespace is a UUID's text, or one of the standard namespaces
 `"dns"`, `"url"`, `"oid"` and `"x500"`:
 
 ```hql
-import random
+from random import uuid
 uuid("www.example.com", "dns")
 ```
 
@@ -193,7 +193,7 @@ Unix milliseconds and the next 42 a counter, so the UUIDs of one evaluation
 are distinct and sort in the order they were drawn:
 
 ```hql
-import random
+from random import uuid
 ids = range(0, 20) | map(_ => uuid())
 [ids == sort(ids), size(Set(ids)) == 20]
 ```
@@ -208,12 +208,12 @@ and `--seed` the seed, and the two together make `uuid()` repeatable:
 
 <!-- run: --seed 7 --now 2026-10-24T07:30:00Z -->
 ```hql
-import random
+from random import uuid
 [uuid(), uuid()]
 ```
 
 ```text
-["01a16cd1-04c0-706c-9aa2-de28777558c7", "01a16cd1-04c0-706c-9aa2-de29b51d9000"]
+["01a16cd1-04c0-706c-9aa2-de2870e936e0", "01a16cd1-04c0-706c-9aa2-de29c18ee224"]
 ```
 
 ## A stream

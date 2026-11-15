@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: Collection.* selects every stats function whose self is a Collection
-// implementation: pending
-// proposal: doc/proposals/HQL-0060/index.hmd
+// implementation: implemented
 // environment: pure
 // expected-type: List<Option<Float>>
 // expected-json: [2.5, 2.5]

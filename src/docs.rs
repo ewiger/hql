@@ -69,7 +69,9 @@ fn doc_text(line: &str) -> &str {
 pub(crate) fn statement_start(statement: &Stmt) -> usize {
     match statement {
         Stmt::Bind { name_span, .. } => name_span.start,
-        Stmt::Import { span, .. } | Stmt::Module { span, .. } => span.start,
+        Stmt::Import { span, .. } | Stmt::From { span, .. } | Stmt::Module { span, .. } => {
+            span.start
+        }
         Stmt::Type(declaration) => declaration.span.start,
         Stmt::Fn(declaration) => declaration.span.start,
         Stmt::External(declaration) => declaration.span.start,
@@ -84,7 +86,7 @@ pub(crate) fn statement_start(statement: &Stmt) -> usize {
 fn documentable(statement: &Stmt) -> bool {
     !matches!(
         statement,
-        Stmt::Bind { .. } | Stmt::Import { .. } | Stmt::Expr(_)
+        Stmt::Bind { .. } | Stmt::Import { .. } | Stmt::From { .. } | Stmt::Expr(_)
     )
 }
 

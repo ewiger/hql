@@ -35,6 +35,21 @@ pub enum TypePattern {
     Family(&'static str, TypeConstructor, &'static [TypePattern]),
 }
 
+impl TypePattern {
+    /// The name of the constructor a pattern is written with, where it is
+    /// written with one: `Int`, `Collection` of `Collection<T>`.
+    pub(crate) fn constructor_name(&self) -> Option<&'static str> {
+        match self {
+            Self::Type(constructor) | Self::Apply(constructor, _) => Some(constructor.0),
+            Self::Collection(_) => Some("Collection"),
+            Self::Iterable(_) => Some("Iterable"),
+            Self::Is(_, inner) => inner.constructor_name(),
+            Self::Family(_, constructor, _) => Some(constructor.0),
+            Self::Any | Self::Var(_) | Self::OneOf(_) => None,
+        }
+    }
+}
+
 /// A generic parameter and its optional subtype bound.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeParameter {

@@ -5,6 +5,6 @@
 // expected-type: Option<Decimal>
 // expected: 4.9300
 
-import stats
+from stats import quantile
 
 [1.10, 2.20, 3.30, 4.45, 5.05] | quantile(0.95)

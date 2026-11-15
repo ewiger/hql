@@ -69,6 +69,9 @@ pub enum Kind {
     UnknownName,
     /// A pipeline step does not exist.
     UnknownStep,
+    /// An import statement selects or renames in a way the rules refuse:
+    /// a receiver alias at another type, a group renamed to one name.
+    InvalidImport,
     /// A record or value has no such field.
     UnknownField,
     /// An expression has a type its position does not accept.
@@ -135,11 +138,12 @@ pub enum Kind {
 
 impl Kind {
     /// Every kind, the set published with the reference.
-    pub const ALL: [Self; 35] = [
+    pub const ALL: [Self; 36] = [
         Self::UnclosedCollection,
         Self::UnexpectedToken,
         Self::UnknownName,
         Self::UnknownStep,
+        Self::InvalidImport,
         Self::UnknownField,
         Self::TypeMismatch,
         Self::NonExhaustiveMatch,
@@ -187,6 +191,7 @@ impl Kind {
             Self::UnexpectedToken => "unexpected-token",
             Self::UnknownName => "unknown-name",
             Self::UnknownStep => "unknown-step",
+            Self::InvalidImport => "invalid-import",
             Self::UnknownField => "unknown-field",
             Self::TypeMismatch => "type-mismatch",
             Self::NonExhaustiveMatch => "non-exhaustive-match",

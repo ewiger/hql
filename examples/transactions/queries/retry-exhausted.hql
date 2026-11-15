@@ -6,7 +6,7 @@
 // expected-type: String
 // expected: exhausted after 3 attempts; balances [150, 40]
 
-import io.db.sqlite
+from io.db.sqlite import sqlite
 
 type Account { id : Int, owner : String, balance : Int }
 type Transfer { id : Int, from_id : Int, to_id : Int, amount : Int }

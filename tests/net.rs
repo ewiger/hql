@@ -106,8 +106,8 @@ fn http_server(
 
 #[test]
 fn the_network_is_imported() {
-    refused(&hql(r#"http("http://127.0.0.1/")"#), "import net");
-    refused(&hql(r#"tcp("127.0.0.1", 1)"#), "import net");
+    refused(&hql(r#"http("http://127.0.0.1/")"#), "from net import http");
+    refused(&hql(r#"tcp("127.0.0.1", 1)"#), "from net import tcp");
 }
 
 #[test]
@@ -126,7 +126,7 @@ fn a_url_is_not_a_file() {
 
 #[test]
 fn an_endpoint_is_a_value_that_sends_nothing() {
-    let output = hql("import net\n\
+    let output = hql("from net import *\n\
          e = http(\"http://127.0.0.1:1/x\", method = \"post\")\n\
          [e.url, e.method]");
     assert_eq!(ok(&output), "[\"http://127.0.0.1:1/x\", \"POST\"]\n");
@@ -136,7 +136,7 @@ fn an_endpoint_is_a_value_that_sends_nothing() {
 fn an_http_resource_is_fetched_once_and_read_as_a_seq() {
     let (port, requests) = http_server(1, "200 OK", "{\"a\": 1}\n{\"a\": 2}\n");
     let output = hql(&format!(
-        "import net\n\
+        "from net import *\n\
          birds = source(http(\"http://127.0.0.1:{port}/birds\"), Json)\n\
          [birds | size, birds | size]"
     ));
@@ -150,7 +150,7 @@ fn an_http_resource_is_fetched_once_and_read_as_a_seq() {
 fn a_write_sends_one_request_per_document() {
     let (port, requests) = http_server(2, "200 OK", "");
     let output = hql(&format!(
-        "import net\n\
+        "from net import *\n\
          [1, 2] | sink(http(\"http://127.0.0.1:{port}/n\", method = \"POST\"), Json)"
     ));
     assert_eq!(ok(&output), "");
@@ -167,7 +167,7 @@ fn a_failed_status_names_the_url() {
     let (port, _) = http_server(1, "500 Internal Server Error", "");
     let url = format!("http://127.0.0.1:{port}/report");
     let output = hql(&format!(
-        "import net\n{{done: true}} | target(http(\"{url}\", method = \"POST\"), Json)"
+        "from net import *\n{{done: true}} | target(http(\"{url}\", method = \"POST\"), Json)"
     ));
     refused(&output, &format!("{url}: the server answered 500"));
 }
@@ -213,7 +213,7 @@ fn a_silent_server_ends_in_a_failure_naming_the_url() {
     let (port, done) = silent_server();
     let url = format!("http://127.0.0.1:{port}/birds");
     let output = hql_within(
-        &format!("import net\nsource(http(\"{url}\", timeout_ms = 200), Json)"),
+        &format!("from net import *\nsource(http(\"{url}\", timeout_ms = 200), Json)"),
         Duration::from_secs(20),
     );
     refused(
@@ -226,11 +226,11 @@ fn a_silent_server_ends_in_a_failure_naming_the_url() {
 #[test]
 fn a_response_bound_is_above_zero_and_shown_when_written() {
     refused(
-        &hql("import net\nhttp(\"http://127.0.0.1:1/\", timeout_ms = 0)"),
+        &hql("from net import *\nhttp(\"http://127.0.0.1:1/\", timeout_ms = 0)"),
         "`timeout_ms` is a count of milliseconds, above 0",
     );
     let shown = ok(&hql(
-        "import net\n[http(\"http://127.0.0.1:1/\"), http(\"http://127.0.0.1:1/\", timeout_ms = 500)]",
+        "from net import *\n[http(\"http://127.0.0.1:1/\"), http(\"http://127.0.0.1:1/\", timeout_ms = 500)]",
     ));
     assert_eq!(
         shown.trim(),
@@ -252,11 +252,11 @@ fn a_socket_carries_documents_as_their_format_separates_them() {
         written
     });
     let read = hql(&format!(
-        "import net\nsource(tcp(\"127.0.0.1\", {port}), Json) | map(d => d.n)"
+        "from net import *\nsource(tcp(\"127.0.0.1\", {port}), Json) | map(d => d.n)"
     ));
     assert_eq!(ok(&read), "1\n2\n");
     let written = hql(&format!(
-        "import net\n[\"a\", \"b\"] | sink(tcp(\"127.0.0.1\", {port}), Text)"
+        "from net import *\n[\"a\", \"b\"] | sink(tcp(\"127.0.0.1\", {port}), Text)"
     ));
     ok(&written);
     assert_eq!(server.join().unwrap(), "a\nb\n");
@@ -288,11 +288,11 @@ fn a_websocket_message_is_one_document() {
         received
     });
     let read = hql(&format!(
-        "import net\ntap(websocket(\"ws://127.0.0.1:{port}\"), Json) | map(d => d.k)"
+        "from net import *\ntap(websocket(\"ws://127.0.0.1:{port}\"), Json) | map(d => d.k)"
     ));
     assert_eq!(ok(&read), "1\n2\n");
     let written = hql(&format!(
-        "import net\n[1, 2] | sink(websocket(\"ws://127.0.0.1:{port}\"), Json)"
+        "from net import *\n[1, 2] | sink(websocket(\"ws://127.0.0.1:{port}\"), Json)"
     ));
     ok(&written);
     assert_eq!(server.join().unwrap(), ["1", "2"]);
@@ -305,7 +305,7 @@ fn a_document_reaches_no_network() {
     std::fs::write(project_config(dir.path()), "").unwrap();
     fs::write(
         dir.path().join("d.md"),
-        "```hql\nimport net\nsource(http(\"http://127.0.0.1:1/\"), Json)\n```\n",
+        "```hql\nfrom net import *\nsource(http(\"http://127.0.0.1:1/\"), Json)\n```\n",
     )
     .unwrap();
     refused(

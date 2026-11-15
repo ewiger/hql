@@ -307,17 +307,19 @@ fn the_nats_jetstream_constructor_is_a_message_transport_on_the_network() {
     // A message is one document, JSON where no format is named.
     assert_eq!(
         type_of(
-            &format!("import io.msg.nats_jetstream\ntap({subject})"),
+            &format!("from io.msg.nats_jetstream import nats_jetstream\ntap({subject})"),
             &vault
         ),
         "Stream<Data>"
     );
     checks(
-        &format!("import io.msg.nats_jetstream\ntap({subject}, Json) | take(1)"),
+        &format!(
+            "from io.msg.nats_jetstream import nats_jetstream\ntap({subject}, Json) | take(1)"
+        ),
         &vault,
     );
     checks(
-        &format!("import io.msg.nats_jetstream\n[{{a: 1}}] | sink({subject})"),
+        &format!("from io.msg.nats_jetstream import nats_jetstream\n[{{a: 1}}] | sink({subject})"),
         &vault,
     );
     for supertype in [
@@ -329,7 +331,9 @@ fn the_nats_jetstream_constructor_is_a_message_transport_on_the_network() {
     ] {
         assert_eq!(
             type_of(
-                &format!("import io.msg.nats_jetstream\n{subject} | is({supertype})"),
+                &format!(
+                    "from io.msg.nats_jetstream import nats_jetstream\n{subject} | is({supertype})"
+                ),
                 &vault
             ),
             "Bool",
@@ -375,14 +379,14 @@ fn the_nats_jetstream_constructor_checks_its_parameters_as_the_kind_checks_its_k
         ),
     ] {
         let error = refusal(
-            &format!("import io.msg.nats_jetstream\ntap({written}) | take(1)"),
+            &format!("from io.msg.nats_jetstream import nats_jetstream\ntap({written}) | take(1)"),
             &vault,
         );
         assert!(error.contains(says), "{written}: {error}");
     }
     // An unset variable fails where the transport is used, naming it.
     let error = refusal(
-        "import io.msg.nats_jetstream\n\
+        "from io.msg.nats_jetstream import *\n\
          tap(nats_jetstream(\"s\", stream = \"S\", url_env = \"HQL_TEST_UNSET_NATS_URL\")) | take(1)",
         &vault,
     );
@@ -431,16 +435,19 @@ fn a_core_subject_is_its_own_kind_and_module() {
 
     let subject = r#"nats("alerts.eu", url_env = "HQL_TEST_UNSET_NATS_URL")"#;
     assert_eq!(
-        type_of(&format!("import io.msg.nats\ntap({subject})"), &vault),
+        type_of(
+            &format!("from io.msg.nats import nats\ntap({subject})"),
+            &vault
+        ),
         "Stream<Data>"
     );
     checks(
-        &format!("import io.msg.nats\n[{{a: 1}}] | sink({subject})"),
+        &format!("from io.msg.nats import nats\n[{{a: 1}}] | sink({subject})"),
         &vault,
     );
     assert_eq!(
         type_of(
-            &format!("import io.msg.nats\n{subject} | is(MessageTransport)"),
+            &format!("from io.msg.nats import nats\n{subject} | is(MessageTransport)"),
             &vault
         ),
         "Bool"
@@ -456,7 +463,7 @@ fn a_core_subject_is_its_own_kind_and_module() {
         "{error:?}"
     );
     let error = refusal(
-        "import io.msg.nats\ntap(nats(\"s\", stream = \"S\", url_env = \"U\")) | take(1)",
+        "from io.msg.nats import *\ntap(nats(\"s\", stream = \"S\", url_env = \"U\")) | take(1)",
         &vault,
     );
     assert!(error.contains("stream"), "{error}");

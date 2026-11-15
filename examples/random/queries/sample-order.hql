@@ -5,7 +5,7 @@
 // expected-type: List<Bool>
 // expected: [true, true]
 
-import random
+from random import sample
 
 s = range(0, 100) | sample(10, seed = 7)
 [s == sort(s), size(Set(s)) == 10]

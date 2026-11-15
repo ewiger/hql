@@ -5,6 +5,6 @@
 // expected-type: Option<Int>
 // expected: none
 
-import random
+from random import choice
 
 [1, 2, 3] | filter(n => n > 5) | choice(seed = 1)

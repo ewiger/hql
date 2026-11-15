@@ -714,6 +714,17 @@ struct Checker<'a> {
     trait_bounded: HashMap<String, Vec<Bounded>>,
     /// The project modules this unit imported, each under its local name.
     modules: Vec<(String, std::sync::Arc<crate::modules::ProjectModule>)>,
+    /// The receivers a `from` statement made reachable, by the local name
+    /// of the module it loaded: each bound name with the module's own. A
+    /// module `import` bound is absent, and every receiver of it reachable.
+    module_receivers: HashMap<String, Vec<(String, String)>>,
+    /// The functions `from` statements bound unqualified, by bound name:
+    /// the module's canonical name and its own name, for telling one
+    /// declaration bound twice from two that collide.
+    from_functions: HashMap<String, (String, String)>,
+    /// Names two `from` statements bound to different declarations: an
+    /// ambiguity reported where the name is used (HQL-0060).
+    ambiguous_imports: HashMap<String, Vec<String>>,
     /// Every project module loaded for the program, by canonical name,
     /// shared with the checkers of the modules it loads.
     module_cache: ModuleCache,
@@ -1190,6 +1201,9 @@ impl<'a> Checker<'a> {
             trait_bounds: Vec::new(),
             trait_bounded: HashMap::new(),
             modules: Vec::new(),
+            module_receivers: HashMap::new(),
+            from_functions: HashMap::new(),
+            ambiguous_imports: HashMap::new(),
             module_cache: ModuleCache::default(),
             loading: std::sync::Arc::default(),
             module_file: false,
@@ -1588,7 +1602,10 @@ impl<'a> Checker<'a> {
     }
 
     fn statement(&mut self, statement: &'a Stmt) -> Result<TypeRef, Diagnostic> {
-        if !matches!(statement, Stmt::Import { .. } | Stmt::Module { .. }) {
+        if !matches!(
+            statement,
+            Stmt::Import { .. } | Stmt::From { .. } | Stmt::Module { .. }
+        ) {
             self.seen_body = true;
         }
         if let Some(marker) = statement.private()
@@ -1741,6 +1758,26 @@ impl<'a> Checker<'a> {
                         && !self.resolution.is_runtime_module(&dotted)
                     {
                         self.import_module(&dotted, &local, span)?;
+                    }
+                    TypeRef::UNIT
+                }
+                Stmt::From {
+                    path,
+                    entries,
+                    span,
+                } => {
+                    if self.seen_body {
+                        return Err(Diagnostic::syntax(
+                            span.clone(),
+                            "an import sits at the head of a source unit, before its declarations \
+                             and expressions",
+                        ));
+                    }
+                    let dotted = path.join(".");
+                    if !self.resolution.bind_from(&dotted, entries, span)?
+                        && !self.resolution.is_runtime_module(&dotted)
+                    {
+                        self.import_from_module(&dotted, entries, span)?;
                     }
                     TypeRef::UNIT
                 }
@@ -3093,7 +3130,7 @@ impl<'a> Checker<'a> {
         let trait_route =
             self.method_for(&receiver_type, name, &span)?
                 .filter(|(_, signatures)| {
-                    signatures[0].parameters.len() == arguments.len() || !builtins::exists(name)
+                    signatures[0].parameters.len() == arguments.len() || !self.step_name(name)
                 });
         if let Some((trait_name, signatures)) = trait_route {
             let count = signatures[0].parameters.len();
@@ -3177,7 +3214,7 @@ impl<'a> Checker<'a> {
             self.checked.receiver_calls.insert(span);
             return Ok(TypeRef::ORDERING);
         }
-        if builtins::exists(name) {
+        if self.step_name(name) {
             self.not_own_function(name, &receiver_type, &span)?;
             let step = self.resolution.receiver_step_for(
                 name,
@@ -3376,10 +3413,336 @@ impl<'a> Checker<'a> {
         }
         self.checked.modules.push(crate::execution::LoadedModule {
             local: local.to_owned(),
+            bound: Vec::new(),
             program: std::sync::Arc::clone(&module.program),
             source_dir: module.source_dir.clone(),
         });
         self.modules.push((local.to_owned(), module));
+        Ok(())
+    }
+
+    /// `from a.b import …` of a project module: load it once under a local
+    /// name no program can write, and bind what each entry selects
+    /// unqualified, and its receivers under the names they are bound as
+    /// (HQL-0060). The module's name itself is not bound.
+    fn import_from_module(
+        &mut self,
+        name: &str,
+        entries: &[crate::ast::ImportEntry],
+        span: &Range<usize>,
+    ) -> Result<(), Diagnostic> {
+        use crate::ast::Selector;
+        let local = format!("from {name}");
+        if !self.modules.iter().any(|(held, _)| *held == local) {
+            self.import_module(name, &local, span)?;
+        }
+        let module = self
+            .modules
+            .iter()
+            .find(|(held, _)| *held == local)
+            .map(|(_, module)| std::sync::Arc::clone(module))
+            .expect("the module was loaded");
+        let receiver_type = module
+            .receiver
+            .as_ref()
+            .map(|pattern| pattern.constructor.0.to_owned());
+        // Each function with its receiver type, where it takes `self`.
+        let functions: Vec<(&crate::modules::ModuleFunction, Option<&str>)> = module
+            .functions
+            .iter()
+            .map(|function| {
+                (
+                    function,
+                    function
+                        .has_self
+                        .then_some(receiver_type.as_deref())
+                        .flatten(),
+                )
+            })
+            .collect();
+        let missing = |written: &str, at: &Range<usize>| {
+            if module.private.iter().any(|held| held == written) {
+                return Diagnostic::name(
+                    at.clone(),
+                    format!(
+                        "`{written}` is private to the module `{name}`, and cannot be imported"
+                    ),
+                );
+            }
+            Diagnostic::name(
+                at.clone(),
+                format!("the module `{name}` declares no public `{written}`"),
+            )
+        };
+        let invalid = |at: &Range<usize>, message: String| {
+            Diagnostic::name(at.clone(), message).with_kind(crate::diagnostics::Kind::InvalidImport)
+        };
+        let at_type = |ty: &str| functions.iter().any(|(_, held)| *held == Some(ty));
+        let nothing_at = |ty: &str, at: &Range<usize>| {
+            Diagnostic::name(
+                at.clone(),
+                format!(
+                    "`{ty}.*` selects nothing in the module `{name}`: no public function has the \
+                     receiver type `{ty}`"
+                ),
+            )
+        };
+        // Each binding: the bound name, the module's name, and whether it
+        // is reached as a function and as a receiver.
+        let mut bindings: Vec<(String, String, bool, bool)> = Vec::new();
+        for entry in entries {
+            let mut left_out: Vec<(Option<String>, String)> = Vec::new();
+            let mut types_out: Vec<String> = Vec::new();
+            for (excluded, at) in &entry.except {
+                match excluded {
+                    Selector::Name(held) => {
+                        if !functions.iter().any(|(function, _)| function.name == *held) {
+                            return Err(missing(held, at));
+                        }
+                        left_out.push((None, held.clone()));
+                    }
+                    Selector::TypeName(ty, held) => {
+                        if !functions
+                            .iter()
+                            .any(|(function, of)| function.name == *held && *of == Some(ty))
+                        {
+                            return Err(Diagnostic::name(
+                                at.clone(),
+                                format!(
+                                    "`{ty}.{held}` selects nothing in the module `{name}`: its \
+                                     `{held}` has no form whose receiver type is `{ty}`"
+                                ),
+                            ));
+                        }
+                        left_out.push((Some(ty.clone()), held.clone()));
+                    }
+                    Selector::TypeAll(ty) => {
+                        if !at_type(ty) {
+                            return Err(nothing_at(ty, at));
+                        }
+                        types_out.push(ty.clone());
+                    }
+                    Selector::All => unreachable!("the parser refuses `except *`"),
+                }
+            }
+            let kept = |function: &crate::modules::ModuleFunction, of: Option<&str>| {
+                !left_out.iter().any(|(ty, held)| {
+                    *held == function.name && (ty.is_none() || ty.as_deref() == of)
+                }) && !of.is_some_and(|of| types_out.iter().any(|ty| ty == of))
+            };
+            let alias = entry.alias.as_ref();
+            let at = &entry.span;
+            match &entry.selector {
+                Selector::All | Selector::TypeAll(_) => {
+                    let only = match &entry.selector {
+                        Selector::TypeAll(ty) => {
+                            if !at_type(ty) {
+                                return Err(nothing_at(ty, at));
+                            }
+                            Some(ty.as_str())
+                        }
+                        _ => None,
+                    };
+                    let (prefix, suffix, receiver) = match alias {
+                        None => (String::new(), String::new(), true),
+                        Some(alias) => {
+                            let Some((prefix, suffix)) = alias.name.split_once('*') else {
+                                return Err(invalid(
+                                    at,
+                                    format!(
+                                        "`{} as {alias}` renames a group to one name; write a \
+                                         pattern with one `*`, such as `{}_*`",
+                                        entry.selector, alias
+                                    ),
+                                ));
+                            };
+                            let receiver = match (&alias.ty, only) {
+                                (None, _) => false,
+                                (Some(ty), Some(selected)) if ty == selected => true,
+                                (Some(ty), Some(selected)) => {
+                                    return Err(invalid(
+                                        at,
+                                        format!(
+                                            "`{} as {alias}` changes the receiver type from \
+                                             `{selected}` to `{ty}`; a receiver alias keeps its \
+                                             type: write `{selected}.{}`",
+                                            entry.selector, alias.name
+                                        ),
+                                    ));
+                                }
+                                (Some(_), None) => {
+                                    return Err(invalid(
+                                        at,
+                                        format!(
+                                            "`* as {alias}` binds functions of every receiver \
+                                             type; name the type in the selector"
+                                        ),
+                                    ));
+                                }
+                            };
+                            (prefix.to_owned(), suffix.to_owned(), receiver)
+                        }
+                    };
+                    for (function, of) in &functions {
+                        if only.is_some_and(|only| *of != Some(only)) || !kept(function, *of) {
+                            continue;
+                        }
+                        bindings.push((
+                            format!("{prefix}{}{suffix}", function.name),
+                            function.name.clone(),
+                            true,
+                            receiver && of.is_some(),
+                        ));
+                    }
+                }
+                Selector::Name(written) => {
+                    let Some((function, of)) = functions
+                        .iter()
+                        .find(|(function, _)| function.name == *written)
+                    else {
+                        if module.types.iter().any(|held| held == written) {
+                            if let Some(alias) = alias {
+                                return Err(invalid(
+                                    at,
+                                    format!(
+                                        "`{written} as {alias}` renames a type; a type keeps its \
+                                         name"
+                                    ),
+                                ));
+                            }
+                            continue;
+                        }
+                        return Err(missing(written, at));
+                    };
+                    let (bound, receiver) = match alias {
+                        None => (written.clone(), of.is_some()),
+                        Some(alias) if alias.name.contains('*') => {
+                            return Err(invalid(
+                                at,
+                                format!(
+                                    "`{written} as {alias}` renames one name by a pattern; a \
+                                     pattern renames a group, `*` or `T.*`"
+                                ),
+                            ));
+                        }
+                        Some(alias) if alias.ty.is_some() => {
+                            return Err(invalid(
+                                at,
+                                format!(
+                                    "`{written} as {alias}` binds a receiver; select the \
+                                     receiver by its type, `T.{written} as {alias}`"
+                                ),
+                            ));
+                        }
+                        Some(alias) => (alias.name.clone(), false),
+                    };
+                    bindings.push((bound, function.name.clone(), true, receiver));
+                }
+                Selector::TypeName(ty, written) => {
+                    let Some((function, _)) = functions
+                        .iter()
+                        .find(|(function, of)| function.name == *written && *of == Some(ty))
+                    else {
+                        if !functions
+                            .iter()
+                            .any(|(function, _)| function.name == *written)
+                        {
+                            return Err(missing(written, at));
+                        }
+                        return Err(Diagnostic::name(
+                            at.clone(),
+                            format!(
+                                "`{ty}.{written}` selects nothing in the module `{name}`: its \
+                                 `{written}` has no form whose receiver type is `{ty}`"
+                            ),
+                        ));
+                    };
+                    let (bound, receiver) = match alias {
+                        None => (written.clone(), true),
+                        Some(alias) if alias.name.contains('*') => {
+                            return Err(invalid(
+                                at,
+                                format!(
+                                    "`{ty}.{written} as {alias}` renames one name by a pattern; \
+                                     a pattern renames a group, `*` or `T.*`"
+                                ),
+                            ));
+                        }
+                        Some(alias) => match &alias.ty {
+                            None => (alias.name.clone(), false),
+                            Some(held) if held == ty => (alias.name.clone(), true),
+                            Some(held) => {
+                                return Err(invalid(
+                                    at,
+                                    format!(
+                                        "`{ty}.{written} as {alias}` changes the receiver type \
+                                         from `{ty}` to `{held}`; a receiver alias keeps its \
+                                         type: write `{ty}.{written} as {ty}.{}`",
+                                        alias.name
+                                    ),
+                                ));
+                            }
+                        },
+                    };
+                    bindings.push((bound, function.name.clone(), true, receiver));
+                }
+            }
+        }
+        for (bound, original, function, receiver) in bindings {
+            if receiver {
+                self.module_receivers
+                    .entry(local.clone())
+                    .or_default()
+                    .push((bound.clone(), original.clone()));
+            }
+            if !function {
+                continue;
+            }
+            let origin = (name.to_owned(), original.clone());
+            if let Some(held) = self.from_functions.get(&bound) {
+                if *held != origin {
+                    let mut providers = vec![
+                        format!("{}.{}", held.0, held.1),
+                        format!("{name}.{original}"),
+                    ];
+                    providers.dedup();
+                    self.ambiguous_imports
+                        .entry(bound.clone())
+                        .or_default()
+                        .extend(providers);
+                    self.scope.remove(&bound);
+                }
+                continue;
+            }
+            self.from_functions.insert(bound.clone(), origin);
+            let key = format!("{local}.{original}");
+            if let Some(ty) = self.scope.get(&key).cloned() {
+                self.scope.insert(bound.clone(), ty);
+            }
+            if let Some(count) = self.variadic.get(&key).copied() {
+                self.variadic.insert(bound.clone(), count);
+            }
+            if let Some(names) = self.parameter_names.get(&key).cloned() {
+                self.parameter_names.insert(bound.clone(), names);
+            }
+            if let Some(generics) = self.generic_functions.get(&key).cloned() {
+                self.generic_functions.insert(bound.clone(), generics);
+            }
+            if let Some(bounds) = self.trait_bounded.get(&key).cloned() {
+                self.trait_bounded.insert(bound.clone(), bounds);
+            }
+            if let Some(uses) = self.effectful.get(&key).cloned() {
+                self.effectful.insert(bound.clone(), uses);
+            }
+            if let Some(loaded) = self
+                .checked
+                .modules
+                .iter_mut()
+                .find(|loaded| loaded.local == local)
+            {
+                loaded.bound.push((bound, original));
+            }
+        }
         Ok(())
     }
 
@@ -3622,6 +3985,17 @@ impl<'a> Checker<'a> {
                 }),
             traits,
             impls: checker.impls.clone(),
+            types: program
+                .statements
+                .iter()
+                .filter(|statement| {
+                    matches!(statement, Stmt::Type(_) | Stmt::Trait(_))
+                        && statement.private().is_none()
+                })
+                .filter_map(Stmt::declared_name)
+                .map(str::to_owned)
+                .collect(),
+            private: private.iter().map(|name| (*name).to_owned()).collect(),
         });
         self.module_cache
             .lock()
@@ -3645,6 +4019,12 @@ impl<'a> Checker<'a> {
             ));
         }
         Ok(())
+    }
+
+    /// Whether a name may be a step: one an extension declares, or one a
+    /// `from` statement bound under another name, `bar_upper`.
+    fn step_name(&self, name: &str) -> bool {
+        builtins::exists(name) || self.resolution.binds(name)
     }
 
     /// Refuse a receiver call that would reach an import's `name` while this
@@ -3694,6 +4074,7 @@ impl<'a> Checker<'a> {
             }
         }
         let mut found: Vec<(String, TypeRef)> = Vec::new();
+        let mut reached: Vec<(&str, &str)> = Vec::new();
         for (local, module) in &self.modules {
             let Some(pattern) = &module.receiver else {
                 continue;
@@ -3703,12 +4084,30 @@ impl<'a> Checker<'a> {
             if !receiver.is(&substituted(pattern, &bound)) {
                 continue;
             }
+            // A module a `from` statement loaded reaches only the receivers
+            // it selected, under the names it bound them as.
+            let original = match self.module_receivers.get(local) {
+                Some(selected) => match selected.iter().find(|(held, _)| held == name) {
+                    Some((_, original)) => original.as_str(),
+                    None => continue,
+                },
+                None if local.starts_with("from ") => continue,
+                None => name,
+            };
             if let Some(function) = module
                 .functions
                 .iter()
-                .find(|function| function.has_self && function.name == name)
+                .find(|function| function.has_self && function.name == original)
             {
-                found.push((format!("{local}.{name}"), function.ty.clone()));
+                // One declaration reached through two imports is one.
+                if reached
+                    .iter()
+                    .any(|(module_name, held)| *module_name == module.name && *held == original)
+                {
+                    continue;
+                }
+                reached.push((&module.name, original));
+                found.push((format!("{local}.{original}"), function.ty.clone()));
             }
         }
         if found.is_empty() {
@@ -5320,7 +5719,7 @@ impl<'a> Checker<'a> {
                     && let [element] = inner.as_slice()
                     && let Kind::Ident(name) = &element.kind
                     && !self.scope.contains_key(name)
-                    && !builtins::exists(name)
+                    && !self.step_name(name)
                 {
                     return Err(Diagnostic::name(
                         element.span.clone(),
@@ -5468,7 +5867,7 @@ impl<'a> Checker<'a> {
                          `(Map<K, V>, Map<K, V>) -> Map<K, V>` or \
                          `(Stream<T>, Stream<T>) -> Stream<T>`",
                     )
-                } else if builtins::exists(name) {
+                } else if self.step_name(name) {
                     Diagnostic::typing(
                         span,
                         format!(
@@ -5876,7 +6275,7 @@ impl<'a> Checker<'a> {
                     self.checked.combiners.insert(span.clone(), combiner);
                     return Ok(ty);
                 }
-                if builtins::exists(name) {
+                if self.step_name(name) {
                     // A call that writes no positional input reaches a form
                     // declared without one, its input `Unit`: `now()`. A
                     // type written first is an argument, never an input:
@@ -5989,7 +6388,7 @@ impl<'a> Checker<'a> {
                     && let [right] = arguments.as_slice()
                     && right.name.is_none()
                     && !self.scope.contains_key(name)
-                    && !builtins::exists(name)
+                    && !self.step_name(name)
                     && let Some(combiner) = crate::extensions::combiner(name).map(|held| held.name)
                 {
                     let right = self.expression(&right.value)?;
@@ -7600,7 +7999,7 @@ impl CheckCx for Checker<'_> {
         match &argument.value.kind {
             Kind::Lambda { parameters, .. } => Some(parameters.len()),
             Kind::Ident(name)
-                if (crate::constructors::named(name).is_some() || builtins::exists(name))
+                if (crate::constructors::named(name).is_some() || self.step_name(name))
                     && !self.scope.contains_key(name) =>
             {
                 Some(1)
@@ -7677,7 +8076,7 @@ impl CheckCx for Checker<'_> {
         // A step named where a function is: `map(str)` applies the step to
         // each value it is given.
         if let Kind::Ident(name) = &argument.value.kind
-            && builtins::exists(name)
+            && self.step_name(name)
             && !self.scope.contains_key(name)
         {
             let span = argument.value.span.clone();

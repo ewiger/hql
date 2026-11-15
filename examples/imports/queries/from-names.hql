@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: from stats import binds the listed functions unqualified, as a call and as a step
-// implementation: pending
-// proposal: doc/proposals/HQL-0060/index.hmd
+// implementation: implemented
 // environment: pure
 // expected-type: List<Option<Float>>
 // expected-json: [2.5, 2.5]

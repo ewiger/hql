@@ -6,7 +6,7 @@
 // expected-type: List<String>
 // expected-json: ["PrivateKey<Ed25519>(kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k)", "kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k"]
 
-import crypto
+from crypto import read_private_key, public, thumbprint
 
 key = read_private_key(file("../keys/rfc8032-test-1.pem"), Pem, Ed25519)
 [str(key), key.public().thumbprint()]

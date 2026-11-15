@@ -10,16 +10,20 @@ fn fixture(name: &str) -> String {
 }
 
 fn shown(source: &str) -> String {
-    hql::eval(&format!("import crypto\nimport encoding\n{source}"))
-        .unwrap_or_else(|error| panic!("{source}: {error}"))
-        .to_string()
+    hql::eval(&format!(
+        "from crypto import *\nfrom encoding import *\n{source}"
+    ))
+    .unwrap_or_else(|error| panic!("{source}: {error}"))
+    .to_string()
 }
 
 fn refused(source: &str) -> String {
-    hql::eval(&format!("import crypto\nimport encoding\n{source}"))
-        .map(|value| panic!("{source} gave {value}"))
-        .unwrap_err()
-        .message
+    hql::eval(&format!(
+        "from crypto import *\nfrom encoding import *\n{source}"
+    ))
+    .map(|value| panic!("{source} gave {value}"))
+    .unwrap_err()
+    .message
 }
 
 #[test]

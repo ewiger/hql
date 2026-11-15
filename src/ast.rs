@@ -29,6 +29,13 @@ pub(crate) enum Stmt {
         alias: Option<String>,
         span: Range<usize>,
     },
+    /// `from a.b import f, g as h, T.* except x as T.p_*` — bind functions,
+    /// receivers, types and traits of one module unqualified (HQL-0060).
+    From {
+        path: Vec<String>,
+        entries: Vec<ImportEntry>,
+        span: Range<usize>,
+    },
     /// `module a.b`, or `module a.b for T` — the declaration a module file
     /// opens with: its canonical name, checked against the file's position,
     /// and the receiver pattern of a receiver module.
@@ -70,7 +77,11 @@ impl Stmt {
             Self::Type(declaration) => declaration.private.as_ref(),
             Self::Trait(declaration) => declaration.private.as_ref(),
             Self::Bind { private, .. } => private.as_ref(),
-            Self::Import { .. } | Self::Module { .. } | Self::Impl(_) | Self::Expr(_) => None,
+            Self::Import { .. }
+            | Self::From { .. }
+            | Self::Module { .. }
+            | Self::Impl(_)
+            | Self::Expr(_) => None,
         }
     }
 
@@ -83,9 +94,73 @@ impl Stmt {
             Self::Type(declaration) => Some(&declaration.name),
             Self::Trait(declaration) => Some(&declaration.name),
             Self::Bind { name, .. } => Some(name),
-            Self::Import { .. } | Self::Module { .. } | Self::Impl(_) | Self::Expr(_) => None,
+            Self::Import { .. }
+            | Self::From { .. }
+            | Self::Module { .. }
+            | Self::Impl(_)
+            | Self::Expr(_) => None,
         }
     }
+}
+
+/// What one entry of a `from` statement selects (HQL-0060).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Selector {
+    /// `*`: every public function, type and trait of the module.
+    All,
+    /// `f`: every public declaration named `f`.
+    Name(String),
+    /// `T.*`: every public function whose receiver type is `T`.
+    TypeAll(String),
+    /// `T.f`: the overloads of `f` whose receiver type is `T`.
+    TypeName(String, String),
+}
+
+impl Selector {
+    /// Whether it selects a group, so that its alias is a pattern.
+    pub(crate) fn is_group(&self) -> bool {
+        matches!(self, Self::All | Self::TypeAll(_))
+    }
+}
+
+impl std::fmt::Display for Selector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::All => f.write_str("*"),
+            Self::Name(name) => f.write_str(name),
+            Self::TypeAll(ty) => write!(f, "{ty}.*"),
+            Self::TypeName(ty, name) => write!(f, "{ty}.{name}"),
+        }
+    }
+}
+
+/// The new name of an import entry: `g`, `T.g`, or a pattern holding one
+/// `*`, `bar_*` or `T.bar_*`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Rename {
+    /// The receiver type written before the dot, when one is.
+    pub ty: Option<String>,
+    /// The name, or the pattern with its one `*`.
+    pub name: String,
+}
+
+impl std::fmt::Display for Rename {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.ty {
+            Some(ty) => write!(f, "{ty}.{}", self.name),
+            None => f.write_str(&self.name),
+        }
+    }
+}
+
+/// One entry of a `from` statement: a selector, what its group leaves out,
+/// and the name it is bound under.
+#[derive(Debug, Clone)]
+pub(crate) struct ImportEntry {
+    pub selector: Selector,
+    pub except: Vec<(Selector, Range<usize>)>,
+    pub alias: Option<Rename>,
+    pub span: Range<usize>,
 }
 
 /// A declared trait: a name and the functions a type implements to satisfy

@@ -5,6 +5,6 @@
 // expected-type: Int
 // expected: 3
 
-import random
+from random import sample
 
 range(0, 1000) | sample(3) | size

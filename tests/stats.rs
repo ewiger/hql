@@ -8,13 +8,13 @@
 //! last bits of a `Float`, the test allows 4 ulps and says so.
 
 fn shown(source: &str) -> String {
-    hql::eval(&format!("import stats\n{source}"))
+    hql::eval(&format!("import stats\nfrom stats import *\n{source}"))
         .unwrap_or_else(|error| panic!("{source}: {error}"))
         .to_string()
 }
 
 fn refused(source: &str) -> String {
-    hql::eval(&format!("import stats\n{source}"))
+    hql::eval(&format!("import stats\nfrom stats import *\n{source}"))
         .map(|value| panic!("{source} gave {value}"))
         .unwrap_err()
         .message
@@ -63,13 +63,13 @@ fn decimal_statistics_are_pythons_to_100_digits() {
     );
     // A Decimal statistic stays a Decimal, an Int or Float one is a Float.
     assert_eq!(
-        hql::check(&format!("import stats\n{DECIMALS} | stdev"))
+        hql::check(&format!("from stats import *\n{DECIMALS} | stdev"))
             .unwrap()
             .to_string(),
         "Option<Decimal>"
     );
     assert_eq!(
-        hql::check(&format!("import stats\n{INTS} | mean"))
+        hql::check(&format!("from stats import *\n{INTS} | mean"))
             .unwrap()
             .to_string(),
         "Option<Float>"
@@ -235,7 +235,7 @@ fn the_preludes_variance_and_stats_variance_are_told_apart_by_qualifying() {
 fn stats_is_imported_not_in_the_prelude() {
     let refused = hql::eval("[1, 2] | stdev").unwrap_err();
     assert!(
-        refused.message.contains("import stats"),
+        refused.message.contains("from stats import stdev"),
         "{}",
         refused.message
     );
@@ -259,7 +259,7 @@ fn the_reductions_are_reductions_and_the_order_statistics_barriers() {
         } else {
             "[1, 2, 3] | map(x => x + 1)"
         };
-        std::fs::write(&path, format!("import stats\n{input} | {step}\n")).unwrap();
+        std::fs::write(&path, format!("from stats import *\n{input} | {step}\n")).unwrap();
         let output = std::process::Command::new(env!("CARGO_BIN_EXE_hql"))
             .args(["plan", path.to_str().unwrap()])
             .output()

@@ -620,7 +620,7 @@ fn builtins_and_config_explain_the_surface_and_the_settings() {
     // the module, and whether this vault has it.
     let version = env!("CARGO_PKG_VERSION");
     for provider in [
-        format!("collections (std {version}, always available)"),
+        format!("collections (std {version}, prelude)"),
         format!("graph (std {version}, prelude)"),
         format!("hmd.search.lexical (hmd {version}, imported where it is used)"),
         format!("io.net (std {version}, imported where it is used)"),
@@ -794,11 +794,16 @@ fn a_vault_may_decline_the_prelude_and_import_for_every_program() {
     let declined = hql(&["--vault", CONFIGURED, "eval", "1 | markdown"]);
     assert!(!declined.status.success());
     assert!(
-        stderr(&declined).contains("write `import format`"),
+        stderr(&declined).contains("write `from format import markdown`"),
         "{}",
         stderr(&declined)
     );
-    let written = hql(&["--vault", CONFIGURED, "eval", "import format\n1 | markdown"]);
+    let written = hql(&[
+        "--vault",
+        CONFIGURED,
+        "eval",
+        "from format import markdown\n1 | markdown",
+    ]);
     assert!(written.status.success(), "{}", stderr(&written));
 
     // What the vault imports, a query does not have to.
@@ -822,7 +827,7 @@ fn the_standard_library_checks_from_the_command_line() {
 
 #[test]
 fn a_logger_writes_beside_the_result_and_the_host_sets_its_threshold() {
-    let source = "import logging\nlog = Logger(stderr, Text, name = \"xs\")\n\
+    let source = "from logging import *\nlog = Logger(stderr, Text, name = \"xs\")\n\
                   log | debug(\"hidden\")\nlog | info(\"counted\", {n: 2})\n[1, 2] | size";
     let quiet = hql(&["eval", source]);
     assert_eq!(stdout(&quiet), "2\n");

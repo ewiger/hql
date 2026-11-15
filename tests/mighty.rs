@@ -124,7 +124,10 @@ fn a_receiver_call_reaches_only_a_declaration_with_self() {
         shown("import regex\n\"a,b\".split(\",\")"),
         "[\"a\", \"b\"]"
     );
-    assert_eq!(shown("import regex\nis_match(\"ab\", \"a\")"), "true");
+    assert_eq!(
+        shown("from regex import *\nis_match(\"ab\", \"a\")"),
+        "true"
+    );
 }
 
 #[test]

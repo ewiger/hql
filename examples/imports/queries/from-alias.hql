@@ -1,11 +1,10 @@
-// status: proposed
+// status: valid-now
 // feature: an alias binds the function under the new name only
-// implementation: pending
-// proposal: doc/proposals/HQL-0060/index.hmd
+// implementation: implemented
 // environment: pure
 // expected-type: Option<Float>
 // expected: 2.5
 
-from stats import mean as average
+from stats import mean as arithmetic_mean
 
-average([1, 2, 3, 4])
+arithmetic_mean([1, 2, 3, 4])

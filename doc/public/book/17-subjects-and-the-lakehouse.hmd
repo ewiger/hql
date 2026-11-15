@@ -45,7 +45,7 @@ constructor of `io.msg.nats`:
 
 <!-- run: check --project examples/pipelines/shop -->
 ```hql
-import io.msg.nats
+from io.msg.nats import nats
 
 type Event {
     id       : Int

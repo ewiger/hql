@@ -32,6 +32,9 @@ pub(crate) struct Program {
 #[derive(Debug, Clone)]
 pub(crate) struct LoadedModule {
     pub local: String,
+    /// The names a `from` statement bound unqualified, each with the
+    /// module's own name it stands for (HQL-0060).
+    pub bound: Vec<(String, String)>,
     pub program: std::sync::Arc<Program>,
     /// The module's source directory, which its functions resolve relative
     /// paths against wherever they are called from.
@@ -957,6 +960,7 @@ impl Checked {
                         None => Stmt::Unit,
                     },
                     ast::Stmt::Import { .. }
+                    | ast::Stmt::From { .. }
                     | ast::Stmt::Module { .. }
                     | ast::Stmt::External(_)
                     | ast::Stmt::Trait(_) => Stmt::Unit,

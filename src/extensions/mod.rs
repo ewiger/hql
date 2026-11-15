@@ -484,12 +484,6 @@ pub struct Extension {
     pub(crate) metadata: Option<fn(&mut crate::document::Card)>,
 }
 
-/// The modules visible in every source unit without an import, prelude or
-/// not: `core`, the types every other module is written in, and
-/// `collections`, the operations over its collection types, which mention
-/// nothing above the core's own types and so are never absent.
-pub(crate) const ALWAYS: &[&str] = &["core", "collections"];
-
 /// The one-word imports two modules keep beside their canonical paths:
 /// `import net` is `import io.net`, and `import logging` is `import
 /// io.logging`. A transport's module has no one-word form (HQL-0048).
@@ -719,13 +713,36 @@ impl Extension {
 /// which is why a vault can decline it.
 pub(crate) fn prelude() -> &'static [&'static str] {
     static PRELUDE: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
-    PRELUDE.get_or_init(|| {
-        crate::library::PRELUDE
-            .lines()
-            .filter_map(|line| line.trim().strip_prefix("import "))
-            .map(|name| name.split_whitespace().next().unwrap_or(name))
-            .collect()
+    PRELUDE.get_or_init(|| modules_of(prelude_entries()))
+}
+
+/// The statements of `lib/std/prelude.hql`, each as an import entry.
+pub(crate) fn prelude_entries() -> &'static [String] {
+    static ENTRIES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    ENTRIES.get_or_init(|| {
+        prelude_imports(crate::library::PRELUDE).expect("lib/std/prelude.hql is an import list")
     })
+}
+
+/// The modules a list of import entries names, each once, in order.
+fn modules_of(entries: &'static [String]) -> Vec<&'static str> {
+    let mut modules: Vec<&'static str> = Vec::new();
+    for entry in entries {
+        let module = entry_module(entry);
+        if !modules.contains(&module) {
+            modules.push(module);
+        }
+    }
+    modules
+}
+
+/// The module an import entry names: `m` itself, or the `m` of
+/// `from m import …`.
+pub(crate) fn entry_module(entry: &str) -> &str {
+    match entry.strip_prefix("from ") {
+        Some(rest) => rest.split_whitespace().next().unwrap_or(rest),
+        None => entry,
+    }
 }
 
 /// The registered extension of an id.
@@ -802,13 +819,15 @@ pub struct Config {
 pub struct Prelude {
     /// The file, as a diagnostic names it.
     pub file: String,
-    /// The modules it imports, in the order written.
+    /// Its import statements, in the order written, each an import entry:
+    /// a module's name for `import m`, or the text of a `from` statement.
     pub imports: Vec<String>,
 }
 
-/// The modules a package's `prelude.hql` imports. A prelude is an import
-/// list: a statement of another kind, or an import under an alias, is
-/// refused.
+/// The import statements of a package's `prelude.hql`, each as an import
+/// entry: the module's name for `import m`, the statement's text for
+/// `from m import …`. A prelude is an import list: a statement of another
+/// kind, or an import under an alias, is refused.
 ///
 /// # Errors
 ///
@@ -827,6 +846,7 @@ pub(crate) fn prelude_imports(source: &str) -> Result<Vec<String>, String> {
                  name",
                 path.join(".")
             )),
+            crate::ast::Stmt::From { span, .. } => Ok(source[span.clone()].to_owned()),
             _ => Err("a prelude holds imports and nothing else".to_owned()),
         })
         .collect()
@@ -837,13 +857,15 @@ pub(crate) fn prelude_imports(source: &str) -> Result<Vec<String>, String> {
 /// parsed contributes nothing here; checking reports it.
 fn run_imports(program: &crate::ast::Program, roots: &[std::path::PathBuf]) -> Vec<String> {
     fn written(program: &crate::ast::Program) -> impl Iterator<Item = String> + '_ {
-        program.statements.iter().filter_map(|statement| {
-            if let crate::ast::Stmt::Import { path, .. } = statement {
-                Some(path.join("."))
-            } else {
-                None
-            }
-        })
+        program
+            .statements
+            .iter()
+            .filter_map(|statement| match statement {
+                crate::ast::Stmt::Import { path, .. } | crate::ast::Stmt::From { path, .. } => {
+                    Some(path.join("."))
+                }
+                _ => None,
+            })
     }
     let mut found: Vec<String> = Vec::new();
     let mut pending: Vec<String> = written(program).collect();
@@ -904,16 +926,12 @@ pub(crate) fn checking_hmd() -> bool {
     HMD_ACTIVE.with(std::cell::Cell::get)
 }
 
-/// The modules `lib/hmd/prelude.hql` imports: what every unit of a run
-/// imports while `hmd` is active.
-pub(crate) fn hmd_prelude() -> &'static [&'static str] {
-    static PRELUDE: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
-    PRELUDE.get_or_init(|| {
-        crate::library::HMD_PRELUDE
-            .lines()
-            .filter_map(|line| line.trim().strip_prefix("import "))
-            .map(|name| name.split_whitespace().next().unwrap_or(name))
-            .collect()
+/// The statements of `lib/hmd/prelude.hql`, each as an import entry: what
+/// every unit of a run imports while `hmd` is active.
+pub(crate) fn hmd_prelude_entries() -> &'static [String] {
+    static ENTRIES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    ENTRIES.get_or_init(|| {
+        prelude_imports(crate::library::HMD_PRELUDE).expect("lib/hmd/prelude.hql is an import list")
     })
 }
 
@@ -922,7 +940,9 @@ impl Config {
     /// import, `[modules] import` or `--import`, names a module of it.
     #[must_use]
     pub fn hmd_active(&self) -> bool {
-        self.imports.iter().any(|import| is_hmd(import))
+        self.imports
+            .iter()
+            .any(|import| is_hmd(entry_module(import)))
     }
 
     /// The configuration a program runs under: this one, with the prelude
@@ -945,7 +965,7 @@ impl Config {
             if config.prelude {
                 config.preludes.push(Prelude {
                     file: "lib/hmd/prelude.hql".to_owned(),
-                    imports: hmd_prelude().iter().map(|&name| name.to_owned()).collect(),
+                    imports: hmd_prelude_entries().to_vec(),
                 });
             }
         }
@@ -955,11 +975,16 @@ impl Config {
         let loaded = crate::package::active().map_or(&[][..], |active| &active.loaded);
         for package in loaded {
             let installed = &package.installed;
-            let active = installed
-                .provides
+            let active = installed.provides.iter().any(|module| {
+                written.contains(module)
+                    || self
+                        .imports
+                        .iter()
+                        .any(|entry| entry_module(entry) == module)
+            }) || self
+                .imports
                 .iter()
-                .any(|module| written.contains(module) || self.imports.contains(module))
-                || self.imports.contains(&installed.name);
+                .any(|entry| entry_module(entry) == installed.name);
             if active && !package.prelude.is_empty() {
                 config.preludes.push(Prelude {
                     file: package
@@ -1030,9 +1055,6 @@ impl Config {
 /// Whether a module is available to a program, and why.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Availability {
-    /// `core` and `collections`, which are never imported because they are
-    /// never absent.
-    Core,
     /// In a prelude the run keeps.
     Prelude,
     /// Named by `[modules] import` or `--import`.
@@ -1046,7 +1068,6 @@ impl Availability {
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
-            Self::Core => "always available",
             Self::Prelude => "prelude",
             Self::Configured => "imported by this project",
             Self::Absent => "imported where it is used",
@@ -1069,8 +1090,11 @@ pub(crate) struct Resolution {
     /// what an import may name, and their declarations say what an
     /// importer reaches.
     environment: binding::Frozen,
-    /// Each visible builtin module, under the local name it is bound to.
+    /// Each builtin module `import` bound, under the local name it is bound
+    /// to: reached qualified, and by receiver call (HQL-0060).
     imported: Vec<Imported>,
+    /// What each `from` statement bound unqualified, in the order written.
+    bound: Vec<Bound>,
     /// Whether the run's configuration makes `hmd` active, so that `vault`,
     /// its bindings and document references belong to the program.
     hmd: bool,
@@ -1082,6 +1106,85 @@ pub(crate) struct Resolution {
 struct Imported {
     local: &'static str,
     module: binding::ModuleId,
+}
+
+/// The receiver types a binding admits a form at: one type, every type but
+/// some, or every type.
+#[derive(Debug, Clone, Default)]
+struct Receivers {
+    /// `T.*` and `T.f`: only forms whose receiver type is `T`.
+    only: Option<String>,
+    /// `except T.*` and `except T.f`: not forms at these types.
+    not: Vec<String>,
+}
+
+impl Receivers {
+    /// Whether a form is admitted: one that takes `self` at the receiver
+    /// type `ty`, `None` where the type is a variable, or one without `self`.
+    /// A type selector matches its type exactly.
+    fn admits(&self, receiver: bool, ty: Option<&str>) -> bool {
+        if let Some(only) = &self.only {
+            return receiver && ty == Some(only.as_str());
+        }
+        !(receiver && ty.is_some_and(|held| self.not.iter().any(|not| not == held)))
+    }
+
+    fn restricts(&self) -> bool {
+        self.only.is_some() || !self.not.is_empty()
+    }
+}
+
+/// One name, or one group of names, a `from` statement binds from a module
+/// (HQL-0060).
+#[derive(Debug, Clone)]
+struct Bound {
+    module: binding::ModuleId,
+    /// The canonical name of the module, for messages.
+    module_name: &'static str,
+    /// How a written name maps to the module's own: one name, or a pattern.
+    names: Names,
+    /// The receiver types whose forms it binds.
+    receivers: Receivers,
+    /// The module's names a group leaves out, `except f`.
+    except: Vec<String>,
+    /// The forms a group leaves out by type and name, `except T.f`.
+    except_at: Vec<(String, String)>,
+    /// Whether it is reached unqualified, `f(x)` and `x | f`.
+    function: bool,
+    /// Whether it is reached by receiver call, `x.f()`.
+    receiver: bool,
+}
+
+/// An operation a written name reaches, with the name to qualify it by
+/// and the receiver types it is admitted at.
+struct Reached {
+    step: &'static Operation,
+    qualifier: &'static str,
+    admitted: Receivers,
+}
+
+#[derive(Debug, Clone)]
+enum Names {
+    /// `f` or `f as g`: the bound name and the module's.
+    One { bound: String, original: String },
+    /// `*` or `T.*`, renamed by a pattern `prefix*suffix`, or not renamed.
+    Group { prefix: String, suffix: String },
+}
+
+impl Bound {
+    /// The module's name a written name stands for, where this binding binds
+    /// the written name.
+    fn original<'n>(&'n self, written: &'n str) -> Option<&'n str> {
+        match &self.names {
+            Names::One { bound, original } => (bound == written).then_some(original.as_str()),
+            Names::Group { prefix, suffix } => {
+                let original = written.strip_prefix(prefix.as_str())?;
+                let original = original.strip_suffix(suffix.as_str())?;
+                (!original.is_empty() && !self.except.iter().any(|held| held == original))
+                    .then_some(original)
+            }
+        }
+    }
 }
 
 /// Bind the standard library's contracts to the extensions implementing them.
@@ -1106,29 +1209,423 @@ pub fn bind() -> Result<(), String> {
 }
 
 impl Resolution {
-    /// The always-visible modules, plus the prelude's unless the vault
-    /// declines it, over a frozen environment.
+    /// The prelude's imports, unless the vault declines them, over a frozen
+    /// environment: an ordinary list of import statements (HQL-0060).
     pub(crate) fn bare(environment: binding::Frozen, prelude: bool) -> Self {
         let mut resolution = Self {
             environment,
             imported: Vec::new(),
+            bound: Vec::new(),
             hmd: false,
         };
-        let names = ALWAYS
-            .iter()
-            .copied()
-            .chain(prelude.then(self::prelude).into_iter().flatten().copied());
-        for name in names {
-            if let Some(module) = environment.provided_module(name)
-                && !resolution.imported.iter().any(|held| held.module == module)
-            {
-                resolution.imported.push(Imported {
-                    local: environment.module(module).local(),
-                    module,
-                });
+        if prelude {
+            for entry in prelude_entries() {
+                resolution
+                    .entry(entry, &(0..0))
+                    .expect("lib/std/prelude.hql imports what the standard library declares");
             }
         }
         resolution
+    }
+
+    /// Bind one import entry: `m`, read as `import m`, or the text of a
+    /// `from` statement. Answers whether the entry named a builtin module.
+    pub(crate) fn entry(&mut self, entry: &str, span: &Range<usize>) -> Result<bool, Diagnostic> {
+        if !entry.starts_with("from ") {
+            return self.import(entry, None, span);
+        }
+        let program = crate::parser::parse(entry)
+            .map_err(|error| Diagnostic::name(span.clone(), error.message()))?;
+        let [crate::ast::Stmt::From { path, entries, .. }] = program.statements.as_slice() else {
+            return Err(Diagnostic::name(
+                span.clone(),
+                format!("`{entry}` is no import statement"),
+            ));
+        };
+        self.bind_from(&path.join("."), entries, span)
+    }
+
+    /// `from m import …` of a builtin module: bind what each entry selects,
+    /// unqualified, and its receivers under the names they are bound as.
+    /// Answers whether the path named a builtin module.
+    pub(crate) fn bind_from(
+        &mut self,
+        path: &str,
+        entries: &[crate::ast::ImportEntry],
+        span: &Range<usize>,
+    ) -> Result<bool, Diagnostic> {
+        let Some(module) = self.environment.provided_module(canonical(path)) else {
+            return Ok(false);
+        };
+        for entry in entries {
+            let bound = self.selected(module, entry)?;
+            self.bound.extend(bound);
+        }
+        let _ = span;
+        Ok(true)
+    }
+
+    /// What one entry of a `from` statement binds, checked against the
+    /// module's declarations.
+    fn selected(
+        &self,
+        module: binding::ModuleId,
+        entry: &crate::ast::ImportEntry,
+    ) -> Result<Vec<Bound>, Diagnostic> {
+        use crate::ast::Selector;
+        let environment = self.environment;
+        let module_name = environment.module(module).name;
+        let at = &entry.span;
+        let invalid = |message: String| {
+            Diagnostic::name(at.clone(), message).with_kind(crate::diagnostics::Kind::InvalidImport)
+        };
+        // The public operations of the module, by name.
+        let public = |name: &str| {
+            environment
+                .offered(module, name)
+                .filter(|step| !environment.is_private(step))
+        };
+        let missing = |name: &str, span: &Range<usize>| {
+            if environment
+                .offered(module, name)
+                .is_some_and(|step| environment.is_private(step))
+            {
+                return Diagnostic::name(
+                    span.clone(),
+                    format!(
+                        "`{name}` is private to the module `{module_name}`, and cannot be \
+                         imported"
+                    ),
+                );
+            }
+            Diagnostic::name(
+                span.clone(),
+                format!("the module `{module_name}` declares no public `{name}`"),
+            )
+        };
+        let selects_at = |ty: &str| {
+            environment.operation_names(module).any(|name| {
+                public(name).is_some_and(|step| {
+                    environment
+                        .receiver_forms(step)
+                        .iter()
+                        .any(|(held, _)| *held == ty)
+                })
+            })
+        };
+        let nothing_at = |ty: &str, span: &Range<usize>| {
+            Diagnostic::name(
+                span.clone(),
+                format!(
+                    "`{ty}.*` selects nothing in the module `{module_name}`: no public function \
+                     has the receiver type `{ty}`"
+                ),
+            )
+        };
+        let mut receivers = Receivers::default();
+        let mut except = Vec::new();
+        for (excluded, span) in &entry.except {
+            match excluded {
+                Selector::Name(name) => {
+                    if public(name).is_none() {
+                        return Err(missing(name, span));
+                    }
+                    except.push(name.clone());
+                }
+                Selector::TypeAll(ty) => {
+                    if !selects_at(ty) {
+                        return Err(nothing_at(ty, span));
+                    }
+                    receivers.not.push(ty.clone());
+                }
+                Selector::TypeName(ty, name) => {
+                    let Some(step) = public(name) else {
+                        return Err(missing(name, span));
+                    };
+                    if !environment
+                        .receiver_forms(step)
+                        .iter()
+                        .any(|(held, _)| held == ty)
+                    {
+                        return Err(Diagnostic::name(
+                            span.clone(),
+                            format!(
+                                "`{ty}.{name}` selects nothing in the module `{module_name}`: \
+                                 its `{name}` has no form whose receiver type is `{ty}`"
+                            ),
+                        ));
+                    }
+                    // A group leaves out one form of a name by leaving out
+                    // the name at that type only.
+                    except.push(format!("{ty}.{name}"));
+                }
+                Selector::All => unreachable!("the parser refuses `except *`"),
+            }
+        }
+        let alias = entry.alias.as_ref();
+        let pattern = |alias: &crate::ast::Rename| -> Result<(String, String), Diagnostic> {
+            match alias.name.split_once('*') {
+                Some((prefix, suffix)) => Ok((prefix.to_owned(), suffix.to_owned())),
+                None => Err(invalid(format!(
+                    "`{} as {alias}` renames a group to one name; write a pattern with one `*`, \
+                     such as `{}`",
+                    entry.selector,
+                    match &alias.ty {
+                        Some(ty) => format!("{ty}.{}_*", alias.name),
+                        None => format!("{}_*", alias.name),
+                    }
+                ))),
+            }
+        };
+        let item_alias = |alias: &crate::ast::Rename| -> Result<(), Diagnostic> {
+            if alias.name.contains('*') {
+                return Err(invalid(format!(
+                    "`{} as {alias}` renames one name by a pattern; a pattern renames a group, \
+                     `*` or `T.*`",
+                    entry.selector
+                )));
+            }
+            Ok(())
+        };
+        let (names_out, typed_out): (Vec<String>, Vec<String>) =
+            except.into_iter().partition(|held| !held.contains('.'));
+        let except_at: Vec<(String, String)> = typed_out
+            .iter()
+            .filter_map(|held| held.split_once('.'))
+            .map(|(ty, name)| (ty.to_owned(), name.to_owned()))
+            .collect();
+        let mut bound = Vec::new();
+        match &entry.selector {
+            Selector::All | Selector::TypeAll(_) => {
+                if let Selector::TypeAll(ty) = &entry.selector {
+                    if !selects_at(ty) {
+                        return Err(nothing_at(ty, at));
+                    }
+                    receivers.only = Some(ty.clone());
+                }
+                let (prefix, suffix, function, receiver) = match alias {
+                    None => (String::new(), String::new(), true, true),
+                    Some(alias) => {
+                        let (prefix, suffix) = pattern(alias)?;
+                        match (&alias.ty, &entry.selector) {
+                            (None, _) => (prefix, suffix, true, false),
+                            (Some(ty), Selector::TypeAll(selected)) if ty == selected => {
+                                (prefix, suffix, true, true)
+                            }
+                            (Some(ty), Selector::TypeAll(selected)) => {
+                                return Err(invalid(format!(
+                                    "`{} as {alias}` changes the receiver type from `{selected}` \
+                                     to `{ty}`; a receiver alias keeps its type: write \
+                                     `{selected}.{}`",
+                                    entry.selector, alias.name
+                                )));
+                            }
+                            (Some(_), _) => {
+                                return Err(invalid(format!(
+                                    "`* as {alias}` binds functions of every receiver type; \
+                                     name the type in the selector, `{}.* as {alias}`",
+                                    alias.ty.as_deref().unwrap_or_default()
+                                )));
+                            }
+                        }
+                    }
+                };
+                bound.push(Bound {
+                    module,
+                    module_name,
+                    names: Names::Group { prefix, suffix },
+                    receivers: receivers.clone(),
+                    except: names_out,
+                    except_at,
+                    function,
+                    receiver,
+                });
+            }
+            Selector::Name(name) => {
+                if public(name).is_none() {
+                    if environment.declares_type(module, name) {
+                        // Types stay visible unqualified, as they are; the
+                        // import names one, checked against the module.
+                        if let Some(alias) = alias {
+                            return Err(invalid(format!(
+                                "`{name} as {alias}` renames a type; a type keeps its name"
+                            )));
+                        }
+                        return Ok(Vec::new());
+                    }
+                    return Err(missing(name, at));
+                }
+                let (bound_name, receiver) = match alias {
+                    None => (name.clone(), true),
+                    Some(alias) => {
+                        item_alias(alias)?;
+                        if let Some(ty) = &alias.ty {
+                            return Err(invalid(format!(
+                                "`{name} as {alias}` binds a receiver at `{ty}`; select the \
+                                 receiver by its type, `{ty}.{name} as {alias}`"
+                            )));
+                        }
+                        (alias.name.clone(), false)
+                    }
+                };
+                bound.push(Bound {
+                    module,
+                    module_name,
+                    names: Names::One {
+                        bound: bound_name,
+                        original: name.clone(),
+                    },
+                    receivers,
+                    except: Vec::new(),
+                    except_at: Vec::new(),
+                    function: true,
+                    receiver,
+                });
+            }
+            Selector::TypeName(ty, name) => {
+                let Some(step) = public(name) else {
+                    return Err(missing(name, at));
+                };
+                if !environment
+                    .receiver_forms(step)
+                    .iter()
+                    .any(|(held, _)| held == ty)
+                {
+                    return Err(Diagnostic::name(
+                        at.clone(),
+                        format!(
+                            "`{ty}.{name}` selects nothing in the module `{module_name}`: its \
+                             `{name}` has no form whose receiver type is `{ty}`"
+                        ),
+                    ));
+                }
+                receivers.only = Some(ty.clone());
+                let (bound_name, receiver) = match alias {
+                    None => (name.clone(), true),
+                    Some(alias) => {
+                        item_alias(alias)?;
+                        match &alias.ty {
+                            None => (alias.name.clone(), false),
+                            Some(held) if held == ty => (alias.name.clone(), true),
+                            Some(held) => {
+                                return Err(invalid(format!(
+                                    "`{ty}.{name} as {alias}` changes the receiver type from \
+                                     `{ty}` to `{held}`; a receiver alias keeps its type: write \
+                                     `{ty}.{name} as {ty}.{}`",
+                                    alias.name
+                                )));
+                            }
+                        }
+                    }
+                };
+                bound.push(Bound {
+                    module,
+                    module_name,
+                    names: Names::One {
+                        bound: bound_name,
+                        original: name.clone(),
+                    },
+                    receivers,
+                    except: Vec::new(),
+                    except_at: Vec::new(),
+                    function: true,
+                    receiver,
+                });
+            }
+        }
+        Ok(bound)
+    }
+
+    /// Whether a name is bound unqualified or as a receiver by a `from`
+    /// statement: a name the checker resolves among the imports though no
+    /// extension declares it, `bar_upper`.
+    pub(crate) fn binds(&self, name: &str) -> bool {
+        self.bound.iter().any(|bound| {
+            bound
+                .original(name)
+                .is_some_and(|original| self.public(bound.module, original).is_some())
+        })
+    }
+
+    /// A module's public operation of a name.
+    fn public(&self, module: binding::ModuleId, name: &str) -> Option<&'static Operation> {
+        self.environment
+            .offered(module, name)
+            .filter(|step| !self.environment.is_private(step))
+    }
+
+    /// Every operation a written name reaches: by the `from` bindings, as a
+    /// function or as a receiver, and by receiver call through every module
+    /// `import` bound. Each comes with the module's local or canonical name
+    /// for messages and the receiver types it is admitted at.
+    fn reached(&self, name: &str, receivers: bool) -> Vec<Reached> {
+        let mut found: Vec<Reached> = Vec::new();
+        let add = |found: &mut Vec<Reached>, reached: Reached| {
+            if let Some(held) = found
+                .iter_mut()
+                .find(|held| std::ptr::eq(held.step, reached.step))
+            {
+                // One operation reached twice is one: the widest admission
+                // stands.
+                if !reached.admitted.restricts() {
+                    held.admitted = Receivers::default();
+                }
+                return;
+            }
+            found.push(reached);
+        };
+        if receivers {
+            for held in &self.imported {
+                if let Some(step) = self.public(held.module, name)
+                    && self.environment.has_receiver(step)
+                {
+                    add(
+                        &mut found,
+                        Reached {
+                            step,
+                            qualifier: held.local,
+                            admitted: Receivers::default(),
+                        },
+                    );
+                }
+            }
+        }
+        for bound in &self.bound {
+            if !(if receivers {
+                bound.receiver
+            } else {
+                bound.function
+            }) {
+                continue;
+            }
+            let Some(original) = bound.original(name) else {
+                continue;
+            };
+            let Some(step) = self.public(bound.module, original) else {
+                continue;
+            };
+            let mut admitted = bound.receivers.clone();
+            for (ty, held) in &bound.except_at {
+                if held == original {
+                    admitted.not.push(ty.clone());
+                }
+            }
+            let forms = self.environment.forms(step);
+            if !forms.iter().any(|(receiver, ty, _)| {
+                admitted.admits(*receiver, *ty) && (!receivers || *receiver)
+            }) {
+                continue;
+            }
+            add(
+                &mut found,
+                Reached {
+                    step,
+                    qualifier: bound.module_name,
+                    admitted,
+                },
+            );
+        }
+        found
     }
 
     /// What a run starts every program with: the configured layer of the
@@ -1175,7 +1672,37 @@ impl Resolution {
             None => crate::types::program::intern(path.rsplit('.').next().unwrap_or(path)),
         };
         self.bind_as(local, wanted, span)?;
+        self.bind_constructors(wanted);
         Ok(true)
+    }
+
+    /// A type's name stays usable unqualified wherever its module is
+    /// imported, and its constructor is written with that name: `import m`
+    /// binds each constructor of a type `m` declares (HQL-0060).
+    fn bind_constructors(&mut self, module: binding::ModuleId) {
+        let environment = self.environment;
+        let module_name = environment.module(module).name;
+        let constructors: Vec<String> = environment
+            .operation_names(module)
+            .filter(|name| environment.declares_type(module, name))
+            .filter(|name| self.public(module, name).is_some())
+            .map(str::to_owned)
+            .collect();
+        for name in constructors {
+            self.bound.push(Bound {
+                module,
+                module_name,
+                names: Names::One {
+                    bound: name.clone(),
+                    original: name,
+                },
+                receivers: Receivers::default(),
+                except: Vec::new(),
+                except_at: Vec::new(),
+                function: true,
+                receiver: false,
+            });
+        }
     }
 
     /// Bind every module a registered extension provides, each under its
@@ -1247,24 +1774,11 @@ impl Resolution {
         self.has(name)
     }
 
-    /// The operation of a name an imported module offers an importer: one
-    /// the module declares, and does not declare private.
-    fn offered(&self, held: &Imported, name: &str) -> Option<&'static Operation> {
-        self.environment
-            .offered(held.module, name)
-            .filter(|step| !self.environment.is_private(step))
-    }
-
-    /// The canonical name of an imported module, for messages.
-    fn name_of(&self, held: &Imported) -> &'static str {
-        self.environment.module(held.module).name
-    }
-
     /// The step a name resolves to for an input of a type, among every
-    /// visible module declaring the name: the one whose input the type fits,
-    /// told apart from the others by that and by how many positional
-    /// arguments are written. Several that fit are an ambiguity, naming
-    /// each provider so the call can be qualified.
+    /// operation a `from` statement binds under it: the one whose input the
+    /// type fits, told apart from the others by that and by how many
+    /// positional arguments are written. Several that fit are an ambiguity,
+    /// naming each provider so the call can be qualified.
     pub(crate) fn step_for(
         &self,
         name: &str,
@@ -1277,8 +1791,9 @@ impl Resolution {
     }
 
     /// The step a receiver call, `value.f()`, resolves to: as
-    /// [`Resolution::step_for`], among the visible operations whose
-    /// declarations take `self`. A name declared only without `self` is
+    /// [`Resolution::step_for`], among the receivers reachable under the
+    /// name: every receiver of a module `import` bound, and those a `from`
+    /// statement bound as receivers. A name reached only as a function is
     /// reached by a call or a pipeline step, and the refusal says so.
     pub(crate) fn receiver_step_for(
         &self,
@@ -1288,22 +1803,19 @@ impl Resolution {
         named: &[&str],
         span: &Range<usize>,
     ) -> Result<&'static Operation, Diagnostic> {
-        let visible = self
+        let declared_without_self = self
             .imported
             .iter()
-            .filter_map(|held| self.offered(held, name))
-            .collect::<Vec<_>>();
-        if !visible.is_empty()
-            && !visible
-                .iter()
-                .any(|step| self.environment.has_receiver(step))
+            .any(|held| self.public(held.module, name).is_some());
+        if self.reached(name, true).is_empty()
+            && (declared_without_self || !self.reached(name, false).is_empty())
         {
             return Err(Diagnostic::name(
                 span.clone(),
                 format!(
-                    "`{name}` takes no receiver: its declaration has no `self`, so \
-                     `value.{name}(…)` does not reach it; write `{name}(value, …)` or \
-                     `value | {name}(…)`"
+                    "`{name}` takes no receiver here: its declaration has no `self`, or it is \
+                     imported as a function only, so `value.{name}(…)` does not reach it; write \
+                     `{name}(value, …)` or `value | {name}(…)`"
                 ),
             ));
         }
@@ -1319,29 +1831,36 @@ impl Resolution {
         span: &Range<usize>,
         receivers: bool,
     ) -> Result<&'static Operation, Diagnostic> {
-        let mut candidates: Vec<(&Imported, &'static Operation)> = Vec::new();
-        for held in &self.imported {
-            if let Some(step) = self.offered(held, name)
-                && (!receivers || self.environment.has_receiver(step))
-                && !candidates
-                    .iter()
-                    .any(|(candidate, _)| candidate.module == held.module)
-            {
-                candidates.push((held, step));
-            }
-        }
         let environment = self.environment;
+        let present = input.present();
+        // A binding restricted to some receiver types reaches a call only
+        // through a form at one of them.
+        let candidates: Vec<Reached> = self
+            .reached(name, receivers)
+            .into_iter()
+            .filter(|reached| {
+                !reached.admitted.restricts()
+                    || *input == TypeRef::UNIT
+                    || environment
+                        .forms(reached.step)
+                        .iter()
+                        .any(|(receiver, ty, spec)| {
+                            reached.admitted.admits(*receiver, *ty)
+                                && (spec.input.accepts(present) || spec.input.accepts(input))
+                        })
+            })
+            .collect();
         match candidates.as_slice() {
-            [] => Err(self.unresolved(name, span)),
-            [(_, only)] => Ok(only),
+            [] => Err(self.unresolved_as(name, span, receivers)),
+            [only] => Ok(only.step),
             many => {
                 // The names a call writes tell modules apart before its
                 // input does: only one module's `join` takes `into`.
                 if !named.is_empty() {
                     let naming: Vec<_> = many
                         .iter()
-                        .filter(|(_, step)| {
-                            environment.specs(step).iter().any(|spec| {
+                        .filter(|reached| {
+                            environment.specs(reached.step).iter().any(|spec| {
                                 named.iter().all(|written| {
                                     spec.arguments
                                         .iter()
@@ -1350,25 +1869,25 @@ impl Resolution {
                             })
                         })
                         .collect();
-                    if let [(_, only)] = naming.as_slice() {
-                        return Ok(only);
+                    if let [only] = naming.as_slice() {
+                        return Ok(only.step);
                     }
                 }
-                let input = input.present();
-                let fitting: Vec<_> = many
+                let fitting: Vec<&Reached> = many
                     .iter()
-                    .filter(|(_, step)| {
-                        environment.specs(step).iter().any(|spec| {
-                            spec.input.accepts(input)
-                                || (input.constructor.0 == "Option"
-                                    && spec.input.accepts(input.present()))
+                    .filter(|reached| {
+                        environment.specs(reached.step).iter().any(|spec| {
+                            spec.input.accepts(present)
+                                || (present.constructor.0 == "Option"
+                                    && spec.input.accepts(present.present()))
                         })
                     })
                     .collect();
-                let by_arity: Vec<_> = fitting
+                let by_arity: Vec<&Reached> = fitting
                     .iter()
-                    .filter(|(_, step)| {
-                        environment.specs(step).iter().any(|spec| {
+                    .copied()
+                    .filter(|reached| {
+                        environment.specs(reached.step).iter().any(|spec| {
                             // The arguments written by position fill the
                             // ones a call may write so, and each name
                             // written must be one of the form's.
@@ -1395,30 +1914,35 @@ impl Resolution {
                     })
                     .collect();
                 match (by_arity.as_slice(), fitting.as_slice()) {
-                    ([(_, step)], _) => Ok(step),
-                    ([], [(_, step)]) => Ok(step),
-                    ([], []) => Ok(many[0].1),
+                    ([reached], _) => Ok(reached.step),
+                    ([], [reached]) => Ok(reached.step),
+                    ([], []) => Ok(many[0].step),
                     (by_arity, fitting) => {
                         // Several fit: by arity where any does, else by input.
-                        let several: Vec<&(&Imported, &'static Operation)> = if by_arity.is_empty()
-                        {
-                            fitting.to_vec()
+                        let several: &[&Reached] = if by_arity.is_empty() {
+                            fitting
                         } else {
-                            by_arity.iter().map(|held| **held).collect()
+                            by_arity
                         };
-                        // The modules by their canonical names; the
-                        // qualification by the local name the unit bound.
+                        let module_of = |reached: &Reached| {
+                            environment
+                                .of(reached.step)
+                                .first()
+                                .map_or(reached.qualifier, |id| {
+                                    environment.module(environment.declaration(*id).module).name
+                                })
+                        };
                         Err(Diagnostic::name(
                             span.clone(),
                             format!(
-                                "`{name}` over {input} is declared by {}, so the call is \
-                             ambiguous; qualify it, `{}.{name}(…)`",
+                                "`{name}` over {present} is declared by {}, so the call is \
+                                 ambiguous; qualify it, `{}.{name}(…)`",
                                 several
                                     .iter()
-                                    .map(|(held, _)| format!("`{}`", self.name_of(held)))
+                                    .map(|reached| format!("`{}`", module_of(reached)))
                                     .collect::<Vec<_>>()
                                     .join(" and "),
-                                several[0].0.local
+                                several[0].qualifier
                             ),
                         ))
                     }
@@ -1427,41 +1951,35 @@ impl Resolution {
         }
     }
 
-    /// The visible modules whose receiver function `name` takes an input of
-    /// this type, by local name: the providers a receiver call could reach.
+    /// The modules whose receiver function `name` takes an input of this
+    /// type and is reachable here, by local name: the providers a receiver
+    /// call could reach.
     pub(crate) fn receiver_providers(&self, name: &str, input: &TypeRef) -> Vec<&'static str> {
         let input = input.present();
-        let mut found: Vec<&Imported> = Vec::new();
-        for held in &self.imported {
-            if let Some(step) = self.offered(held, name)
-                && self.environment.has_receiver(step)
-                && self
-                    .environment
-                    .specs(step)
+        self.reached(name, true)
+            .into_iter()
+            .filter(|reached| {
+                self.environment
+                    .forms(reached.step)
                     .iter()
-                    .any(|spec| spec.input.accepts(input))
-                && !found.iter().any(|known| known.module == held.module)
-            {
-                found.push(held);
-            }
-        }
-        found.into_iter().map(|held| held.local).collect()
+                    .any(|(receiver, ty, spec)| {
+                        *receiver && reached.admitted.admits(true, *ty) && spec.input.accepts(input)
+                    })
+            })
+            .map(|reached| reached.qualifier)
+            .collect()
     }
 
     /// The step a bare name resolves to, whatever its input: the first
-    /// visible module declaring it.
+    /// operation bound under it.
     #[cfg(test)]
     pub(crate) fn step(
         &self,
         name: &str,
         span: &Range<usize>,
     ) -> Result<&'static Operation, Diagnostic> {
-        if let Some(step) = self
-            .imported
-            .iter()
-            .find_map(|held| self.offered(held, name))
-        {
-            return Ok(step);
+        if let Some(reached) = self.reached(name, false).first() {
+            return Ok(reached.step);
         }
         Err(self.unresolved(name, span))
     }
@@ -1516,12 +2034,40 @@ impl Resolution {
     /// Why a name did not resolve: a private operation of an imported
     /// module, a missing import, or no such step at all.
     fn unresolved(&self, name: &str, span: &Range<usize>) -> Diagnostic {
-        if let Some(step) = self.imported.iter().find_map(|held| {
+        self.unresolved_as(name, span, false)
+    }
+
+    /// Why a name did not resolve, for a receiver call where `receiver`:
+    /// `import m` makes every receiver of `m` reachable, so that is the
+    /// import a receiver call is missing.
+    fn unresolved_as(&self, name: &str, span: &Range<usize>, receiver: bool) -> Diagnostic {
+        let modules = self
+            .imported
+            .iter()
+            .map(|held| held.module)
+            .chain(self.bound.iter().map(|bound| bound.module));
+        if let Some(step) = modules.clone().find_map(|module| {
             self.environment
-                .offered(held.module, name)
+                .offered(module, name)
                 .filter(|step| self.environment.is_private(step))
         }) {
             return self.private(name, step, span);
+        }
+        // A module imported qualified declares it: name both fixes.
+        if let Some(held) = self
+            .imported
+            .iter()
+            .find(|held| self.public(held.module, name).is_some())
+        {
+            let module = self.environment.module(held.module).name;
+            return Diagnostic::name(
+                span.clone(),
+                format!(
+                    "`{name}` is declared in the module `{module}`, which is imported qualified: \
+                     write `{}.{name}(…)`, or `from {module} import {name}`",
+                    held.local
+                ),
+            );
         }
         let declaring: Vec<&'static str> = self
             .environment
@@ -1543,8 +2089,27 @@ impl Resolution {
                     None => refused,
                 };
             }
+            // A module of `hmd` is reached by activating the package, whose
+            // prelude imports it.
+            [only] if is_hmd(only) => {
+                format!("`{name}` is declared in the module `{only}`: write `import hmd`")
+            }
+            // A constructor comes with its type's module, and a receiver
+            // with its module's import.
+            [only]
+                if receiver
+                    || self
+                        .environment
+                        .provided_module(only)
+                        .is_some_and(|module| self.environment.declares_type(module, name)) =>
+            {
+                format!(
+                    "`{name}` is declared in the module `{only}`: write `import {}`",
+                    import_of(only)
+                )
+            }
             [only] => format!(
-                "`{name}` is declared in the module `{only}`: write `import {}`",
+                "`{name}` is declared in the module `{only}`: write `from {} import {name}`",
                 import_of(only)
             ),
             many => format!(
@@ -1575,7 +2140,7 @@ pub(crate) fn names() -> impl Iterator<Item = &'static str> {
 /// Whether a module is visible in every unit of a vault keeping the
 /// prelude: always, or named by `lib/std/prelude.hql`.
 fn in_reach(module: &str) -> bool {
-    ALWAYS.contains(&module) || prelude().contains(&module)
+    prelude().contains(&module)
 }
 
 /// Every step name, each with whether a module in reach of every program
@@ -1687,6 +2252,7 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
     };
     let configured = |module: &str| {
         config.imports.iter().any(|held| {
+            let held = entry_module(held);
             canonical(held) == module || extension(held).is_some_and(|held| held.provides(module))
         })
     };
@@ -1698,9 +2264,7 @@ pub fn catalogue(config: &Config) -> Vec<Provider> {
                 extension: extension.id,
                 origin: extension.origin,
                 version: extension.version,
-                availability: if ALWAYS.contains(&provided.module) {
-                    Availability::Core
-                } else if config.prelude && prelude().contains(&provided.module) {
+                availability: if config.prelude && prelude().contains(&provided.module) {
                     Availability::Prelude
                 } else if configured(provided.module) {
                     Availability::Configured
@@ -1883,8 +2447,8 @@ mod tests {
         assert!(!names(by_module("core")).contains(&"count"));
         assert!(names(by_module("collections")).contains(&"count"));
         assert!(!names(by_module("collections")).contains(&"Date"));
-        assert_eq!(by_module("core").availability, Availability::Core);
-        assert_eq!(by_module("collections").availability, Availability::Core);
+        assert_eq!(by_module("core").availability, Availability::Prelude);
+        assert_eq!(by_module("collections").availability, Availability::Prelude);
         assert!(
             listed
                 .iter()
@@ -1914,12 +2478,26 @@ mod tests {
             missing.message()
         );
 
+        // `import` binds the module's name only (HQL-0060).
         resolution
             .import("hmd.search.lexical", None, &(0..1))
             .unwrap();
-        assert!(resolution.step("lexical", &(0..1)).is_ok());
+        let qualified = resolution.step("lexical", &(0..1)).unwrap_err();
+        assert!(
+            qualified.message().contains("imported qualified")
+                && qualified.message().contains("`lexical.lexical(…)`")
+                && qualified
+                    .message()
+                    .contains("`from hmd.search.lexical import lexical`"),
+            "{}",
+            qualified.message()
+        );
         assert!(resolution.qualified("lexical", "lexical", &(0..1)).is_ok());
         assert!(resolution.qualified("lexical", "rank", &(0..1)).is_err());
+        resolution
+            .entry("from hmd.search.lexical import lexical", &(0..1))
+            .unwrap();
+        assert!(resolution.step("lexical", &(0..1)).is_ok());
     }
 
     #[test]
@@ -1927,11 +2505,12 @@ mod tests {
         let bare = bare(false);
         let missing = bare.step("markdown", &(0..1)).unwrap_err();
         assert!(
-            missing.message().contains("import format"),
+            missing.message().contains("from format import markdown"),
             "{}",
             missing.message()
         );
-        assert!(bare.step("count", &(0..1)).is_ok());
+        // `core` and `collections` are prelude lines like any other.
+        assert!(bare.step("count", &(0..1)).is_err());
     }
 
     #[test]
@@ -1943,13 +2522,19 @@ mod tests {
         resolution
             .import("hmd.search.lexical", None, &(0..1))
             .unwrap();
+        // One declaration bound twice is one.
+        for _ in 0..2 {
+            resolution
+                .entry("from hmd.search.lexical import *", &(0..1))
+                .unwrap();
+        }
         assert!(resolution.step("lexical", &(0..1)).is_ok());
     }
 
     #[test]
     fn a_vault_may_import_for_every_program_and_may_decline_the_prelude() {
         let config = Config {
-            imports: vec!["hmd.search.lexical".to_owned()],
+            imports: vec!["from hmd.search.lexical import lexical".to_owned()],
             prelude: false,
             module_roots: Vec::new(),
             package_paths: Vec::new(),
@@ -1967,8 +2552,9 @@ mod tests {
                 .unwrap()
                 .availability
         };
-        assert_eq!(by_name("core"), Availability::Core);
-        assert_eq!(by_name("collections"), Availability::Core);
+        // `prelude = false` withholds `core` and `collections` with the rest.
+        assert_eq!(by_name("core"), Availability::Absent);
+        assert_eq!(by_name("collections"), Availability::Absent);
         assert_eq!(by_name("format"), Availability::Absent);
         assert_eq!(by_name("hmd.search.lexical"), Availability::Configured);
         assert_eq!(by_name("hmd.search.semantic"), Availability::Absent);
@@ -2062,10 +2648,11 @@ mod tests {
         let bare = bare(true);
         for (step, written) in [
             ("lexical", "write `import hmd`"),
-            ("http", "write `import net`"),
+            ("http", "write `from net import http`"),
+            // A constructor comes with its type's module.
             ("Logger", "write `import logging`"),
-            ("walk", "write `import io.fs`"),
-            ("mean", "write `import stats`"),
+            ("walk", "write `from io.fs import walk`"),
+            ("mean", "write `from stats import mean`"),
         ] {
             let missing = bare.step(step, &(0..1)).unwrap_err();
             assert!(

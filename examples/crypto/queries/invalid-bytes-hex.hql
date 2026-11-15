@@ -7,6 +7,6 @@
 // severity: failure
 // expected-type: Bytes
 
-import encoding
+from encoding import Bytes
 
 Bytes("6g", Hex)

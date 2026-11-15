@@ -6,8 +6,8 @@
 // expected-type: Seq<Bool>
 // expected: [true, false]
 
-import crypto
-import encoding
+from crypto import read_public_key, verify_data
+from encoding import Bytes, to_bytes
 
 type Release {
     manifest  : Data

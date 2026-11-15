@@ -196,7 +196,9 @@ fn declaration(
             declaration.span.end,
             Vec::new(),
         ),
-        Stmt::Bind { .. } | Stmt::Import { .. } | Stmt::Expr(_) => return None,
+        Stmt::Bind { .. } | Stmt::Import { .. } | Stmt::From { .. } | Stmt::Expr(_) => {
+            return None;
+        }
     };
     Some(Declaration {
         kind,

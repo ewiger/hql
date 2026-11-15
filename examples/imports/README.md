@@ -11,7 +11,7 @@ workspace module is [`shelf`](lib/shelf/mod.hql), a module `for String`.
 | [qualified extension](queries/qualified-extension.hql) | `import stats`: `stats.mean`, a qualified step, a receiver call | `[2.5, 2.5, 2.5]` |
 | [qualified workspace](queries/qualified-workspace.hql) | `import shelf`: the same three forms | `["DUNE!", "EMMA!", "103"]` |
 | [from names](queries/from-names.hql) | `from stats import mean, median` | `[2.5, 2.5]` |
-| [from alias](queries/from-alias.hql) | `from stats import mean as average` | `2.5` |
+| [from alias](queries/from-alias.hql) | `from stats import mean as arithmetic_mean` | `2.5` |
 | [star except](queries/from-star-except.hql) | `* except (variance, stdev)`, the prelude's `variance` unambiguous | `[2.5, 1.25]` |
 | [from workspace](queries/from-workspace.hql) | `from shelf import per_day, shout` | `["103", "DUNE!", "EMMA!"]` |
 | [type selector](queries/type-selector.hql) | `from math import Int.abs as int_abs` | `3` |

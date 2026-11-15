@@ -134,7 +134,7 @@ wall-clock reading names there, and `instant.at(zone)` the reading an
 instant has there:
 
 ```hql
-import time
+from time import Zone, in_zone, at
 berlin = Zone("Europe/Berlin")
 meeting = DateTime("2026-11-02T10:00:00").in_zone(berlin)
 [str(meeting), str(meeting.at(Zone("America/New_York")))]
@@ -150,7 +150,7 @@ instant. On 2026-03-29 Berlin skips 02:00 to 03:00, and on 2026-10-25 it
 repeats 02:00 to 03:00:
 
 ```hql
-import time
+from time import Zone, in_zone
 [DateTime("2026-03-29T02:30:00").in_zone(Zone("Europe/Berlin")), DateTime("2026-10-25T02:30:00").in_zone(Zone("Europe/Berlin"))]
 ```
 
@@ -220,7 +220,7 @@ which makes a program that reads the clock repeatable:
 
 <!-- run: --now 2026-10-24T23:30:00Z --zone Europe/Berlin -->
 ```hql
-import time
+from time import now, today, local_zone
 [str(now()), str(today()), local_zone().name]
 ```
 

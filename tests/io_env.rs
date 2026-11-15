@@ -50,7 +50,7 @@ fn standalone(variables: &[(&str, &str)], extra: &[&str], program: &str) -> Stri
     let directory = tempfile::tempdir().unwrap();
     let mut arguments = vec!["--bare"];
     arguments.extend_from_slice(extra);
-    let source = format!("import io.env\n{program}");
+    let source = format!("import io.env\nfrom io.env import *\n{program}");
     arguments.extend(["eval", source.as_str()]);
     let output = hql_in(directory.path(), variables, &arguments);
     assert!(output.status.success(), "{}", stderr(&output));
@@ -62,7 +62,11 @@ fn in_workspace(config: &str, variables: &[(&str, &str)], program: &str) -> Outp
     let directory = tempfile::tempdir().unwrap();
     std::fs::write(project_config(directory.path()), config).unwrap();
     let path = directory.path().join("p.hql");
-    std::fs::write(&path, format!("import io.env\n{program}\n")).unwrap();
+    std::fs::write(
+        &path,
+        format!("import io.env\nfrom io.env import *\n{program}\n"),
+    )
+    .unwrap();
     hql_in(
         directory.path(),
         variables,
@@ -142,7 +146,7 @@ fn render_reads_no_variable_and_every_argument() {
     std::fs::write(
         &path,
         "```hql\nimport io.env\n[env.var(\"OTHER\"), env.arg(\"who\")]\n```\n\n\
-         ```hql\nimport io.env\nvars() | entries | size\n```\n",
+         ```hql\nfrom io.env import vars\nvars() | entries | size\n```\n",
     )
     .unwrap();
     let output = hql_in(
@@ -246,7 +250,7 @@ fn a_variable_that_is_not_utf8_reads_as_none() {
         .args([
             "--bare",
             "eval",
-            "import io.env\n[[env.var(\"APP_BYTES\"), env.var(\"APP_TEXT\")], \
+            "import io.env\nfrom io.env import *\n[[env.var(\"APP_BYTES\"), env.var(\"APP_TEXT\")], \
              vars() | entries | map(e => some(e.first)) \
              | filter(k => k | unwrap_or(\"\") | starts_with(\"APP_\"))]",
         ]);
@@ -283,7 +287,7 @@ fn every_operation_is_effectful() {
 fn io_env_is_imported_not_in_the_prelude() {
     let refused = hql::eval("var(\"HOME\")").unwrap_err();
     assert!(
-        refused.message.contains("import io.env"),
+        refused.message.contains("from io.env import var"),
         "{}",
         refused.message
     );

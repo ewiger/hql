@@ -20,13 +20,13 @@ fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
 }
 
 fn shown(source: &str) -> String {
-    hql::eval(&format!("import time\n{source}"))
+    hql::eval(&format!("import time\nfrom time import *\n{source}"))
         .unwrap_or_else(|error| panic!("{source}: {error}"))
         .to_string()
 }
 
 fn refused(source: &str) -> String {
-    hql::eval(&format!("import time\n{source}"))
+    hql::eval(&format!("import time\nfrom time import *\n{source}"))
         .map(|value| panic!("{source} gave {value}"))
         .unwrap_err()
         .message
@@ -365,7 +365,7 @@ fn the_clock_is_read_once_per_evaluation() {
 
 #[test]
 fn now_and_zone_fix_the_clock() {
-    let program = "import time\n[str(now()), str(today()), local_zone().name, str(today(Zone(\"America/New_York\")))]";
+    let program = "from time import *\n[str(now()), str(today()), local_zone().name, str(today(Zone(\"America/New_York\")))]";
     assert_eq!(
         hql(&[
             "--now",
@@ -512,7 +512,7 @@ fn a_qualified_call_reaches_a_form_without_an_input() {
             "--now",
             "2026-10-24T07:30:00Z",
             "eval",
-            "import time\n[time.now() == now(), time.local_zone() == local_zone()]",
+            "import time\nfrom time import *\n[time.now() == now(), time.local_zone() == local_zone()]",
         ]),
         "[true, true]\n"
     );

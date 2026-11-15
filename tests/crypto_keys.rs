@@ -11,13 +11,13 @@ fn fixture(name: &str) -> String {
 }
 
 fn shown(source: &str) -> String {
-    hql::eval(&format!("import crypto\n{source}"))
+    hql::eval(&format!("from crypto import *\n{source}"))
         .unwrap_or_else(|error| panic!("{source}: {error}"))
         .to_string()
 }
 
 fn refused(source: &str) -> String {
-    hql::eval(&format!("import crypto\n{source}"))
+    hql::eval(&format!("from crypto import *\n{source}"))
         .map(|value| panic!("{source} gave {value}"))
         .unwrap_err()
         .message
@@ -141,7 +141,7 @@ fn a_format_that_holds_no_key_of_the_algorithm_is_a_check_error() {
         "PublicKey(\"x\", Age, Ed25519)",
         "PrivateKey(\"x\", OpenSsh, X25519)",
     ] {
-        let failed = hql::eval(&format!("import crypto\n{source}")).unwrap_err();
+        let failed = hql::eval(&format!("from crypto import *\n{source}")).unwrap_err();
         assert!(failed.message.contains("holds no"), "{}", failed.message);
         assert_eq!(failed.phase, hql::diagnostics::Phase::Check, "{source}");
     }
@@ -195,7 +195,7 @@ fn a_secret_key_holds_the_length_its_algorithm_takes() {
 }
 
 fn check_refused(source: &str) -> String {
-    let failed = hql::check(&format!("import crypto\n{source}")).unwrap_err();
+    let failed = hql::check(&format!("from crypto import *\n{source}")).unwrap_err();
     assert_eq!(failed.phase, hql::diagnostics::Phase::Check, "{source}");
     failed.message
 }
@@ -212,7 +212,10 @@ fn a_secret_reaches_no_encoder() {
         let message = check_refused(&format!("{pair}{source}"));
         assert!(message.contains("export_private"), "{source}: {message}");
     }
-    hql::check(&format!("import crypto\n{pair}pair.public | format(Json)")).unwrap();
+    hql::check(&format!(
+        "from crypto import *\n{pair}pair.public | format(Json)"
+    ))
+    .unwrap();
 }
 
 #[test]

@@ -381,7 +381,7 @@ pub fn closure(graph: &[(&str, &str)]) -> Result<(), String> {
     for (position, (module, program)) in parsed.iter().enumerate() {
         let mut visible: Vec<&str> = vec![module];
         for statement in &program.statements {
-            let Stmt::Import { path, .. } = statement else {
+            let (Stmt::Import { path, .. } | Stmt::From { path, .. }) = statement else {
                 continue;
             };
             let imported = path.join(".");

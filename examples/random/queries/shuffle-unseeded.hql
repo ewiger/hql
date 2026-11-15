@@ -5,6 +5,6 @@
 // expected-type: Bool
 // expected: true
 
-import random
+from random import shuffle
 
 (range(0, 29) | shuffle | sort) == range(0, 29)

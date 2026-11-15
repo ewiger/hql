@@ -65,7 +65,7 @@ resolves as a file's does ([where a relative path
 resolves](endpoints.md#where-a-relative-path-resolves)):
 
 ```hql
-import io.fs
+from io.fs import folder
 
 folder("examples/fs/tree")
 ```
@@ -82,7 +82,7 @@ folder("examples/fs/tree")
 ```
 
 ```text
-check error[unknown-name]: `folder` is declared in the module `io.fs`: write `import io.fs`
+check error[unknown-name]: `folder` is declared in the module `io.fs`: write `from io.fs import folder`
  --> <expression>:1:1
   |
 1 | folder("examples/fs/tree")
@@ -95,7 +95,7 @@ the file system once, where it is written, and each giving a `Seq<Entry>`.
 whose name opens with `.` included:
 
 ```hql
-import io.fs
+from io.fs import folder, entries
 
 folder("examples/fs/tree/data") | entries | map(e => [e.name, e.kind])
 ```
@@ -109,7 +109,7 @@ first, each folder's entries sorted by name, and each folder followed at once
 by what it holds:
 
 ```hql
-import io.fs
+from io.fs import folder, walk
 
 folder("examples/fs/tree") | walk | map(e => e.path.text.trim_prefix("examples/fs/tree/"))
 ```
@@ -136,7 +136,7 @@ An **`Entry`** is one thing a folder holds. It has five fields:
 | `modified` | `Instant`, optional | the time the entry was last modified, a link's own and not its target's; absent where the platform records none |
 
 ```hql
-import io.fs
+from io.fs import folder, walk
 
 folder("examples/fs/tree")
 | walk
@@ -154,7 +154,7 @@ once, with the rest of the entry, so the files changed since a cut-off are a
 filter over it:
 
 ```hql
-import io.fs
+from io.fs import folder, entries
 
 cutoff = Instant("2020-01-01T00:00:00Z")
 folder("examples/fs/tree/data")
@@ -174,7 +174,7 @@ machine does not read them.
 `size` is optional, so a sum over it states what a folder counts as:
 
 ```hql
-import io.fs
+from io.fs import folder, walk
 
 folder("examples/fs/tree")
 | walk
@@ -198,7 +198,7 @@ character of the set and `[a-z]` one of the range. `matches` reads the text
 and never the file system:
 
 ```hql
-import io.fs
+from io.fs import Glob, matches
 
 [
     Glob("data/*.csv").matches(Path("data/birds.csv")),
@@ -215,7 +215,7 @@ The `glob` step gives the entries of `walk` whose path below the folder
 matches, in walk order:
 
 ```hql
-import io.fs
+from io.fs import folder, glob, Glob
 
 folder("examples/fs/tree") | glob(Glob("**/*.csv")) | map(e => e.path.text)
 ```
@@ -228,7 +228,7 @@ A pattern that does not parse, an unclosed `[` or a `**` that is not a whole
 segment, is an evaluation error where `Glob` constructs it:
 
 ```hql
-import io.fs
+from io.fs import Glob
 
 Glob("data/a**.csv")
 ```
@@ -248,7 +248,7 @@ An entry's `path` is one `file` reads as written, so a listing feeds
 directly in `data/`:
 
 ```hql
-import io.fs
+from io.fs import folder, glob, Glob
 
 folder("examples/fs/tree/data")
 | glob(Glob("*.csv"))
@@ -265,7 +265,7 @@ Listing a folder that does not exist, or is not a folder, is an evaluation
 error naming its path:
 
 ```hql
-import io.fs
+from io.fs import folder, entries
 
 folder("examples/fs/nowhere") | entries
 ```
@@ -303,7 +303,7 @@ check` reports a function that uses one:
 
 <!-- run: check -->
 ```hql
-import io.fs
+from io.fs import folder, glob, Glob
 
 fn csv_files() : Seq<Entry> = folder("examples/fs/tree") | glob(Glob("**/*.csv"))
 csv_files() | size

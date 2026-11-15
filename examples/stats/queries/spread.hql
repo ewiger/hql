@@ -6,6 +6,7 @@
 // expected: [4.571428571428571, 2.138089935299395, 4.0, 2.0]
 
 import stats
+from stats import stdev, pvariance, pstdev
 
 xs = [2, 4, 4, 4, 5, 5, 7, 9]
 [xs | stats.variance, xs | stdev, xs | pvariance, xs | pstdev]

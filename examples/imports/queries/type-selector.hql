@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: Int.abs selects the overload of abs whose self is an Int, and binds it unqualified
-// implementation: pending
-// proposal: doc/proposals/HQL-0060/index.hmd
+// implementation: implemented
 // environment: pure
 // expected-type: Int
 // expected: 3

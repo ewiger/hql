@@ -52,7 +52,11 @@ fn empty() -> RunEnvironment {
 
 /// A program's value as its text, the module imported.
 fn value(source: &str, vault: &RunEnvironment) -> String {
-    let outcome = hql::run(&format!("import io.fs\n{source}"), vault, Mode::Strict);
+    let outcome = hql::run(
+        &format!("import io.fs\nfrom io.fs import *\n{source}"),
+        vault,
+        Mode::Strict,
+    );
     assert!(!outcome.failed(), "{source}: {:?}", outcome.diagnostics);
     outcome
         .value
@@ -61,7 +65,11 @@ fn value(source: &str, vault: &RunEnvironment) -> String {
 }
 
 fn refusal(source: &str, vault: &RunEnvironment) -> String {
-    let outcome = hql::run(&format!("import io.fs\n{source}"), vault, Mode::Strict);
+    let outcome = hql::run(
+        &format!("import io.fs\nfrom io.fs import *\n{source}"),
+        vault,
+        Mode::Strict,
+    );
     assert!(outcome.failed(), "{source} ran");
     outcome
         .diagnostics
@@ -412,7 +420,7 @@ fn a_document_lists_only_under_its_own_directory() {
     let cell = |name: &str, program: &str| {
         fs::write(
             dir.path().join("t/z").join(name),
-            format!("```hql\nimport io.fs\n{program}\n```\n"),
+            format!("```hql\nimport io.fs\nfrom io.fs import *\n{program}\n```\n"),
         )
         .unwrap();
         hql_in(dir.path(), &["render", &format!("t/z/{name}")])
@@ -463,7 +471,7 @@ fn listing_is_effectful_and_a_path_is_not() {
     let dir = tempdir().unwrap();
     fs::write(
         dir.path().join("q.hql"),
-        "import io.fs\n\
+        "from io.fs import *\n\
          fn listing(p: String) : Seq<Entry> = folder(p) | walk\n\
          fn here(p: String) : Bool = Path(p).exists()\n\
          fn named(p: Path) : String = p.name()\n\
@@ -495,7 +503,7 @@ fn io_fs_is_imported_and_not_in_the_prelude() {
     let outcome = hql::run("folder(\".\") | entries", &empty(), Mode::Strict);
     assert!(outcome.failed());
     let message = &outcome.diagnostics[0].message;
-    assert!(message.contains("import io.fs"), "{message}");
+    assert!(message.contains("from io.fs import folder"), "{message}");
     // Imported under another name, it is reached by that name.
     let outcome = hql::run(
         "import io.fs as files\nfiles.Glob(\"*.md\").pattern",

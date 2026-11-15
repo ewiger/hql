@@ -6,7 +6,7 @@
 // kind: type-mismatch
 // severity: error
 
-import io.db.sqlite
+from io.db.sqlite import sqlite
 
 type Account { id : Int, owner : String, balance : Int }
 

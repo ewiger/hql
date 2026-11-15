@@ -6,7 +6,7 @@
 // expected-type: Seq<String>
 // expected: ["2026", "2026/q1.csv", "2026-notes.md", "birds.csv"]
 
-import io.fs
+from io.fs import folder, walk
 
 // Segments compare in turn, so `2026/q1.csv` comes before `2026-notes.md`
 // although `-` sorts before `/` as text.

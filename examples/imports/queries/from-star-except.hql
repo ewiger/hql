@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: from stats import * except leaves out the named functions, so the prelude's variance stays unambiguous
-// implementation: pending
-// proposal: doc/proposals/HQL-0060/index.hmd
+// implementation: implemented
 // environment: pure
 // expected-type: List<Option<Float>>
 // expected-json: [2.5, 1.25]

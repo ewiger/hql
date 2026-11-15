@@ -7,13 +7,13 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 fn shown(source: &str) -> String {
-    hql::eval(&format!("import random\n{source}"))
+    hql::eval(&format!("from random import *\n{source}"))
         .unwrap_or_else(|error| panic!("{source}: {error}"))
         .to_string()
 }
 
 fn refused(source: &str) -> String {
-    hql::eval(&format!("import random\n{source}"))
+    hql::eval(&format!("from random import *\n{source}"))
         .map(|value| panic!("{source} gave {value}"))
         .unwrap_err()
         .message
@@ -54,18 +54,18 @@ fn each_seeded_form_gives_its_pinned_output() {
     // The generator is pinned (ChaCha12 keyed through SplitMix64), and so
     // is every draw from it, so these hold on every host and release.
     for (source, expected) in [
-        (format!("{TEN} | sample(3, seed = 7)"), "[2, 4, 8]"),
-        (format!("{TEN} | sample(3, seed = -5)"), "[5, 6, 10]"),
+        (format!("{TEN} | sample(3, seed = 7)"), "[2, 7, 10]"),
+        (format!("{TEN} | sample(3, seed = -5)"), "[1, 5, 7]"),
         (
             "[1, 2, 3, 4, 5] | shuffle(seed = 42)".to_owned(),
-            "[1, 2, 3, 5, 4]",
+            "[5, 3, 4, 1, 2]",
         ),
-        (format!("{TEN} | choice(seed = 7)"), "8"),
+        (format!("{TEN} | choice(seed = 7)"), "2"),
         (
             "Set([5, 3, 9, 1, 7]) | sample(2, seed = 11)".to_owned(),
-            "[1, 3]",
+            "[5, 9]",
         ),
-        (format!("{TEN}.sample(3, seed = 7)"), "[1, 6, 7]"),
+        (format!("{TEN}.sample(3, seed = 7)"), "[3, 8, 10]"),
     ] {
         assert_eq!(shown(&source), expected, "{source}");
         assert_eq!(shown(&source), expected, "{source}, again");
@@ -144,14 +144,14 @@ fn unseeded_draws_stay_in_their_bounds() {
 
 #[test]
 fn an_unseeded_draw_under_seed_is_the_seeded_draw() {
-    let unseeded = format!("import random\n{TEN} | sample(3)");
-    let seeded = format!("import random\n{TEN} | sample(3, seed = 7)");
-    assert_eq!(hql(&["--seed", "7", "eval", &unseeded]), "[2, 4, 8]\n");
-    assert_eq!(hql(&["eval", &seeded]), "[2, 4, 8]\n");
-    assert_eq!(hql(&["--seed", "-5", "eval", &unseeded]), "[5, 6, 10]\n");
+    let unseeded = format!("from random import *\n{TEN} | sample(3)");
+    let seeded = format!("from random import *\n{TEN} | sample(3, seed = 7)");
+    assert_eq!(hql(&["--seed", "7", "eval", &unseeded]), "[2, 7, 10]\n");
+    assert_eq!(hql(&["eval", &seeded]), "[2, 7, 10]\n");
+    assert_eq!(hql(&["--seed", "-5", "eval", &unseeded]), "[1, 5, 7]\n");
     // Each call site carries on drawing, so repeated calls differ, and the
     // whole evaluation repeats under one seed.
-    let repeated = "import random\nrange(0, 6) | map(_ => random_int(1, 1000))";
+    let repeated = "from random import *\nrange(0, 6) | map(_ => random_int(1, 1000))";
     let first = hql(&["--seed", "3", "eval", repeated]);
     assert_eq!(first, hql(&["--seed", "3", "eval", repeated]));
     assert_ne!(first, hql(&["--seed", "4", "eval", repeated]));
@@ -162,7 +162,7 @@ fn an_unseeded_draw_under_seed_is_the_seeded_draw() {
 
 #[test]
 fn an_evaluation_reports_the_seed_it_drew_and_repeats_under_it() {
-    let program = "import random\nrange(0, 6) | map(_ => random_int(1, 1000))";
+    let program = "from random import *\nrange(0, 6) | map(_ => random_int(1, 1000))";
     let (value, reported) = hql_with(&["--report-level", "info", "eval", program], "");
     let seed = reported
         .split("the evaluation seed is ")
@@ -181,7 +181,7 @@ fn an_evaluation_reports_the_seed_it_drew_and_repeats_under_it() {
             "--report-level",
             "info",
             "eval",
-            "import random\n[1, 2] | shuffle(seed = 1)",
+            "from random import *\n[1, 2] | shuffle(seed = 1)",
         ],
         "",
     );
@@ -206,7 +206,7 @@ fn uuid_gives_a_version_7_in_draw_order_and_a_version_5() {
         "--seed",
         "1",
         "eval",
-        "import random\nrange(0, 50) | map(_ => uuid())",
+        "from random import *\nrange(0, 50) | map(_ => uuid())",
     ]);
     let ids: Vec<&str> = drawn
         .trim()
@@ -231,14 +231,11 @@ fn uuid_gives_a_version_7_in_draw_order_and_a_version_5() {
 #[test]
 fn a_stream_is_sampled_holding_n() {
     let lines: String = (1..=10_000).map(|n| format!("{n}\n")).collect();
-    let program = "import random\ntap(stdin, Lines) | sample(5)";
+    let program = "from random import sample\ntap(stdin, Lines) | sample(5)";
     let (first, _) = hql_with(&["--seed", "4", "eval", program], &lines);
     let (again, _) = hql_with(&["--seed", "4", "eval", program], &lines);
     assert_eq!(first, again);
-    assert_eq!(
-        first,
-        "[\"1428\", \"2056\", \"4135\", \"8198\", \"8742\"]\n"
-    );
+    assert_eq!(first, "[\"726\", \"5106\", \"5133\", \"6975\", \"9985\"]\n");
     let drawn: Vec<u32> = first
         .trim()
         .trim_matches(['[', ']'])
@@ -257,7 +254,7 @@ fn a_seeded_form_is_pure_and_an_unseeded_one_effectful() {
     let path = directory.path().join("p.hql");
     std::fs::write(
         &path,
-        "import random\n\
+        "from random import *\n\
          fn pick(xs: List<Int>) : List<Int> = xs | sample(2)\n\
          fn fixed(xs: List<Int>) : List<Int> = xs | sample(2, seed = 3)\n\
          fn named(text: String) : String = uuid(text, \"dns\")\n\
@@ -282,7 +279,7 @@ fn a_seeded_form_is_pure_and_an_unseeded_one_effectful() {
 fn random_is_imported_not_in_the_prelude() {
     let refused = hql::eval("[1, 2] | shuffle(seed = 1)").unwrap_err();
     assert!(
-        refused.message.contains("import random"),
+        refused.message.contains("from random import shuffle"),
         "{}",
         refused.message
     );

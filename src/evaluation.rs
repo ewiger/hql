@@ -302,6 +302,13 @@ impl Evaluator<'_> {
                         .insert(format!("{}.{name}", module.local), value.clone());
                 }
             }
+            // A name a `from` statement bound is the same function under
+            // another name: no wrapper is made.
+            for (bound, original) in &module.bound {
+                if let Some(value) = inner.get(original) {
+                    self.scope.insert(bound.clone(), value.clone());
+                }
+            }
         }
         Ok(())
     }

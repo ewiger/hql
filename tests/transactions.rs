@@ -141,7 +141,7 @@ fn the_table_transports_declare_the_four_capabilities_and_a_file_declares_none()
         ("io.db.postgres", "postgres(dsn_env = \"D\", table = \"t\")"),
     ] {
         for capability in ["Transactional", "Insertable", "Updatable", "Deletable"] {
-            let program = format!("import {module}\nt : {capability} = {constructor}\nt");
+            let program = format!("from {module} import *\nt : {capability} = {constructor}\nt");
             assert_eq!(checked(&program, &vault), capability, "{program}");
         }
     }
@@ -154,7 +154,7 @@ fn the_table_transports_declare_the_four_capabilities_and_a_file_declares_none()
     for (held, other) in [("Transactional", "Updatable"), ("Insertable", "Deletable")] {
         let error = refusal(
             &format!(
-                "import io.db.postgres\n\
+                "from io.db.postgres import *\n\
                  t : {held} = postgres(dsn_env = \"D\", table = \"t\")\n\
                  u : {other} = t\nu"
             ),
@@ -183,10 +183,13 @@ fn the_isolation_levels_are_types_below_isolation_level() {
 fn postgres_is_constructed_by_its_module_and_is_a_network_row_transport() {
     let (_dir, vault) = configured();
     let error = refusal(r#"source(postgres(dsn_env = "D", table = "t"))"#, &vault);
-    assert!(error.contains("import io.db.postgres"), "{error}");
+    assert!(
+        error.contains("from io.db.postgres import postgres"),
+        "{error}"
+    );
     assert_eq!(
         checked(
-            "import io.db.postgres\npostgres(dsn_env = \"D\", table = \"t\")",
+            "from io.db.postgres import *\npostgres(dsn_env = \"D\", table = \"t\")",
             &vault
         ),
         "Postgres"
@@ -195,7 +198,7 @@ fn postgres_is_constructed_by_its_module_and_is_a_network_row_transport() {
         assert_eq!(
             checked(
                 &format!(
-                    "import io.db.postgres\n\
+                    "from io.db.postgres import *\n\
                      postgres(dsn_env = \"D\", table = \"t\") | is({supertype})"
                 ),
                 &vault,
@@ -206,7 +209,7 @@ fn postgres_is_constructed_by_its_module_and_is_a_network_row_transport() {
     }
     assert_eq!(
         checked(
-            "import io.db.postgres\nsource(postgres(dsn_env = \"D\", table = \"t\", order = [\"id\"]))",
+            "from io.db.postgres import *\nsource(postgres(dsn_env = \"D\", table = \"t\", order = [\"id\"]))",
             &vault
         ),
         "Seq<Data>"
@@ -214,7 +217,7 @@ fn postgres_is_constructed_by_its_module_and_is_a_network_row_transport() {
     assert_eq!(
         checked(
             &format!(
-                "import io.db.postgres\n{ORDER}\
+                "from io.db.postgres import *\n{ORDER}\
                  orders : Stream<Order> = tap(postgres(dsn_env = \"D\", table = \"t\"))\norders"
             ),
             &vault
@@ -223,7 +226,7 @@ fn postgres_is_constructed_by_its_module_and_is_a_network_row_transport() {
     );
     // A row transport takes no format, and is written whole by `target`.
     let error = refusal(
-        "import io.db.postgres\nsource(postgres(dsn_env = \"D\", table = \"t\"), Json)",
+        "from io.db.postgres import *\nsource(postgres(dsn_env = \"D\", table = \"t\"), Json)",
         &vault,
     );
     assert!(
@@ -232,7 +235,7 @@ fn postgres_is_constructed_by_its_module_and_is_a_network_row_transport() {
     );
     let error = refusal(
         &format!(
-            "import io.db.postgres\n{ORDER}\
+            "from io.db.postgres import *\n{ORDER}\
              [Order(id = 1, customer = \"a\", total = 1.0, paid = true)] \
              | sink(postgres(dsn_env = \"D\", table = \"t\"))"
         ),
@@ -242,7 +245,7 @@ fn postgres_is_constructed_by_its_module_and_is_a_network_row_transport() {
     // The connection string is read where the endpoint is used, from the
     // variable the constructor names; an unset one fails naming it.
     let error = refusal(
-        "import io.db.postgres\n\
+        "from io.db.postgres import *\n\
          source(postgres(dsn_env = \"HQL_TEST_UNSET_DSN\", table = \"t\")) | size",
         &vault,
     );
@@ -446,7 +449,7 @@ fn a_constructed_table_is_typed_by_of_type_and_a_clause_translates_what_it_may()
     // are `Data` until `of_type` names them.
     let counts = value(
         &format!(
-            "import io.db.sqlite\n{ACCOUNT}\
+            "from io.db.sqlite import *\n{ACCOUNT}\
              t = sqlite({path:?}, table = \"accounts\")\n\
              ids = [2, 3]\n\
              bonus = 10\n\
@@ -472,7 +475,7 @@ fn a_constructed_table_is_typed_by_of_type_and_a_clause_translates_what_it_may()
     // row's type, as it does anywhere.
     let error = refusal(
         &format!(
-            "import io.db.sqlite\n\
+            "from io.db.sqlite import *\n\
              update sqlite({path:?}, table = \"accounts\") | set(a => {{balance: a.balance - 1}})"
         ),
         &vault,
@@ -613,7 +616,7 @@ fn a_mutation_over_postgres_checks_offline_as_one_statement() {
     assert_eq!(
         checked(
             &format!(
-                "import io.db.postgres\n{order}\
+                "from io.db.postgres import *\n{order}\
                  t = postgres(dsn_env = \"D\", table = \"orders\")\n\
                  update t | of_type(Order) | filter(o => o.id == 1) | set(o => {{total: o.total - 1.50}})"
             ),
@@ -895,7 +898,7 @@ fn two_withdrawals_racing_for_one_balance_commit_once() {
     let (address, stop, server) = gate();
     let program = |id: i64| {
         format!(
-            "import net\n{ACCOUNT}{TRANSFER}{TRANSFER_HEAD}{}",
+            "from net import tcp\n{ACCOUNT}{TRANSFER}{TRANSFER_HEAD}{}",
             transfer(
                 id,
                 &format!(
@@ -1087,20 +1090,20 @@ fn a_scope_is_checked_for_its_participants_its_handle_and_its_arguments() {
         "Result<Int, TransactionFailure>"
     );
     let error = refusal(
-        "import io.db.spark\nwith transaction tx on {spark(table = \"a\", url_env = \"L\"), spark(table = \"b\", url_env = \"L\")} { 1 }",
+        "from io.db.spark import *\nwith transaction tx on {spark(table = \"a\", url_env = \"L\"), spark(table = \"b\", url_env = \"L\")} { 1 }",
         &vault,
     );
     assert!(error.contains("holds one table"), "{error}");
     assert_eq!(
         checked(
-            "import io.db.postgres\nwith transaction(isolation = RepeatableRead, attempts = 2) tx on \
+            "from io.db.postgres import *\nwith transaction(isolation = RepeatableRead, attempts = 2) tx on \
              {postgres(dsn_env = \"D\", table = \"a\"), postgres(dsn_env = \"D\", table = \"b\")} { tx.retry() }",
             &vault
         ),
         "Result<Never, TransactionFailure>"
     );
     let error = refusal(
-        "import io.db.postgres\nwith transaction tx on \
+        "from io.db.postgres import *\nwith transaction tx on \
          {postgres(dsn_env = \"D\", table = \"a\"), postgres(dsn_env = \"E\", table = \"b\")} { 1 }",
         &vault,
     );
@@ -1180,7 +1183,7 @@ fn a_write_outside_the_participants_under_several_attempts_is_warned() {
     seeded_ledger(&vault);
     let audit = dir.path().join("audit.jsonl");
     let head = format!(
-        "import logging\n{ACCOUNT}type Note {{ n : Int }}\n\
+        "from logging import *\n{ACCOUNT}type Note {{ n : Int }}\n\
          accounts = configured(\"accounts\")\n\
          log = Logger(stderr, Text, name = \"ledger\", level = Error)\n"
     );
@@ -1246,10 +1249,10 @@ fn a_write_outside_the_participants_under_several_attempts_is_warned() {
 fn a_spark_table_is_constructed_by_its_module_and_takes_one_statement_per_scope() {
     let (_dir, vault) = configured();
     let error = refusal(r#"source(spark(table = "t", url_env = "L"))"#, &vault);
-    assert!(error.contains("import io.db.spark"), "{error}");
+    assert!(error.contains("from io.db.spark import spark"), "{error}");
     assert_eq!(
         checked(
-            "import io.db.spark\nspark(table = \"t\", url_env = \"L\")",
+            "from io.db.spark import *\nspark(table = \"t\", url_env = \"L\")",
             &vault
         ),
         "Spark"
@@ -1265,7 +1268,7 @@ fn a_spark_table_is_constructed_by_its_module_and_takes_one_statement_per_scope(
         assert_eq!(
             checked(
                 &format!(
-                    "import io.db.spark\nt : {capability} = spark(table = \"t\", url = \"http://h/cliservice\")\nt"
+                    "from io.db.spark import *\nt : {capability} = spark(table = \"t\", url = \"http://h/cliservice\")\nt"
                 ),
                 &vault
             ),

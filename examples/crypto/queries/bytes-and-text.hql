@@ -5,7 +5,7 @@
 // expected-type: Data
 // expected-json: {"size": 5, "hex": "68656c6c6f", "base64": "aGVsbG8=", "text": "hello", "back": true}
 
-import encoding
+from encoding import Bytes, encode
 
 b = Bytes("hello")
 {size: b.size(), hex: b.encode(Hex), base64: b.encode(Base64),

@@ -72,14 +72,6 @@ pub(crate) struct Module {
     operations: HashMap<String, &'static Operation>,
 }
 
-impl Module {
-    /// The local name an import without an alias binds the module under:
-    /// its last segment, `net` of `io.net`.
-    pub(crate) fn local(&self) -> &'static str {
-        self.name.rsplit('.').next().unwrap_or(self.name)
-    }
-}
-
 /// One external declaration and what binding found for it.
 #[derive(Debug)]
 pub(crate) struct Declaration {
@@ -500,6 +492,62 @@ impl Environment {
     /// private or not: what the module offers an importer, before privacy.
     pub(crate) fn offered(&self, module: ModuleId, name: &str) -> Option<&'static Operation> {
         self.module(module).operations.get(name).copied()
+    }
+
+    /// Every name a module declares externally, private or not.
+    pub(crate) fn operation_names(&self, module: ModuleId) -> impl Iterator<Item = &str> {
+        self.module(module).operations.keys().map(String::as_str)
+    }
+
+    /// Whether a module declares a type or a trait of this name.
+    pub(crate) fn declares_type(&self, module: ModuleId, name: &str) -> bool {
+        self.types
+            .iter()
+            .any(|held| held.module == module && held.name == name)
+            || self
+                .traits
+                .iter()
+                .any(|held| held.module == module && held.name == name)
+    }
+
+    /// Every form of an operation: whether it takes `self`, its receiver
+    /// type's constructor where one is written, `None` for `self: T`, and
+    /// its signature.
+    pub(crate) fn forms(
+        &self,
+        operation: &Operation,
+    ) -> Vec<(bool, Option<&'static str>, &OperationSpec)> {
+        self.of(operation)
+            .iter()
+            .map(|id| self.declaration(*id))
+            .filter_map(|declaration| {
+                let spec = declaration.signature.as_ref().ok()?;
+                let receiver = declaration.receiver;
+                Some((
+                    receiver,
+                    receiver.then(|| spec.input.constructor_name()).flatten(),
+                    spec,
+                ))
+            })
+            .collect()
+    }
+
+    /// The receiver type of each form of an operation that takes `self`,
+    /// by its constructor's name, with the form's signature: `Int` for
+    /// `abs(self: Int)`, `Collection` for `mean(self: Collection<Int>)`.
+    pub(crate) fn receiver_forms(
+        &self,
+        operation: &Operation,
+    ) -> Vec<(&'static str, &OperationSpec)> {
+        self.of(operation)
+            .iter()
+            .map(|id| self.declaration(*id))
+            .filter(|declaration| declaration.receiver)
+            .filter_map(|declaration| {
+                let spec = declaration.signature.as_ref().ok()?;
+                Some((spec.input.constructor_name()?, spec))
+            })
+            .collect()
     }
 
     /// A loaded declaration.
@@ -1217,16 +1265,20 @@ impl Runtime {
             // A module the runtime implements, `hmd` or `hmd.vault`, binds no
             // operation: importing it is what activates its package, which
             // [`Config::activated`] has already read.
+            // An entry is an import statement: `m` is `import m`, and the
+            // `from` form is that statement (HQL-0060).
+            let module = super::entry_module(name);
             let bound = resolution
-                .import(name, None, &(0..0))
+                .entry(name, &(0..0))
                 .map_err(|failed| configured(failed.message()))?
-                || resolution.is_runtime_module(name)
-                || resolution
-                    .import_package(name, &(0..0))
-                    .map_err(|failed| configured(failed.message()))?;
+                || resolution.is_runtime_module(module)
+                || (module == name.as_str()
+                    && resolution
+                        .import_package(name, &(0..0))
+                        .map_err(|failed| configured(failed.message()))?);
             if !bound {
                 return Err(configured(format!(
-                    "no builtin module or package named `{name}`"
+                    "no builtin module or package named `{module}`"
                 )));
             }
         }
@@ -1238,11 +1290,12 @@ impl Runtime {
             let stated = |message: String| {
                 Diagnostic::name(0..0, format!("the prelude {}: {message}", prelude.file))
             };
-            for module in &prelude.imports {
+            for entry in &prelude.imports {
+                let module = super::entry_module(entry);
                 let local = module.rsplit('.').next().unwrap_or(module);
                 if let Some((_, file, held)) = bound
                     .iter()
-                    .find(|(name, _, held)| *name == local && *held != module.as_str())
+                    .find(|(name, _, held)| *name == local && *held != module)
                 {
                     return Err(stated(format!(
                         "it imports `{module}` and the prelude {file} imports `{held}`: two \
@@ -1250,7 +1303,7 @@ impl Runtime {
                     )));
                 }
                 let found = resolution
-                    .import(module, None, &(0..0))
+                    .entry(entry, &(0..0))
                     .map_err(|failed| stated(failed.message()))?
                     || resolution.is_runtime_module(module);
                 if !found {
@@ -1768,7 +1821,7 @@ mod tests {
         let cache = Cache::default();
         let environment = cache.frozen(probe_graph(), with(&PROBE)).unwrap();
         let mut resolution = Resolution::bare(environment, true);
-        assert!(resolution.import("probe", None, &(0..1)).unwrap());
+        assert!(resolution.entry("from probe import *", &(0..1)).unwrap());
         // A collection fits `collections`'s `count` and the probe's, over
         // any `T`, with no arity to tell them apart: the call is ambiguous
         // and names both modules.
@@ -1800,9 +1853,9 @@ mod tests {
         let resolution = Resolution::bare(Frozen::process().unwrap(), true);
         let missing = resolution.step("http", &(0..1)).unwrap_err();
         assert!(
-            missing
-                .message()
-                .contains("`http` is declared in the module `io.net`: write `import net`"),
+            missing.message().contains(
+                "`http` is declared in the module `io.net`: write `from net import http`"
+            ),
             "{}",
             missing.message()
         );
@@ -1810,6 +1863,8 @@ mod tests {
         let mut short = resolution.clone();
         assert!(short.import("net", None, &(0..1)).unwrap());
         assert!(short.import("io.net", None, &(0..1)).unwrap());
+        assert!(short.step("http", &(0..1)).is_err());
+        assert!(short.entry("from net import http", &(0..1)).unwrap());
         assert!(short.step("http", &(0..1)).is_ok());
         assert!(short.qualified("net", "http", &(0..1)).is_ok());
         // `collections` is always visible and declares the core steps;

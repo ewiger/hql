@@ -7,6 +7,6 @@
 // severity: failure
 // expected-type: List<Float>
 
-import stats
+from stats import quantiles
 
 [1, 2, 3] | quantiles(1)
