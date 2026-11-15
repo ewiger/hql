@@ -64,6 +64,10 @@ Keep it short: two to five paragraphs. A chapter that is a folder ends its
 - **"You" is fine.** Address the reader directly when it reads naturally.
 - **Current truth only.** No history of the design, no rejected
   alternatives, no "X is now Y".
+- **Links in table cells are Markdown links**, `[Lists](lists.hmd)`. A
+  wikilink's `|` breaks the table, and `[[page\|text]]` does not resolve.
+  Link a page by its bare name only where the name is unique in the vault
+  (`generics` is not: chapters 4 and 10 both have one).
 - **Name what you cite.** Link a chapter or page by name. Never use the
   section sign or the pilcrow.
 - Wrap prose at about 80 columns.

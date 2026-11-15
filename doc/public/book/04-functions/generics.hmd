@@ -1,24 +1,26 @@
 # Generic functions
 
-A function written once for every type names a **type parameter**, one capital
-letter in angle brackets after its name. Each call fills it from its
-arguments:
+Some functions work the same way for every element type. The last element of
+a list is found the same way whether the list holds titles or page counts. A
+**generic function** is written once with a **type parameter**, a capital
+letter in angle brackets after the name, and each call fills it in:
 
 ```hql
-fn first<T>(xs: List<T>) : Option<T> = xs | reduce((a, b) => a)
-first(["Dune", "Emma"])
+fn last_of<T>(xs: List<T>) : Option<T> = xs[-1]
+[last_of(["Dune", "Emma"]), last_of([] | List<String>)]
 ```
 
 ```text
-"Dune"
+["Emma", none]
 ```
 
-The same function over a list of numbers gives an `Option<Int>`:
+Called with a `List<String>`, `T` is `String` and the result is an
+`Option<String>`. Called with a `List<Int>`, the result is an `Option<Int>`:
 
 <!-- run: check -->
 ```hql
-fn first<T>(xs: List<T>) : Option<T> = xs | reduce((a, b) => a)
-first([412, 280])
+fn last_of<T>(xs: List<T>) : Option<T> = xs[-1]
+last_of([412, 280])
 ```
 
 ```text
@@ -27,31 +29,50 @@ Option<Int>
 
 ## Bounds
 
-Inside the body `T` is a type of its own: the body may rely only on what the
-parameter promises. A **bound**, `T : Orderable`, promises an order, so the
-body may sort or find a minimum, and each call is checked against the bound:
+Inside the body, `T` can be any type, so the body can only do what works
+for every type. Finding the greatest element needs an order, and not every
+type has one. The checker rejects the body:
 
 ```hql
-fn shortest<T : Orderable>(xs: List<T>) : Option<T> = xs | min
-shortest([412, 280, 310])
+fn longest<T>(xs: List<T>) : Option<T> = xs | max
+longest([412, 280])
 ```
 
 ```text
-280
+check error[unsatisfied-bound]: `max` needs elements with an order of their own, and T has none; sort with an explicit key first
+ --> <expression>:1:47
+  |
+1 | fn longest<T>(xs: List<T>) : Option<T> = xs | max
+  |                                               ^^^
 ```
 
+A **bound** restricts the type parameter. `T : Orderable` says `T` has an
+order, so the body may use `max`, `min` and `sort`:
+
 ```hql
-fn shortest<T : Orderable>(xs: List<T>) : Option<T> = xs | min
-shortest([{1}, {2}])
+fn longest<T : Orderable>(xs: List<T>) : Option<T> = xs | max
+longest([412, 280, 310])
 ```
 
 ```text
-check error[type-mismatch]: `shortest` needs T : Orderable, and T is Set<Int> here
+412
+```
+
+The bound is now part of the contract, and each call is checked against it.
+A set has no order of its own, so a list of sets is rejected:
+
+```hql
+fn longest<T : Orderable>(xs: List<T>) : Option<T> = xs | max
+longest([{1}, {2}])
+```
+
+```text
+check error[type-mismatch]: `longest` needs T : Orderable, and T is Set<Int> here
  --> <expression>:2:1
   |
-2 | shortest([{1}, {2}])
-  | ^^^^^^^^^^^^^^^^^^^^
+2 | longest([{1}, {2}])
+  | ^^^^^^^^^^^^^^^^^^^
 ```
 
-A bound is a type or a trait. [[traits|Traits]]
-declares traits of a program's own and bounds by them.
+A bound is a type or a trait. [[traits|Traits]] shows how to declare traits
+and use them as bounds.

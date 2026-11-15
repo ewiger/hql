@@ -1,11 +1,12 @@
 # Aliases and holes
 
+Many small functions are a few pipeline steps, or an existing function with
+one argument fixed. HQL has a short form for each.
+
 ## Aliases
 
-Most small functions are a pipeline fragment with a name. `:=` defines an
-**alias**, and the checker writes its type: the input is the most general one
-the fragment accepts, and each parameter takes the type of the step argument
-it fills.
+`:=` defines an **alias**: a name for a pipeline fragment. The alias is used
+as a step:
 
 ```hql
 top(n) := sort | take(n)
@@ -16,7 +17,10 @@ top(n) := sort | take(n)
 [145, 280]
 ```
 
-`hql check` prints the signature it wrote:
+An alias has no written types. The checker infers its signature from the
+steps. The input is the most general type the fragment accepts, and each
+parameter has the type of the argument it fills. `hql check` prints the
+signature:
 
 <!-- run: check -->
 ```hql
@@ -29,19 +33,23 @@ top : (Collection<T>, Int) -> List<T> where T : Orderable
 Int
 ```
 
+`sort` needs an order, so the input is a `Collection<T>` with
+`T : Orderable`. `take(n)` needs an `Int`, so `n` is an `Int`.
+
 ## Holes
 
-A call with `_` for an argument is a function of the arguments left open — a
-**partial application**:
+A call with `_` in place of an argument is a **partial application**. The
+result is a function that takes the missing arguments:
 
 ```hql
-fn add(a: Int, b: Int) : Int = a + b
-[1, 2, 3] | map(add(10, _))
+fn days(pages: Int, per_day: Int) : Int = (pages + per_day - 1) / per_day
+[412, 280] | map(days(_, 40))
 ```
 
 ```text
-[11, 12, 13]
+[11, 7]
 ```
 
-A hole is a whole argument. `_ + 1` is not a hole, and a lambda, `n => n + 1`,
-writes that function.
+`days(_, 40)` is a function of one `Int`, the number of pages. A hole stands
+for a whole argument. `_ + 1` is not a function; write the lambda
+`n => n + 1`.

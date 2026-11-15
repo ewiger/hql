@@ -1,9 +1,8 @@
 # Function bodies
 
-A function's body takes one of two forms: an expression after `=`, or a
-**block** in braces, written without `=`. The two forms are equally general:
-any function may take either, at any result type, and both declare the same
-function.
+A function body is either one expression after `=`, or a **block** in
+braces. Both forms declare the same kind of function, and either works for
+any result type:
 
 ```hql
 fn doubled_sum(xs: List<Int>) : Int = xs | map(x => x * 2) | sum
@@ -21,15 +20,41 @@ fn doubled_sum_block(xs: List<Int>) : Int {
 [12, 12]
 ```
 
-A pipeline is an expression, so `= xs | f | g` binds the whole pipeline. In a
-block, a pipeline continues over several lines, each opening with `|`. A body
-longer than one line is written as a block.
+Use `=` for a body that fits on one line. Use a block when the body is
+longer, or when naming intermediate values makes it clearer. Inside a block,
+a pipeline can continue over several lines, each starting with `|`.
+
+A block is one of two kinds, depending on whether it contains `yield`:
+
+```d2
+direction: down
+
+block: "a block { ... }" {
+  shape: diamond
+}
+
+value: "value block\nbindings, then one final expression\nthe result is that expression" {
+  style.fill: "#eef6ee"
+}
+
+iterating: "iterating block\nbindings, yield and for\nthe result is every value yielded" {
+  style.fill: "#eef6ee"
+}
+
+any: "any result type\nInt, String, List<T>, Seq<T>, ..." {shape: text}
+seq: "Seq<T> or Stream<T>" {shape: text}
+
+block -> value: "no yield"
+block -> iterating: "contains yield"
+value -> any
+iterating -> seq
+```
 
 ## The value block
 
-A **value block** is zero or more bindings, `name = expr`, one per line,
-followed by one final expression. The final expression is the function's value
-and has the declared result type:
+A **value block** is a series of bindings, `name = expr`, one per line,
+followed by one final expression. The value of the final expression is the
+result of the function, and its type must be the declared result type:
 
 ```hql
 fn label(pages: Int) : String {
@@ -45,30 +70,9 @@ fn label(pages: Int) : String {
 ["short (4 days)", "long (11 days)"]
 ```
 
-Each binding names one step of the computation. The steps may call other
-functions, and the final line combines them:
-
-```hql
-fn area(width: Float, height: Float) : Float {
-    w = width
-    h = height
-    w * h
-}
-
-fn triangle(base: Float, height: Float) : Float {
-    whole = area(base, height)
-    whole / 2.0f
-}
-
-[area(2.0f, 3.0f), triangle(5.0f, 5.0f)]
-```
-
-```text
-[6.0, 12.5]
-```
-
-A value block takes any result type. A block returning `Seq<Int>` without
-`yield` is a value block, and its last line is the sequence it returns:
+Each binding names one step of the computation, and the final line combines
+them. A value block can return a sequence too. Without `yield`, the last line
+is the sequence:
 
 ```hql
 fn even_squares(xs: List<Int>) : Seq<Int> {
@@ -83,12 +87,12 @@ List(even_squares([1, 2, 3, 4]))
 [4, 16]
 ```
 
-## A block's scope
+## Scope
 
-A binding is in scope from the line after it to the end of its block, and
-nowhere else. A binding inside a block shadows a name outside it without
-changing that name. A lambda on the final line captures the block's bindings,
-and takes its parameter type from the declared result:
+A binding in a block can be used from the line after it to the end of the
+block. A binding with the same name as one outside the block **shadows** it:
+inside the block the name means the new value, and outside it keeps the old
+one. A lambda on the last line can use the block's bindings:
 
 ```hql
 k = 100
@@ -106,7 +110,7 @@ add = adder(2)
 [21, 25, 100]
 ```
 
-A block's bindings are not visible after the function:
+The bindings of a block cannot be used outside the function:
 
 ```hql
 fn area(w: Float, h: Float) : Float {
@@ -127,10 +131,10 @@ check error[unknown-name]: `a` is not bound
 
 ## The iterating block
 
-A block containing `yield` is an **iterating block**. It holds bindings,
-`yield expr` and `for name in collection { … }`, one per line, and produces its
-values in the order each `yield` is reached. Its result type is `Seq<T>`,
-which ends, or `Stream<T>`, which need not, and each yielded value is a `T`:
+A block that contains `yield` is an **iterating block**. It can hold
+bindings, `yield expr` and `for name in collection { … }`. Its result is the
+sequence of values in the order the `yield`s produce them, so the declared
+result type is `Seq<T>`, which ends, or `Stream<T>`, which need not:
 
 ```hql
 fn countdown(from: Int) : Seq<Int> {
@@ -146,15 +150,18 @@ List(countdown(3))
 [3, 2, 1]
 ```
 
-[[07-streams|Chapter 7]] is about iterating functions and the streams
-they produce.
+[[07-streams|Chapter 7]] covers iterating functions and the streams they
+produce.
 
-## What a block may not be
+## Rules for blocks
 
-A block ends either in a final expression or in yields, never in both and
-never in neither. The parser rejects each of these as a syntax failure.
+A block ends either in a final expression or in `yield`s:
 
-A block of bindings alone has no value:
+- A block of bindings alone has no value, and is rejected.
+- A block that yields cannot also have an expression on a line of its own.
+- `for` is allowed only in an iterating block.
+
+The parser reports each of these:
 
 ```hql
 fn one() : Int {
@@ -172,74 +179,13 @@ parse failure[unexpected-token]: a block ends in a value or yields; this one hol
   |                ^^^^^^^^^^^^^
 ```
 
-A block that yields holds no expression on a line of its own:
+A block is written without `=`. After `=`, braces start a record or a set
+literal, so `fn one() : Int = { x = 1 }` does not parse.
 
-```hql
-fn numbers() : Seq<Int> {
-    yield 1
-    2
-}
+## Where functions are declared
 
-List(numbers())
-```
-
-```text
-parse failure[unexpected-token]: a block that yields holds no expression on a line of its own
- --> <expression>:3:5
-  |
-3 |     2
-  |     ^
-```
-
-`for` belongs to an iterating block:
-
-```hql
-fn total(xs: List<Int>) : Int {
-    for x in xs {
-        y = x
-    }
-    0
-}
-
-total([1, 2])
-```
-
-```text
-parse failure[unexpected-token]: `for` belongs to an iterating block; a value block is bindings and a final expression
- --> <expression>:2:5
-  |
-2 |     for x in xs {
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-```
-
-`= {` begins a record or set literal, never a block, so a binding inside it
-does not parse:
-
-```hql
-fn one() : Int = {
-    x = 1
-    x
-}
-
-one()
-```
-
-```text
-parse failure[unexpected-token]: expected `}` after collection elements, found `=`
- --> <expression>:2:7
-  |
-2 |     x = 1
-  |       ^
-```
-
-## Wherever a function is declared
-
-A function has one shape wherever it is declared, and its body takes either
-form in each place: at the top level of a program, in a module
-([[05-modules|chapter 5]]), as a receiver function taking `self`
-([[receiver-modules|receiver modules]]), and as a trait's
-default body or an implementation's function
-([[traits]]).
-
-A lambda's body stays one expression; a function that needs a block is
-declared with `fn`.
+A function has the same form wherever it is declared: at the top level of a
+program, in a module ([[05-modules|chapter 5]]), as a receiver function that
+takes `self` ([[receiver-modules|receiver modules]]), and in a trait or an
+implementation ([[traits]]). A lambda's body is always one expression; a
+function that needs a block is declared with `fn`.

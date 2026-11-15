@@ -1,8 +1,7 @@
 # Declaring a function
 
-`fn` declares a named function: a name, typed parameters, a result type and a
-body. `fn days(pages: Int, per_day: Int) : Int` gives `days` the type
-`(Int, Int) -> Int`.
+`fn` declares a named function. A declaration gives the name, the parameters
+with their types, the result type after `:`, and the body:
 
 ```hql
 fn days(pages: Int, per_day: Int) : Int = (pages + per_day - 1) / per_day
@@ -13,30 +12,41 @@ fn days(pages: Int, per_day: Int) : Int = (pages + per_day - 1) / per_day
 [11, 7]
 ```
 
-Every parameter has a type and the result type is written. Each call is
-checked against them before the program runs:
+`days` has the type `(Int, Int) -> Int`. The parameter types and the result
+type are always written. The checker does not infer them from the body,
+because the declaration is the contract that callers rely on.
+
+A call must pass every parameter, with the right type:
 
 ```hql
 fn days(pages: Int, per_day: Int) : Int = (pages + per_day - 1) / per_day
-days("412", 40)
+days(412)
 ```
 
 ```text
-check error[type-mismatch]: this argument is String, and parameter `pages` takes Int
- --> <expression>:2:6
+check error[type-mismatch]: this function takes 2 arguments, not 1
+ --> <expression>:2:1
   |
-2 | days("412", 40)
-  |      ^^^^^
+2 | days(412)
+  | ^^^^^^^^^
 ```
 
-The body after `=` is one expression. A body may also be a block of named
-steps, in braces; [[bodies|Function bodies]] covers both forms.
+The body after `=` is one expression. A longer body is a block in braces;
+[Function bodies](bodies.hmd) covers both forms.
 
-## A function by its name
+## Parameters have no defaults
 
-Naming a declared function where a function is expected passes it as a
-value, `xs | map(f)`. Its name is bound before its body is checked, so it may
-call itself:
+A function you declare in HQL takes every argument it declares. A parameter
+cannot have a default value, so `fn per_week(per_day: Int = 40)` is
+rejected. Some functions in the standard library do have defaults, such as
+`limit: Int = 0`; those are declared in HQL and implemented in Rust, as
+[[32-functions-and-declarations|chapter 32]] shows. When an argument is
+usually the same, bind the value to a name and pass the name.
+
+## Recursion
+
+A function's name is bound before its body is checked, so the body can call
+the function itself:
 
 ```hql
 fn factorial(n: Int) : Int = 1 given n <= 1 otherwise n * factorial(n - 1)
@@ -47,10 +57,13 @@ fn factorial(n: Int) : Int = 1 given n <= 1 otherwise n * factorial(n - 1)
 [1, 2, 6, 24, 120]
 ```
 
-## Functions taken and returned
+`map(factorial)` passes the function by its name. A declared function is a
+value like a lambda.
 
-A parameter may have a function type, and so may the result. A returned
-function keeps the values it captured:
+## Functions as parameters and results
+
+A parameter can have a function type, and so can the result. `adder` returns
+a function, and `twice` takes one:
 
 ```hql
 fn adder(k: Int) : Int -> Int = n => n + k
@@ -62,18 +75,13 @@ twice(adder(3), 30)
 36
 ```
 
-## Every argument is passed
-
-A function with a body takes every argument it declares: its parameters have
-no default values. Write `fn per_week(per_day: Int = 40) : Int = per_day * 7`
-and `hql` refuses the `= 40`. A default belongs to a declaration whose body
-the binary provides, as some standard library functions have: `limit: Int = 0`.
-Where a value is usually the same, bind it and pass it.
+The function `adder(3)` returns keeps the value of `k` it was created with.
+A function that keeps values from where it was created is a **closure**.
 
 ## Variadic parameters
 
-A last parameter written `...T` collects any number of trailing arguments into
-a list:
+A last parameter written `...T` accepts any number of trailing arguments, and
+the body sees them as a list:
 
 ```hql
 fn total(xs: ...Int) : Int = xs | sum
@@ -86,9 +94,8 @@ fn total(xs: ...Int) : Int = xs | sum
 
 ## A result that may be missing
 
-`Option<T>` is the result type of a function whose value may be absent.
-`some(x)` and `none` build one, `match` takes one apart, and `somes` keeps the
-present values of a collection:
+A function that may have no result returns an `Option<T>`. `some(x)` holds a
+value and `none` holds nothing:
 
 ```hql
 fn rating_of(r: Int) : Option<Int> = some(r) given r > 0 otherwise none
@@ -99,4 +106,5 @@ fn rating_of(r: Int) : Option<Int> = some(r) given r > 0 otherwise none
 [5, 4]
 ```
 
-[[02-data-types/option|Option]] has the rest of `Option`'s operations.
+`somes` keeps the present values. [[02-data-types/option|Option]] covers the
+other ways to handle an `Option`.

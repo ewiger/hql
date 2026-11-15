@@ -256,10 +256,10 @@ step, because `x | T` is `T(x)`:
 
 | Page | What it covers |
 | --- | --- |
-| [[lists\|Lists]] | positions, indexing and slicing, joining, ordering, pairs |
-| [[sets\|Sets]] | distinct values, membership, union, intersection, difference |
-| [[maps\|Maps]] | lookup by key, keys and values, `OrderedMap` and `SortedMap` |
-| [[steps\|Steps on any collection]] | what a step returns, counting, reducing, converting |
+| [Lists](lists.hmd) | positions, indexing and slicing, joining, ordering, pairs |
+| [Sets](sets.hmd) | distinct values, membership, union, intersection, difference |
+| [Maps](maps.hmd) | lookup by key, keys and values, `OrderedMap` and `SortedMap` |
+| [Steps on any collection](steps.hmd) | what a step returns, counting, reducing, converting |
 
 How braces write a set, a `Data` record or an empty map is in
 [[02-data-types/sets-data-and-maps|Sets, Data and maps]].

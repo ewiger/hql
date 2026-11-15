@@ -1,14 +1,107 @@
 # 4. Functions
 
-A function is a value of a function type. It can be bound to a name, passed to
-a step, returned from another function, and written once for every type it
-works on. This page meets lambdas and function types; the pages after it
-declare functions with `fn`.
+Every step in a pipeline takes a function. `filter` takes the test that keeps
+an element, `map` the function that transforms one, `sort` the key to order
+by. Functions are the part of an HQL program you write most often, and they
+are values: a function can be bound to a name, passed to a step, and returned
+from another function.
 
-## Lambdas and their types
+A function has a type, written with an arrow: `Int -> Int` takes an `Int`
+and returns an `Int`. The type is a contract between the function and the
+code that calls it, and `hql` checks both sides before the program runs:
 
-`n => n * 2` is a lambda. Written as an argument, it takes its parameter's
-type from the step it is passed to. Written on its own, it states the type:
+```hql
+fn days(pages: Int, per_day: Int) : Int = (pages + per_day - 1) / per_day
+days("412", 40)
+```
+
+```text
+check error[type-mismatch]: this argument is String, and parameter `pages` takes Int
+ --> <expression>:2:6
+  |
+2 | days("412", 40)
+  |      ^^^^^
+```
+
+```hql
+fn label(pages: Int) : String = pages
+label(412)
+```
+
+```text
+check error[type-mismatch]: `label` is declared to return String but its body is Int
+ --> <expression>:1:33
+  |
+1 | fn label(pages: Int) : String = pages
+  |                                 ^^^^^
+```
+
+The first program calls `days` with the wrong argument. The second has a body
+that does not return what the declaration promises. A function's caller can
+rely on its declared type, and the body can rely on its parameters.
+
+HQL writes functions in several forms. Each one gives a function value with
+a type, and each value is used the same way:
+
+```d2
+direction: down
+
+forms: "ways to write a function" {
+  grid-columns: 2
+  style.fill: "#f6efe6"
+  lambda: "lambda\n(n: Int) => n * 2"
+  fn: "declared function\nfn days(pages: Int, per_day: Int) : Int = ..."
+  alias: "alias\ntop(n) := sort | take(n)"
+  hole: "partial application\ndays(_, 40)"
+}
+
+value: "a function value\nof type Int -> Int, (Int, Int) -> Int, ..." {
+  style.fill: "#eef6ee"
+}
+
+uses: "ways to use it" {
+  direction: down
+  style.fill: "#eef6ee"
+  call: "call it\ndays(412, 40)"
+  pipe: "pipe into it\n412 | days(40)"
+  pass: "pass it to a step\nxs | map(double)"
+}
+
+forms -> value
+value -> uses
+```
+
+## Lambdas
+
+`n => n * 2` is a **lambda**: a function written in place, with its
+parameters before `=>` and its body after it. Passed to a step, a lambda takes
+its parameter type from the step, so `n` below is an `Int`:
+
+```hql
+[412, 280] | map(n => n * 2)
+```
+
+```text
+[824, 560]
+```
+
+The checker uses that type to check the body. A body that does not fit the
+element type is rejected:
+
+```hql
+[412, 280] | map(n => n.upper())
+```
+
+```text
+check error[type-mismatch]: `upper` needs String, not Int
+ --> <expression>:1:23
+  |
+1 | [412, 280] | map(n => n.upper())
+  |                       ^^^^^^^^^
+```
+
+A lambda bound to a name has no step to take its type from, so its
+parameters must be typed:
 
 ```hql
 double = (n: Int) => n * 2
@@ -18,8 +111,6 @@ double = (n: Int) => n * 2
 ```text
 [824, 560]
 ```
-
-A function's type is written with an arrow: `Int -> Int`, `(Int, Int) -> Int`.
 
 <!-- run: check -->
 ```hql
@@ -31,34 +122,37 @@ double
 Int -> Int
 ```
 
-A lambda's body is one expression. A function whose value takes several
-steps is declared with `fn`, whose body may be a block of them.
+A function of two parameters has the type `(Int, Int) -> Int`. A lambda's
+body is a single expression. A function that needs several steps is declared
+with `fn`.
 
 ## Calling a function
 
-`f(x)` calls a function. Piping into one calls it too: `x | f` is `f(x)`, and
-`x | f(y)` is `f(x, y)`, the piped value filling the first parameter.
+`f(x)` calls a function. A pipe calls one too: `x | f` is `f(x)`, and
+`x | f(y)` is `f(x, y)`. The piped value becomes the first argument:
 
 ```hql
-double = (n: Int) => n * 2
-280 | double
+fn days(pages: Int, per_day: Int) : Int = (pages + per_day - 1) / per_day
+[days(412, 40), 412 | days(40)]
 ```
 
 ```text
-560
+[11, 11]
 ```
 
-## The pages of this chapter
+This is why steps such as `map` and `filter` read left to right: each is a
+function whose first argument is the value piped into it.
+
+## In this chapter
 
 | Page | What it covers |
 | --- | --- |
-| [Declaring a function](declaring.hmd) | `fn`, typed parameters and a result, recursion, functions taken and returned, variadic parameters |
-| [Function bodies](bodies.hmd) | the two body forms, `= expr` and the block `{ … }`, and the rules a block follows |
-| [Generic functions](generics.hmd) | type parameters, and the bounds a call is checked against |
-| [Aliases and holes](aliases-and-holes.hmd) | `:=` names a pipeline fragment, and `_` leaves an argument open |
+| [Declaring a function](declaring.hmd) | `fn`, typed parameters and result, recursion, functions taken and returned, variadic parameters |
+| [Function bodies](bodies.hmd) | a body as one expression or as a block, and how a block is scoped |
+| [Generic functions](generics.hmd) | type parameters, and bounds on them |
+| [Aliases and holes](aliases-and-holes.hmd) | naming a pipeline fragment with `:=`, and leaving an argument open with `_` |
 
 ## What is next
 
-A program's functions sit beside its expressions. [[05-modules|Chapter 5]]
-puts functions into modules of their own: files that a program imports, with
-public and private declarations.
+[[05-modules|Chapter 5]] moves functions into modules: files that a program
+imports, with public and private declarations.
