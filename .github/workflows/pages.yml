@@ -15,10 +15,17 @@ on:
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
-# Read-only: this workflow builds the site and publishes nothing. A release
-# publishes its version with mike, in the `docs` job of `release.yml`.
+# Read-only by default: `build` publishes nothing. The `draft` job alone may
+# write, and only on `main`: it publishes `main` as the `draft` version. A
+# release publishes its own version with mike, in the `docs` job of
+# `release.yml`.
 permissions:
   contents: read
+
+# mike commits to `gh-pages`; two publishes at once would race for it.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -37,6 +44,10 @@ jobs:
       # that were built locally rather than whatever resolved this morning.
       - name: Install
         run: uv sync --locked
+      # The site's ```d2 fences are drawn at build time by the `d2` binary;
+      # without it a diagram degrades to its source.
+      - name: Install d2
+        run: curl -fsSL https://d2lang.com/install.sh | sh -s -- --version v0.7.1
 
       # Nothing is published that does not build clean.
       - name: Build
@@ -46,3 +57,35 @@ jobs:
       # one, a link escaping the vault or a missing heading fails.
       - name: Lint
         run: uv run hmd lint --root doc/public
+
+  # What is merged to `main`, at `/draft/`, rebuilt on every push. It is a
+  # mike version like a release's, so the version menu lists it, but it is
+  # never `latest` and never the default: `/latest/` stays the newest release.
+  draft:
+    name: publish draft
+    needs: build
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Install
+        run: uv sync --locked
+      # The site's ```d2 fences are drawn at build time by the `d2` binary;
+      # without it a diagram degrades to its source.
+      - name: Install d2
+        run: curl -fsSL https://d2lang.com/install.sh | sh -s -- --version v0.7.1
+      - name: Publish main as draft
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages:gh-pages || true
+          uv run mike deploy --push --title "draft (main)" draft

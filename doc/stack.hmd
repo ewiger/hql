@@ -181,6 +181,9 @@ arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
   `/latest/` is the newest release and holds the permanent URLs. Before 1.0
   a release may break the previous one, and each version's pages describe
   that version.
+- `/draft/` is `main`: the site as merged, rebuilt on every push to `main`.
+  It appears in the version menu as `draft (main)`, and it is never `latest`
+  or the default. It may describe what no release has yet.
 - Every function, type, trait and module of the builtin packages has a page
   under `doc/public/reference/`, at its permanent `/latest/` URL
   ([[HQL-0043]]). A page's marked part is written
@@ -213,7 +216,8 @@ uv run hmd lint --root doc        # the rest of the knowledge base
 ```
 
 [`pages.yml`](../.github/workflows/pages.yml) builds the site on every pull
-request that touches it and on `main`, and publishes nothing. A release
+request that touches it and on `main`. On a push to `main` its `draft` job
+then runs `mike deploy draft`, replacing the previous draft. A release
 publishes its version: the `docs` job of
 [`release.yml`](../.github/workflows/release.yml) runs `mike deploy` for the
 tag and moves `latest` to it, committing to the `gh-pages` branch, whose root
