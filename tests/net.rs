@@ -19,6 +19,7 @@ use tempfile::tempdir;
 fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
     let dir = dir.as_ref();
     std::fs::create_dir_all(dir.join(".hmd")).unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     std::fs::create_dir_all(dir.join(".hql")).unwrap();
     dir.join(".hql/config.toml")
 }

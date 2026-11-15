@@ -564,6 +564,7 @@ fn discovery_stops_at_the_nearest_marked_directory() {
     assert_eq!(vault::discover(&deep), None);
 
     std::fs::create_dir(root.join(".hmd")).unwrap();
+    std::fs::write(root.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     assert_eq!(vault::discover(&deep), Some(root.clone()));
     assert_eq!(vault::discover(&root), Some(root.clone()));
 
@@ -573,6 +574,7 @@ fn discovery_stops_at_the_nearest_marked_directory() {
     std::fs::write(nested.join(".hql/config.toml"), "").unwrap();
     assert_eq!(vault::discover(&deep), Some(root.clone()));
     std::fs::create_dir(nested.join(".hmd")).unwrap();
+    std::fs::write(nested.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     assert_eq!(vault::discover(&deep), Some(nested));
 }
 
@@ -581,7 +583,9 @@ fn a_nested_vault_is_not_part_of_the_vault_around_it() {
     let root = tempfile::tempdir().unwrap();
     let outer = root.path();
     std::fs::create_dir_all(outer.join(".hmd")).unwrap();
+    std::fs::write(outer.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     std::fs::create_dir_all(outer.join("site/.hmd")).unwrap();
+    std::fs::write(outer.join("site/.hmd/config.toml"), "wiki = \".\"\n").unwrap();
     std::fs::create_dir_all(outer.join("site/learn")).unwrap();
     std::fs::create_dir_all(outer.join("wiki")).unwrap();
     std::fs::write(outer.join("wiki/time.hmd"), "# Time").unwrap();
@@ -599,5 +603,43 @@ fn a_nested_vault_is_not_part_of_the_vault_around_it() {
     assert_eq!(
         names(&hql::environment::load(&outer.join("site")).unwrap()),
         ["index", "time"]
+    );
+}
+
+#[test]
+fn the_cards_start_where_wiki_says_and_their_paths_are_relative_to_it() {
+    // HQL issue 0079: a vault's cards are the documents below its namespace
+    // root, and a card's path is written against that root.
+    let root = tempfile::tempdir().unwrap();
+    let vault = root.path();
+    std::fs::create_dir_all(vault.join(".hmd")).unwrap();
+    std::fs::write(vault.join(".hmd/config.toml"), "wiki = \"doc/wiki\"\n").unwrap();
+    std::fs::create_dir_all(vault.join("doc/wiki/birds")).unwrap();
+    std::fs::write(vault.join("README.md"), "# Readme").unwrap();
+    std::fs::write(vault.join("doc/wiki/birds/owl.hmd"), "# Owl").unwrap();
+    std::fs::write(vault.join("doc/wiki/heron.md"), "# Heron").unwrap();
+
+    let loaded = vault::load_documents(vault).unwrap();
+    let paths: Vec<_> = loaded
+        .cards
+        .iter()
+        .map(|card| card.document.path.to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(paths, ["heron.md", "birds/owl.hmd"]);
+    assert_eq!(loaded.root, vault);
+    assert_eq!(
+        loaded.file_of(&loaded.cards[1].document),
+        vault.join("doc/wiki/birds/owl.hmd")
+    );
+}
+
+#[test]
+fn a_vault_whose_cards_location_is_missing_names_the_setting() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(root.path().join(".hmd")).unwrap();
+    let error = vault::load_documents(root.path()).unwrap_err().to_string();
+    assert!(
+        error.contains("doc/wiki does not exist; set `wiki`"),
+        "{error}"
     );
 }

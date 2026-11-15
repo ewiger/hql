@@ -1,3 +1,6 @@
+# The cards start at the vault root.
+wiki = "."
+
 # The vault the HQL tutorial reads.
 
 # The embedding index the book's `semantic` queries read, built by

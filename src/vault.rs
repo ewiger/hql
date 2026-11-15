@@ -17,8 +17,12 @@ use std::sync::Arc;
 /// A namespace of documents, the cards built from them, and their edges.
 #[derive(Debug, Clone)]
 pub struct Vault {
-    /// Where the vault was loaded from; also the index name a retrieval reports.
+    /// The vault root, holding `.hmd/`; also the index name a retrieval
+    /// reports.
     pub root: PathBuf,
+    /// The namespace root, where the cards start: a document's path is
+    /// relative to it.
+    pub namespace: PathBuf,
     /// Every card, in canonical name order.
     pub cards: Vec<Arc<Card>>,
     /// Lookup by name.
@@ -38,11 +42,11 @@ impl Vault {
         self.root.display().to_string()
     }
 
-    /// Where a document of this vault is on disk: the root joined with its
-    /// path, which is its place in the vault.
+    /// Where a document of this vault is on disk: the namespace root joined
+    /// with its path, which is its place in the vault.
     #[must_use]
     pub fn file_of(&self, document: &crate::document::Document) -> PathBuf {
-        self.root.join(&document.path)
+        self.namespace.join(&document.path)
     }
 
     /// Resolve a document reference by name.
@@ -85,14 +89,15 @@ pub fn is_root(dir: &Path) -> bool {
     crate::context::is_vault(dir)
 }
 
-/// Read every Markdown and HyperMarkdown document under a directory as the
-/// cards of a vault, with the vault's own index configuration.
+/// Read every Markdown and HyperMarkdown document under a vault's namespace
+/// root as its cards, with the vault's own index configuration.
 ///
 /// # Errors
 ///
-/// Returns the underlying I/O failure when the root cannot be read.
+/// Returns the underlying I/O failure when the root cannot be read, and a
+/// malformed `.hmd/config.toml`.
 pub fn load_documents(root: &Path) -> io::Result<Vault> {
-    assemble(&crate::sources::Filesystem::new(root))
+    assemble(&crate::sources::Filesystem::new(root)?)
 }
 
 /// Assemble the vault of a source: its documents as cards, their edges, and
@@ -103,6 +108,7 @@ pub fn load_documents(root: &Path) -> io::Result<Vault> {
 pub fn assemble(source: &dyn crate::sources::VaultSource) -> io::Result<Vault> {
     let snapshot = source.read()?;
     let root = snapshot.root.clone();
+    let namespace = source.namespace().unwrap_or_else(|| root.clone());
     let store = crate::document::DocumentStore::from_source(snapshot);
     let names = store
         .documents
@@ -128,6 +134,7 @@ pub fn assemble(source: &dyn crate::sources::VaultSource) -> io::Result<Vault> {
     Ok(Vault {
         semantics: source.semantics(),
         root,
+        namespace,
         cards,
         by_name,
         edges,

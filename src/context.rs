@@ -83,6 +83,18 @@ pub enum ContextError {
     /// An explicitly selected vault holds no `.hmd/`.
     #[error("{}: not a vault: it holds no `{VAULT_MARKER}/`", .0.display())]
     NotAVault(PathBuf),
+    /// An explicitly selected vault holds no `.hmd/` and lies inside a vault.
+    #[error(
+        "{}: not a vault: it lies inside the vault {}; --vault names the directory holding `{VAULT_MARKER}/`",
+        dir.display(),
+        vault.display()
+    )]
+    InsideAVault {
+        /// The directory named.
+        dir: PathBuf,
+        /// The vault root above it.
+        vault: PathBuf,
+    },
     /// A configuration file cannot be read, or says something malformed.
     #[error("{}: {message}", path.display())]
     Config {
@@ -1057,6 +1069,9 @@ impl ExecutionContext {
                     return Err(ContextError::NotADirectory(root));
                 }
                 if !is_vault(&root) {
+                    if let Some(vault) = root.parent().and_then(discover_vault) {
+                        return Err(ContextError::InsideAVault { dir: root, vault });
+                    }
                     return Err(ContextError::NotAVault(root));
                 }
                 Some(Selected {

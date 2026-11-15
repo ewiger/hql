@@ -1,0 +1,11 @@
+// status: valid-now
+// feature: a vault's cards are the documents below the directory its `wiki` names, the namespace root; a file beside `.hmd/` is not a card
+// implementation: implemented
+// environment: pure
+// session: cli
+// exit: 0
+
+$ hql --vault examples/projects/shelved run examples/projects/queries/invalid-cards-without-hmd.hql
+2
+$ hql --vault examples/projects/shelved run examples/projects/queries/invalid-reference-without-hmd.hql
+owl

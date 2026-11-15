@@ -11,6 +11,7 @@ one of its modules.
 | --- | --- |
 | [library](library/.hql/config.toml) | a project and no vault: `[modules] roots = ["lib"]`, with the module [`shelf`](library/lib/shelf/mod.hql) and the file `titles.txt` beside it |
 | [notes](notes/.hmd/config.toml) | a vault and no project: the cards `owl` and `heron` |
+| [shelved](shelved/.hmd/config.toml) | a vault whose `wiki` is `doc/wiki`: the cards `owl` and `heron` start there, and `README.md` beside `.hmd/` is not a card |
 | [pinned](pinned/.hql/config.toml) | a project that declares the package `ml` under `[packages] dependencies`, pinned in [`lock.toml`](pinned/.hql/lock.toml), and has not installed it |
 
 ## A run with no vault, and `hmd`
@@ -23,6 +24,13 @@ one of its modules.
 | [plain refuses cards](sessions/plain-refuses-cards.session) | both programs from the command line, with no vault | both refused |
 | [a vault activates hmd](sessions/a-vault-activates-hmd.session) | `--vault` names the vault, the programs unchanged | `2`, then `owl` |
 | [import without a vault](sessions/import-without-a-vault.session) | `--import hmd` with no vault | a name error naming `--vault` |
+
+## Where a vault's cards start
+
+| Case | What it shows | Result |
+| --- | --- | --- |
+| [cards start at the cards location](sessions/cards-start-at-the-cards-location.session) | `cards` and `@[[owl]]` over `shelved`, whose `wiki` is `doc/wiki` | `2`, then `owl`: `README.md` is not a card |
+| [--vault names the vault root](sessions/vault-names-the-vault-root.session) | `--vault` naming `shelved/doc/wiki`, the namespace root | refused, naming the vault root `shelved` |
 
 ## The source directory of a module
 

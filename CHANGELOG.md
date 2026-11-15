@@ -10,6 +10,19 @@ The language continues to be in active development.
 
 ### Changed
 
+- **A vault's cards start where its `wiki` says**
+  ([issue 0079](doc/issues/archive/0079-the-namespace-root-of-a-vault.hmd)).
+  HQL reads a vault through HyperMarkdown's `hypermarkdown` crate: the cards
+  are the documents below the namespace root, `wiki` in `.hmd/config.toml`
+  against the vault root, and a card's path and `file_of` are relative to it.
+  `wiki` defaults to `doc/wiki`, as HyperMarkdown defines it, so **a vault
+  that keeps its cards at its root must say `wiki = "."`**; a vault whose
+  cards location does not exist fails to load, naming the setting. A
+  directory a host names that holds no `.hmd/` is still read whole.
+- **`--vault` names the vault root**, the directory holding `.hmd/`. A
+  directory inside a vault that holds no `.hmd/` is refused, naming the vault
+  root above it.
+
 - Projects and vaults are separate
   ([HQL-0059](doc/proposals/HQL-0059/index.hmd)). A **project** is a
   directory holding `.hql/config.toml`, which takes every key `hql.toml`

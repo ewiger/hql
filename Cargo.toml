@@ -52,6 +52,7 @@ ed25519-dalek = { version = "3", features = ["pkcs8", "pem", "rand_core", "zeroi
 futures-util = { version = "0.3.34", default-features = false }
 getrandom = { version = "0.4", features = ["sys_rng"] }
 hmac = "0.13"
+hypermarkdown = "0.2"
 jiff = { version = "0.2.43", features = ["tzdb-bundle-always"] }
 jiff-tzdb = "0.1.9"
 libloading = "0.8"

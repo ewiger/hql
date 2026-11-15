@@ -115,6 +115,7 @@ fn a_program_file_anchors_discovery_wherever_hql_is_run_from() {
     let sandbox = Sandbox::new();
     let vault = sandbox.tree().join("a");
     fs::create_dir_all(vault.join(".hmd")).unwrap();
+    std::fs::write(vault.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     let script = vault.join("b/c/script.hql");
     sandbox.write(&script, "cards | count\n");
     sandbox.write(&vault.join("note.hmd"), "# Note\n");
@@ -150,6 +151,7 @@ fn a_project_and_a_vault_are_found_apart_and_the_nearest_project_wins() {
     let sandbox = Sandbox::new();
     let outer = sandbox.tree();
     fs::create_dir_all(outer.join(".hmd")).unwrap();
+    std::fs::write(outer.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     sandbox.write(&outer.join(".hql/config.toml"), "");
     let inner = outer.join("inner");
     sandbox.write(&inner.join(".hql/config.toml"), "");
@@ -184,6 +186,7 @@ fn bare_suppresses_discovery_and_conflicts_with_a_named_project() {
     let sandbox = Sandbox::new();
     let vault = sandbox.tree();
     fs::create_dir_all(vault.join(".hmd")).unwrap();
+    std::fs::write(vault.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     sandbox.write(&vault.join("note.hmd"), "# Note\n");
     let report = ok(&sandbox.run(&vault, &["--bare", "context"]));
     assert_eq!(field(&report, "mode"), "bare");
@@ -267,6 +270,7 @@ fn bare_hql_imports_modules_from_the_hql_home_and_hql_path() {
     let sandbox = Sandbox::new();
     let vault = sandbox.tree();
     fs::create_dir_all(vault.join(".hmd")).unwrap();
+    std::fs::write(vault.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     sandbox.write(
         &sandbox.home().join(".hql/modules/greet.hql"),
         &module("greet", "fn one() : Int = 1"),
@@ -392,6 +396,7 @@ fn a_malformed_user_configuration_fails_every_run_naming_the_file() {
 fn with_contexts(sandbox: &Sandbox) -> PathBuf {
     let production = sandbox.root().join("srv/production");
     fs::create_dir_all(production.join(".hmd")).unwrap();
+    std::fs::write(production.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     sandbox.write(&production.join(".hql/config.toml"), "");
     sandbox.write(&production.join("note.hmd"), "# Note\n");
     sandbox.write(
@@ -603,6 +608,7 @@ fn a_host_supplies_the_vault_and_keeps_the_user_configuration() {
     let sandbox = Sandbox::new();
     let outer = sandbox.tree();
     fs::create_dir_all(outer.join(".hmd")).unwrap();
+    std::fs::write(outer.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
     let hosted = outer.join("hosted");
     sandbox.write(&hosted.join("note.hmd"), "# Note\n");
     sandbox.write(&outer.join("other.hmd"), "# Other\n");
