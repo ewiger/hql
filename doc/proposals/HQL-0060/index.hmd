@@ -161,23 +161,26 @@ A **selector** names what an import binds:
 
 ### 4. Type selectors
 
-`T` in `T.*` and `T.f` names a type, and selects receivers by type identity.
+`T` in `T.*` and `T.f` names the concrete type a receiver module is
+declared for, the type in its `for` clause, and selects receivers by that
+type's identity.
 
 - `T` MUST be resolved by the type resolver in the scope of `m`'s
   declarations, as a type written in `m` would be. An alias MUST resolve to
   the type it names, so a selector matches the type and not its spelling.
   A name that is not a type there MUST be a check error.
-- A receiver function is selected by `T` when the type constructor of its
-  declared receiver, the type of `self`, is the constructor `T` resolves to.
-  For a receiver module, `module string for String`, every function's
-  receiver is the module's pattern.
+- A receiver function is selected by `T` when the type in its module's `for`
+  clause is the type `T` resolves to: `module string for String` is selected
+  by `String.*`.
+- The match MUST be exact. The type hierarchy is not consulted in either
+  direction: no supertype and no subtype of `T` is selected by `T`, and `T`
+  is not selected by its supertypes. A module declared `for List<T>` is
+  selected by `List.*`, and never by `Seq.*` or `Collection.*`. A selector
+  names the declarations it binds, so a program can read from the import
+  which functions it receives.
 - A generic type is selected by its constructor alone: `Seq.*` MUST select
-  the receivers declared at `Seq<T>`, `Seq<Int>` or any other instantiation.
-  A selector MUST NOT be written with type arguments.
-- Subtypes are not selected: `Collection.*` MUST select the receivers
-  declared at `Collection`, and MUST NOT select those declared at `List` or
-  `Set`. A selector names the declarations it binds, so a program can read
-  from the import which functions it receives.
+  the receivers of a module declared `for Seq<T>`, whatever `T` is. A
+  selector MUST NOT be written with type arguments.
 - The same rules apply to a type a program or a workspace module declares,
   `Book.*`, as to a core type.
 
@@ -298,8 +301,10 @@ alike:
 - Type selectors: `String.*`, `String.upper`, `String.upper as up`,
   `* except String.*`, `String.* except upper`.
 - A type selector through an alias, and over a generic receiver: `Seq.*`
-  selects receivers declared at `Seq<T>` and at `Seq<Int>`.
-- `Collection.*` does not select a receiver declared at `List`.
+  selects the receivers of a module declared `for Seq<T>`.
+- Exact match: a module declared `for List<T>` is selected by `List.*`, and
+  not by `Seq.*` or `Collection.*`; a module declared `for Collection<T>` is
+  not selected by `List.*`.
 - A program-declared type, `Book.*`, and a selector that selects nothing.
 - A module exporting a function named like a type: bare `String` binds the
   function, `String.*` the receivers.
@@ -326,3 +331,4 @@ cargo test --test book
 - 2026-11-15: drafted
 - 2026-11-15: receiver selection is by type, `T.*` and `T.f`, in place of `.*`
 - 2026-11-15: aliases bind receivers or functions by their form, and rename groups by a `*` pattern
+- 2026-11-15: a type selector matches the type of the module's `for` clause exactly, with no supertype or subtype
