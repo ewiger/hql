@@ -13,8 +13,9 @@ Every module is imported the same way, whichever package provides it:
 functions (`m.f`) and receiver calls on its receiver functions (`x.f()`).
 They bind no unqualified function names. A new `from` form binds them
 explicitly: `from m import f, g as h` binds the listed functions,
-`from m import *` binds every public function, `from m import .*` binds every
-receiver function, and `except` removes names from a wildcard. The prelude
+`from m import *` binds every public function, `from m import String.*` binds
+the receiver functions `m` declares for `String`, `String.upper` binds one of
+them, and `except` subtracts names and receiver groups from a selection. The prelude
 becomes a list of `from … import *` lines, so a program keeps the unqualified
 prelude functions it has today.
 
@@ -68,19 +69,34 @@ unit, before its declarations, where `import` stands today.
 ```text
 import_stmt  = "import" module_path [ "as" ident ]
 from_stmt    = "from" module_path "import" selection
-selection    = wildcard [ "except" excluded { "," excluded } ]
+selection    = group [ "except" selector { "," selector } ]
              | item { "," item }
-wildcard     = "*" | ".*"
-item         = ident [ "as" ident ]
-excluded     = ident | ".*"
+group        = "*" | type_name "." "*"
+item         = selector [ "as" ident ]
+selector     = ident | type_name "." ident | type_name "." "*"
+type_name    = ident
 ```
+
+A **selector** names what an import binds:
+
+| Selector | Selects |
+| --- | --- |
+| `*` | every public function of the module |
+| `mean` | the public function `mean`, every overload of it |
+| `String.*` | every public receiver function the module declares for `String` |
+| `String.upper` | the public receiver function `upper` declared for `String` |
+| `* except String.*` | every public function but the receivers declared for `String` |
+| `String.* except upper` | the receivers declared for `String` but `upper` |
 
 - `from`, `except` and the `as` of an item MUST be keywords only in an
   import statement. An identifier named `except` or `from` elsewhere stays
   valid, because both are ordinary names in programs today.
-- `.*` is written without a space. It names the receiver functions, the
-  functions declared with `self`, because those are the functions called with
-  a dot.
+- A selector with a dot MUST be read as a type selector: `T.*` or `T.f`. A
+  function has no members, so the dotted form is never a function name, and a
+  module that exports a function named `String` is selected by the bare
+  `String`. The parser needs no lookahead to tell them apart.
+- A type selector is an import selector, not a member expression. It is
+  checked against the module's declarations and is never evaluated.
 
 ### 2. `import m`
 
@@ -105,11 +121,16 @@ excluded     = ident | ".*"
 - `from m import f as g` MUST bind `g` to `m.f`, and MUST NOT bind `f`.
 - `from m import *` MUST bind every public function of `m`, with and without
   `self`.
-- `from m import .*` MUST bind every public receiver function of `m`, and no
-  function without `self`.
-- `except` MUST remove each listed name from the wildcard's bindings.
-  `except .*` MUST remove every receiver function, so
-  `from m import * except .*` binds the functions without `self`.
+- `from m import T.*` MUST bind every public receiver function of `m` whose
+  receiver is declared at the type `T`, and no other function.
+- `from m import T.f` MUST bind the public receiver function `f` of `m`
+  declared at `T`, every overload at `T`, and no function `f` declared at
+  another receiver type or without `self`. `T.f as g` binds it as `g`.
+- `except` MUST subtract each selector from the selection before it:
+  `* except String.*` binds every public function but the receivers declared
+  for `String`, and `String.* except upper` every receiver for `String` but
+  `upper`. A bare name in an `except` list subtracts every function of that
+  name in the selection.
 - A `from` statement MUST NOT bind the module name `m`. A program that wants
   both writes `import m` as well.
 - A module named in a `from` statement MUST be visible to receiver resolution
@@ -117,11 +138,34 @@ excluded     = ident | ".*"
   working.
 - Naming a function that `m` does not declare, or declares `private`, MUST be
   a check error at the import, in an item and in an `except` list alike, so a
-  misspelt name is found where it is written.
+  misspelt name is found where it is written. A type selector that selects
+  no public receiver function of `m` MUST be the same error.
 - Overloads are bound together: binding `mean` binds every public declaration
   of `mean` in `m`.
 
-### 4. Names bound twice
+### 4. Type selectors
+
+`T` in `T.*` and `T.f` names a type, and selects receivers by type identity.
+
+- `T` MUST be resolved by the type resolver in the scope of `m`'s
+  declarations, as a type written in `m` would be. An alias MUST resolve to
+  the type it names, so a selector matches the type and not its spelling.
+  A name that is not a type there MUST be a check error.
+- A receiver function is selected by `T` when the type constructor of its
+  declared receiver, the type of `self`, is the constructor `T` resolves to.
+  For a receiver module, `module string for String`, every function's
+  receiver is the module's pattern.
+- A generic type is selected by its constructor alone: `Seq.*` MUST select
+  the receivers declared at `Seq<T>`, `Seq<Int>` or any other instantiation.
+  A selector MUST NOT be written with type arguments.
+- Subtypes are not selected: `Collection.*` MUST select the receivers
+  declared at `Collection`, and MUST NOT select those declared at `List` or
+  `Set`. A selector names the declarations it binds, so a program can read
+  from the import which functions it receives.
+- The same rules apply to a type a program or a workspace module declares,
+  `Book.*`, as to a core type.
+
+### 5. Names bound twice
 
 Name collisions follow the rules of today; no new precedence is introduced.
 
@@ -133,7 +177,7 @@ Name collisions follow the rules of today; no new precedence is introduced.
 - Binding one function twice, through two statements that name the same
   declaration, MUST NOT be an error.
 
-### 5. The prelude
+### 6. The prelude
 
 The prelude is an ordinary list of import statements, run before each unit.
 
@@ -141,11 +185,12 @@ The prelude is an ordinary list of import statements, run before each unit.
   `from <module> import *`, so every prelude function stays reachable
   unqualified and by receiver call.
 - `lib/hmd/prelude.hql` MUST do the same for its modules.
-- The prelude MUST follow sections 2 to 4 exactly. No module, package or
+- The prelude MUST follow the rules for `import m`, `from m import …`, type
+  selectors and names bound twice exactly. No module, package or
   function receives a resolution rule of its own.
 - `prelude = false` under `[modules]` MUST keep withholding the whole list.
 
-### 6. Errors
+### 7. Errors
 
 The check error for a bare name that an imported module declares MUST name
 both fixes:
@@ -161,7 +206,7 @@ Pre-1.0, this change is made outright, with no compatibility mode.
 - A program that imports a non-prelude extension module and calls its
   functions unqualified stops checking. For example, `import regex` followed
   by `is_match(…)`, or `import time` followed by `now()`. The fix is
-  `regex.is_match(…)` or `from regex import is_match`; the error in section 6
+  `regex.is_match(…)` or `from regex import is_match`; the error under Errors
   says so.
 - Receiver calls, prelude functions and workspace-module calls are
   unaffected.
@@ -184,8 +229,10 @@ was not before.
 
 ## Reference Implementation
 
-- `src/parser.rs`: the `from` statement, `as` on items, `*`, `.*` and
-  `except`, as contextual keywords.
+- `src/parser.rs`: the `from` statement, `as` on items, `*`, type selectors
+  `T.*` and `T.f`, and `except`, as contextual keywords.
+- `src/checker.rs`: type selectors resolved with the type resolver in the
+  source module's scope, and matched by receiver type constructor.
 - `src/extensions/mod.rs`: the extension resolution (`Resolution`) MUST bind
   bare names only from `from` statements, not from every imported module.
 - `src/checker.rs`: the workspace-module scope, which binds only
@@ -200,11 +247,18 @@ Example programs MUST cover, for an extension module and a workspace module
 alike:
 
 - `import m`: `m.f(x)` and `x | m.f` check; `f(x)` and `x | f` are the error
-  of section 6; `x.f()` checks for a receiver function.
+  under Errors; `x.f()` checks for a receiver function.
 - `import m as a`: `a.f` checks, `m.f` does not.
 - `from m import f`, `from m import f, g`, `from m import f as g`.
-- `from m import *`, `from m import .*`, `from m import * except f`,
-  `from m import * except .*`.
+- `from m import *`, `from m import * except f`.
+- Type selectors: `String.*`, `String.upper`, `String.upper as up`,
+  `* except String.*`, `String.* except upper`.
+- A type selector through an alias, and over a generic receiver: `Seq.*`
+  selects receivers declared at `Seq<T>` and at `Seq<Int>`.
+- `Collection.*` does not select a receiver declared at `List`.
+- A program-declared type, `Book.*`, and a selector that selects nothing.
+- A module exporting a function named like a type: bare `String` binds the
+  function, `String.*` the receivers.
 - A misspelt and a private name, in an item and in `except`.
 - Two `from` statements binding one name from two modules: ambiguous at the
   use, not at the import.
@@ -219,3 +273,4 @@ cargo test --test book
 ## Changelog
 
 - 2026-11-15: drafted
+- 2026-11-15: receiver selection is by type, `T.*` and `T.f`, in place of `.*`
