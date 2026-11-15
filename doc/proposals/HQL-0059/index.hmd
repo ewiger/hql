@@ -657,3 +657,6 @@ An HMD host may select an HQL project, but an HQL project never defines a HyperM
 - 2026-11-15: a run with a vault, found by the walk or named with
   `--vault`, has `hmd` active; the retired step names and the `[sources]`
   refusal are removed
+- 2026-11-15: in the crate, `hql::environment::RunEnvironment` holds the
+  project's configuration and an optional `hql::vault::Vault`, which holds
+  the cards alone; a run with no vault has `None`

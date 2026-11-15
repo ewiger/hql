@@ -40,6 +40,12 @@ The language continues to be in active development.
   every unit of the run, `hmd` included. A project module starts with the
   imports the program starts with: `std`'s prelude, each active package's
   prelude, and `[modules] import` with `--import`.
+- In the crate's API, `hql::environment::RunEnvironment` is what a program
+  is checked and run against: the project's configuration and an optional
+  `hql::vault::Vault`, which holds a vault's cards and nothing of a
+  project. `check_in`, `run`, `run_on`, `plan` and `stream` take it,
+  `hql::environment::load` reads a directory as a host does, and
+  `EvalCx::environment()` replaces `EvalCx::vault()`.
 - A relative path resolves against the source directory of the unit naming
   it, a project module's own directory included, never the working
   directory.
