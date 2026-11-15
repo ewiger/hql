@@ -286,7 +286,7 @@ For 0.6.0, only the rename:
   `Aute` is expected and not the other way; `Unit` in a
   signature is refused with the message naming `Step`; `Step`'s value prints
   one way at the top level, in a list and in a record.
-- The tutorial suite (`tests/tutorial.rs`) runs the book's changed outputs.
+- The book suite (`tests/book.rs`) runs the book's changed outputs.
 - `hql reference --check doc/public/reference` is clean.
 
 ```bash

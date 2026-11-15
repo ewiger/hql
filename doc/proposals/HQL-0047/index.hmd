@@ -420,7 +420,7 @@ Unit and integration tests MUST include:
   ending the stream.
 
 ```bash
-cargo test --test net --test topics_and_tables --test tutorial
+cargo test --test net --test topics_and_tables --test book
 cargo clippy --all-targets -- -D warnings
 ```
 

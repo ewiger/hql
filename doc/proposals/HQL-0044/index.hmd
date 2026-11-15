@@ -144,8 +144,8 @@ compile-time.
 
 The boundary is held by the existing suites: `tests/extension_contracts.rs`
 runs programs with a check error under `strict` and `collect` and asserts that
-no value is produced, and `tests/tutorial.rs` runs every program in the Learn
-book against the binary and compares what it prints, diagnostics included.
+no value is produced, and `tests/book.rs` runs every program in the HQL
+Book against the binary and compares what it prints, diagnostics included.
 
 ```bash
 cargo test --locked
