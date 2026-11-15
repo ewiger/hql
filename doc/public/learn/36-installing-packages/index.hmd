@@ -226,7 +226,8 @@ The project of that program is
 [`examples/packages/`](https://github.com/ewiger/hql/tree/main/examples/packages),
 whose `.hql/config.toml` lists the `hello` crate. A crate a project lists comes
 before an installed package of the same name, so the checkout being edited
-is the one that runs.
+is the one that runs. [A local crate](a-local-crate.hmd) follows one crate
+from its first build to an installed package.
 
 ## Importing a package for every program
 
@@ -255,6 +256,13 @@ standard module or a package; it is the one place a package is named.
 
 `hql builtins` prints the module graph a program in the current directory
 would see, each module with the package and version providing it.
+
+## The pages of this chapter
+
+| Page | What it covers |
+| --- | --- |
+| [A local crate](a-local-crate.hmd) | a crate on this machine, step by step: listed under `[packages] paths`, built on first use, rebuilt after an edit, then installed |
+| [A shared project](a-shared-project.hmd) | what a project commits, what a fresh clone runs, and how a pin moves |
 
 ## What is next
 

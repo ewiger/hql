@@ -60,7 +60,7 @@ hello.greet("Ada")
 
 While a package is being written, a project names its crate instead, and
 `hql` rebuilds it whenever its source is newer than the last build
-([[36-installing-packages#a-package-under-development|chapter 36]]). The
+([[36-installing-packages/a-local-crate|a local crate]]). The
 programs of this chapter run that way.
 
 ## The pages of this chapter
@@ -68,6 +68,7 @@ programs of this chapter run that way.
 | Page | What it covers |
 | --- | --- |
 | [The crate](the-crate.hmd) | `Cargo.toml`: the crate type, the `hql` dependency, `[package.metadata.hql]` |
+| [The prelude](the-prelude.hmd) | `prelude.hql`: the modules every unit imports while the package is active |
 | [The contract](contracts.hmd) | the module file, its types, its declarations and their doc strings |
 | [Natives](natives.hmd) | the signature of a native function, the table of operations, `hql::extension!` |
 | [Values and errors](values-and-errors.hmd) | `Value`, records, named arguments and defaults, failures and panics |

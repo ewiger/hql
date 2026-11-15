@@ -1,0 +1,127 @@
+# The prelude
+
+A package's **prelude** is the file `prelude.hql` at its module root: a list
+of `import` statements that every unit of a run imports while the package
+is active. It is not a module: it has no name and cannot be imported. The
+standard library has one, `lib/std/prelude.hql`, which is why a program
+writes `trim` and `map` with no import; a package's own works the same way
+for the package's modules.
+
+`hello`'s prelude is one line:
+
+```hql
+import hello
+```
+
+## Loaded and active
+
+Two states of a package are distinct:
+
+| State | Holds when | Effect |
+| --- | --- | --- |
+| **loaded** | the package is discovered and its library opens | its modules can be imported |
+| **active** | a unit of the run imports one of its modules | its prelude's imports are added to every unit |
+
+Every discovered package is loaded when `hql` starts. A loaded package
+that no unit imports adds no name to any program:
+
+<!-- run: --project examples/packages -->
+```hql
+hello.greet("Ada")
+```
+
+```text
+check error[unknown-name]: `hello` is not bound
+ --> <expression>:1:1
+  |
+1 | hello.greet("Ada")
+  | ^^^^^
+```
+
+An import of one of the package's modules activates it. Here the import
+binds the module under the alias `h`, and the prelude binds it under its
+own name:
+
+<!-- run: --project examples/packages -->
+```hql
+import hello as h
+
+[h.greet("Ada"), hello.greet("Bo")]
+```
+
+```text
+["Hello, Ada!", "Hello, Bo!"]
+```
+
+## What activates a package
+
+A package is active in a run when one of its modules is imported by any of
+these:
+
+- an `import` in the program;
+- an `import` in a project module the program reaches through its imports;
+- `[modules] import` in a configuration file, naming a module or the
+  package;
+- `--import <module>` on the command line.
+
+Activation is per run, not per unit. The units of a run are the program
+and every project module it reaches. An import in one of them activates
+the package for all of them, so a project module that writes no import of
+the package still reads the names its prelude binds once another unit has
+imported it.
+
+## What a prelude is for
+
+A prelude names the modules a program of the package cannot do without. A
+module it does not name is the package's optional part and is imported
+where it is used. The `ml` package ([[38-the-ml-package|chapter 38]])
+provides `ml` and `ml.metrics`, and its prelude is:
+
+```hql
+import ml
+```
+
+A program that imports only `ml.metrics` activates the package, so `ml`
+is bound too, and `Dataset` and `fit_linear` are in scope. `ml.metrics`
+stays out of a program that does not import it.
+
+## What a prelude may hold
+
+- Each statement MUST be an `import`. A declaration, a binding or an
+  expression refuses the package.
+- An import MUST NOT be written with `as`: a prelude imports a module
+  under its own name, its last segment.
+- Each module named MUST exist: a module of the package, or of a builtin
+  package.
+
+A package whose prelude breaks one of these is refused when it is loaded,
+and an `import` of one of its modules reports the reason:
+
+```text
+check error[unknown-name]: no module named `hello`: .../modules/prelude.hql: a prelude holds imports and nothing else
+```
+
+Two active packages whose preludes import different modules under one
+last segment are an error of the run, naming both files. A prelude's
+import that collides with a name the program binds itself is resolved in
+the program, by importing under another name with `as`.
+
+## Declining preludes
+
+`prelude = false` under `[modules]` in `.hql/config.toml` withholds every
+prelude's imports, `std`'s and each active package's:
+
+```toml
+[modules]
+prelude = false
+```
+
+Every unit of the project then imports each module it uses. The setting
+does not change which packages are loaded or active.
+
+## The prelude does not apply inside its package
+
+A contract under the package's module root imports every module whose
+names it writes, `core` included ([The contract](contracts.hmd)). The
+package's prelude reaches the units of a run, the program and project
+modules, and no module of a package.
