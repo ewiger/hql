@@ -87,9 +87,6 @@ pub(crate) fn unknown_type(written: &TypeAnn) -> Diagnostic {
             ),
         );
     }
-    if let Some(message) = builtin::withdrawn(name) {
-        return Diagnostic::name(written.span.clone(), message);
-    }
     Diagnostic::name(written.span.clone(), format!("unknown type `{name}`"))
 }
 

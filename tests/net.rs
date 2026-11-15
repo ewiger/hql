@@ -110,15 +110,7 @@ fn the_network_is_imported() {
 }
 
 #[test]
-fn socket_is_refused_naming_tcp() {
-    refused(
-        &hql("import net\nnet.socket(\"127.0.0.1\", 1)"),
-        "`socket` is now `tcp`",
-    );
-    refused(
-        &hql("import net\nfn f(s: Socket) : Int = 1\n1"),
-        "`Socket` is now `Tcp`",
-    );
+fn tcp_builds_the_endpoint() {
     let shown = ok(&hql("import net\nnet.tcp(\"127.0.0.1\", 1)"));
     assert_eq!(shown.trim(), r#"tcp("127.0.0.1", 1)"#);
 }

@@ -7743,8 +7743,7 @@ impl CheckCx for Checker<'_> {
             .ok_or_else(|| {
                 Diagnostic::name(
                     argument.value.span.clone(),
-                    crate::types::builtin::withdrawn(name)
-                        .unwrap_or_else(|| format!("unknown type `{name}`")),
+                    format!("unknown type `{name}`"),
                 )
             })?;
         self.checked

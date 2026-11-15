@@ -205,21 +205,6 @@ fn a_step_is_an_aute_and_not_the_other_way() {
 }
 
 #[test]
-fn unit_is_refused_naming_step() {
-    for source in [
-        "fn f(x: Int) : Unit",
-        "fn g(x: Unit) : Int = 1",
-        "type Done { last : Unit }",
-    ] {
-        let message = refused(source);
-        assert!(
-            message.contains("`Unit` is now `Step`"),
-            "{source}: {message}"
-        );
-    }
-}
-
-#[test]
 fn every_written_form_parses() {
     for source in [
         "type Colour",

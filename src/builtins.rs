@@ -15,27 +15,14 @@ pub fn exists(name: &str) -> bool {
     extensions::names().any(|step| step == name)
 }
 
-/// Names that were steps and have no single replacement, with what to write
-/// instead.
-const EXPLAINED: &[(&str, &str)] = &[
-    (
-        "table",
-        "a table is a value of the type `Table`, built by its constructor: \
-         `Table(xs, columns = [...])`",
-    ),
-    (
-        "socket",
-        "`socket` is now `tcp`: `net.tcp(host, port)` is the TCP endpoint",
-    ),
-    (
-        "length",
-        "`length` is now `size`: `s.size()` counts a String's code points, as \
-         `xs.size()` counts a collection's elements",
-    ),
-];
+/// Names a reader takes for steps, with what to write instead.
+const EXPLAINED: &[(&str, &str)] = &[(
+    "table",
+    "a table is a value of the type `Table`, built by its constructor: \
+     `Table(xs, columns = [...])`",
+)];
 
-/// What to write instead of a withdrawn name, `length` or `socket`, if it
-/// is one.
+/// What to write instead of a name that is no step, `table`, if it is one.
 #[must_use]
 pub fn explained(name: &str) -> Option<String> {
     EXPLAINED

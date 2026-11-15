@@ -230,10 +230,8 @@ fn pattern(written: &TypeAnn, scope: &Scope) -> Result<P, String> {
             _ => {}
         }
     }
-    let constructor = crate::types::builtin::constructor(&written.name).ok_or_else(|| {
-        crate::types::builtin::withdrawn(&written.name)
-            .unwrap_or_else(|| format!("unknown type `{}`", written.name))
-    })?;
+    let constructor = crate::types::builtin::constructor(&written.name)
+        .ok_or_else(|| format!("unknown type `{}`", written.name))?;
     if written.arguments.is_empty() {
         return Ok(P::Type(constructor));
     }

@@ -274,15 +274,6 @@ fn a_string_size_counts_code_points_not_bytes() {
 }
 
 #[test]
-fn a_string_length_is_refused_naming_size() {
-    for source in [r#""héllo".length()"#, r#""héllo" | length"#] {
-        let refusal = check(source).expect_err(source);
-        let help = refusal.to_json().to_string();
-        assert!(help.contains("`length` is now `size`"), "{source}: {help}");
-    }
-}
-
-#[test]
 fn the_link_operator_builds_an_edge() {
     // `@[[` is HyperMarkdown's: without `hmd` it is refused, naming it.
     let refused = check("@[[alice]] -> @[[bob]]").unwrap_err();

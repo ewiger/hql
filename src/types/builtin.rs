@@ -942,20 +942,6 @@ impl TypeRef {
     }
 }
 
-/// The refusal of a type name withdrawn in a rename, naming its
-/// replacement: in 0.6.0 `Unit` became `Step` (HQL-0055) and `Socket`
-/// became `Tcp` (issue 0069).
-#[must_use]
-pub fn withdrawn(name: &str) -> Option<String> {
-    match name {
-        "Unit" => {
-            Some("`Unit` is now `Step`: a statement that ran and gave no other value".to_owned())
-        }
-        "Socket" => Some("`Socket` is now `Tcp`, built by `net.tcp(host, port)`".to_owned()),
-        _ => None,
-    }
-}
-
 /// Resolve a constructor's spelling without instantiating its parameters.
 pub fn constructor(name: &str) -> Option<TypeConstructor> {
     let name = match name {
