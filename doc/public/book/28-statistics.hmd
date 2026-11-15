@@ -173,7 +173,7 @@ pairs = zip([1, 2, 3, 4, 5, 6], [2, 1, 4, 3, 7, 5])
 ## A column of a query
 
 A statistic takes any collection, so it ends a pipeline as `sum` and `size`
-do. The books of the tutorial vault ([[21-a-vault|chapter 21]]) carry
+do. The books of the reading-club vault ([[21-a-vault|chapter 21]]) carry
 their pages in the header, and a typed view reads them as numbers:
 
 ```hql

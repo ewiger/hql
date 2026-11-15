@@ -6,7 +6,7 @@
 //! `<!-- run: skip -->` leaves it unrun;
 //! `<!-- run: [check] [with A,B] [ARGS…] -->` runs `hql check` instead of
 //! `eval`, prefixes the named blocks, and replaces the default arguments,
-//! `--vault examples/tutorial` (`novault` runs with none).
+//! `--vault examples/reading-club` (`novault` runs with none).
 //! A block inside a four-backtick fence is an example document, not a program.
 
 use std::collections::HashMap;
@@ -100,7 +100,7 @@ fn run(block: &Block, defined: &HashMap<String, String>) -> String {
     }
     source.push_str(&block.program);
     let arguments: Vec<&str> = match words.as_slice() {
-        [] => vec!["--vault", "examples/tutorial"],
+        [] => vec!["--vault", "examples/reading-club"],
         ["novault"] => vec![],
         rest => rest.to_vec(),
     };
@@ -202,7 +202,7 @@ fn the_notebook_the_book_shows_builds() {
     let output = Command::new(env!("CARGO_BIN_EXE_hql"))
         .args([
             "--vault",
-            "examples/tutorial",
+            "examples/reading-club",
             "render",
             "examples/notebook/reading-list.hmd",
         ])

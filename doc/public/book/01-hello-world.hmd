@@ -36,8 +36,8 @@ hql eval '"Hello, world!"'
 ```
 
 Every program in this book runs that way. Most of them run against the
-tutorial vault, a small reading club in [`examples/tutorial/`](https://github.com/ewiger/hql/tree/main/examples/tutorial),
-so the commands in later chapters start with `hql --vault examples/tutorial
+tutorial vault, a small reading club in [`examples/reading-club/`](https://github.com/ewiger/hql/tree/main/examples/reading-club),
+so the commands in later chapters start with `hql --vault examples/reading-club
 eval`. The book shows each program in an `hql` block and what `hql` writes in
 the block after it.
 

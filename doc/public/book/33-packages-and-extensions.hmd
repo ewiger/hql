@@ -31,15 +31,15 @@ hello.greet("Ada")
 ```
 
 ```text
-check error[unknown-name]: no module named `hello` under examples/tutorial/lib
+check error[unknown-name]: no module named `hello` under examples/reading-club/lib
  --> <expression>:1:1
   |
 1 | import hello
   | ^^^^^^^^^^^^
 ```
 
-In the tutorial vault nothing provides `hello`: no package does, and the
-vault's module root, `examples/tutorial/lib`, holds no such file. The
+In the reading-club vault nothing provides `hello`: no package does, and the
+vault's module root, `examples/reading-club/lib`, holds no such file. The
 import is refused.
 The program is the same in a project where a package does provide it:
 

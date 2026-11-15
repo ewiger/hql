@@ -1,7 +1,7 @@
 # The cards start at the vault root.
 wiki = "."
 
-# The vault the HQL tutorial reads.
+# The vault the HQL book reads.
 
 # The embedding index the book's `semantic` queries read, built by
 # HyperMarkdown's hmd-semantics with each question the book asks pinned at

@@ -12,7 +12,7 @@ A fenced block whose info string is `hql` — or `hql#eval`, or `hql#query` — 
 ````markdown
 # The club's reading list
 
-Built from the vault with `hql --vault examples/tutorial render`.
+Built from the vault with `hql --vault examples/reading-club render`.
 
 ```hql id=books hidden
 cards | filter(c => c.metadata.category == "book")
@@ -40,13 +40,13 @@ books
 each cell replaced by its output, as Markdown:
 
 ```sh
-hql --vault examples/tutorial render examples/notebook/reading-list.hmd
+hql --vault examples/reading-club render examples/notebook/reading-list.hmd
 ```
 
 ````markdown
 # The club's reading list
 
-Built from the vault with `hql --vault examples/tutorial render`.
+Built from the vault with `hql --vault examples/reading-club render`.
 
 ## Still to read
 

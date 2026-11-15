@@ -1,7 +1,7 @@
 # Notebook: documents whose cells compute them
 
-Two documents, each rendered against the tutorial vault with
-`hql --vault examples/tutorial render <document>`. A fenced block whose info
+Two documents, each rendered against the reading-club vault with
+`hql --vault examples/reading-club render <document>`. A fenced block whose info
 string is `hql` or `hql#eval` is a cell; `id=<name>` shares its value with the
 other cells, and `hidden` runs it without writing.
 
@@ -18,5 +18,5 @@ recordings and the memory card it writes arrive with the extension.
 
 ```sh
 cargo build --locked
-target/debug/hql --vault examples/tutorial render examples/notebook/reading-list.hmd
+target/debug/hql --vault examples/reading-club render examples/notebook/reading-list.hmd
 ```

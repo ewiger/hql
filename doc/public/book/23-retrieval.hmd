@@ -22,7 +22,7 @@ cards | lexical("desert spice") | take(3)
 Both retrievals are modules of the builtin package `hmd`,
 `hmd.search.lexical` and `hmd.search.semantic`, and `hmd`'s prelude imports
 them: `import hmd` makes `lexical` and `semantic` steps of the program. The
-tutorial's project imports `hmd` for every program, so the `import hmd`
+reading-club's project imports `hmd` for every program, so the `import hmd`
 above restates it. Without `hmd`, the name is not a step, and the error says
 which import provides it:
 
@@ -158,7 +158,7 @@ ranked = cards | semantic("a creature and its maker")
 
 The binary never loads a model: HyperMarkdown's [`hmd-semantics`](https://github.com/ewiger/hypermarkdown/tree/main/tools/hmd-semantics)
 embeds the cards and builds the index, and embeds each question the index
-will be asked, named at build time with `--query`. The tutorial vault's index
+will be asked, named at build time with `--query`. The reading-club vault's index
 holds the three questions this book asks. A question it does not hold is a
 diagnostic naming the build command, not a ranking of nothing:
 

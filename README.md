@@ -73,11 +73,11 @@ printf '{"species":"wren","seen":"morning"}\n{"species":"owl","seen":"dusk"}\n' 
 "wren"
 ```
 
-Against the tutorial vault the book uses:
+Against the reading-club vault the book uses:
 
 ```bash
 git clone https://github.com/ewiger/hql && cd hql
-hql --vault examples/tutorial eval '@[[virginia-woolf]] | downlinks | map(e => e.source)'
+hql --vault examples/reading-club eval '@[[virginia-woolf]] | downlinks | map(e => e.source)'
 ```
 
 ```text
@@ -1210,7 +1210,7 @@ To follow along:
 
 ```bash
 git clone https://github.com/ewiger/hql && cd hql
-hql --vault examples/tutorial eval 'cards | size'
+hql --vault examples/reading-club eval 'cards | size'
 ```
 
 The [examples](examples/) are where HQL's features are designed: each query

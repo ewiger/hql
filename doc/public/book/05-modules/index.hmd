@@ -16,7 +16,7 @@ and `lib/club/mod.hql` would be `club`. The roots come from `.hql/config.toml`:
 roots = ["lib"]
 ```
 
-or from `--modules lib` on the command line. The tutorial's project configures
+or from `--modules lib` on the command line. The reading-club's project configures
 `lib/` as its root, and keeps the book's modules there. Roots outside every
 project come from the user's `~/.hql/modules/`, from `[modules] roots` in
 `~/.hql/config.toml`, and from `$HQL_PATH`; the

@@ -8,10 +8,10 @@ meaning, and the agents that read them.
 ## A vault is a folder
 
 A **vault** is a directory of Markdown and HyperMarkDown documents, marked as
-one by an `.hmd/` directory at its root. The tutorial vault looks like this:
+one by an `.hmd/` directory at its root. The reading-club vault looks like this:
 
 ```text
-examples/tutorial/
+examples/reading-club/
 ├── authors/
 │   ├── frank-herbert.hmd
 │   ├── jrr-tolkien.hmd
@@ -40,7 +40,7 @@ and a vault need not be a project
 
 The vault's `.hmd/config.toml` says where its cards start, with the key
 `wiki`: a path against the vault root, `doc/wiki` when the file does not set
-it. The tutorial keeps its cards at the vault root, so it says so:
+it. The reading club keeps its cards at the vault root, so it says so:
 
 ```toml
 wiki = "."
@@ -75,11 +75,11 @@ A program run inside a vault reads it: `hql` takes the nearest directory at
 or above the program's file that holds `.hmd/`, or at or above the working
 directory for an expression or standard input. `--vault <directory>` names
 one instead, and `--bare` runs with none. The cards are read through the
-builtin package `hmd`, which the tutorial's project imports for every
+builtin package `hmd`, which the reading-club's project imports for every
 program ("The vault itself" below):
 
 ```sh
-hql --vault examples/tutorial eval 'cards | size'
+hql --vault examples/reading-club eval 'cards | size'
 ```
 
 ```hql
@@ -244,7 +244,7 @@ links between them form a graph.
 ```
 
 ```text
-["tutorial", 15]
+["reading-club", 15]
 ```
 
 A vault is HyperMarkdown's, and so are `vault` and `cards`. They are bound

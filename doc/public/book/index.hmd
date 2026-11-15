@@ -35,15 +35,15 @@ it, the library `hql` loads it from, and the registry that names packages.
 
 ## Following along
 
-[Install `hql`](../install.md), clone the repository for the tutorial vault,
+[Install `hql`](../install.md), clone the repository for the reading-club vault,
 and run each program with `hql eval`:
 
 ```sh
 git clone https://github.com/ewiger/hql && cd hql
-hql --vault examples/tutorial eval 'cards | size'
+hql --vault examples/reading-club eval 'cards | size'
 ```
 
-The tutorial vault, [`examples/tutorial/`](https://github.com/ewiger/hql/tree/main/examples/tutorial),
+The reading-club vault, [`examples/reading-club/`](https://github.com/ewiger/hql/tree/main/examples/reading-club),
 is a small reading club: seven books, five authors, the links between them,
 one claim about which book inspired which, and a librarian.
 

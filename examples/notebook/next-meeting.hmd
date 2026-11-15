@@ -4,7 +4,7 @@ title: Next meeting
 # Next meeting
 
 Notes for the club's next meeting, built from the shelf with
-`hql --vault examples/tutorial render`.
+`hql --vault examples/reading-club render`.
 
 ```hql id=books hidden
 cards | filter(c => c.metadata.category == "book")

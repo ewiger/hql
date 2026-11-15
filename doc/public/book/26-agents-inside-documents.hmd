@@ -12,7 +12,7 @@ prompt, the program that assembles the prompt and the answer then sit in one
 file, each visible, each editable, each a value a later cell can read. The
 document is
 [`examples/notebook/next-meeting.hmd`](https://github.com/ewiger/hql/tree/main/examples/notebook/next-meeting.hmd),
-rendered against the tutorial vault like the reading list of
+rendered against the reading-club vault like the reading list of
 [[24-documents|chapter 24]].
 
 ## The document is the harness
@@ -43,7 +43,7 @@ title: Next meeting
 # Next meeting
 
 Notes for the club's next meeting, built from the shelf with
-`hql --vault examples/tutorial render`.
+`hql --vault examples/reading-club render`.
 
 ```hql id=books hidden
 cards | filter(c => c.metadata.category == "book")
@@ -199,11 +199,11 @@ waits, and whoever is driving the program answers it. In an editor that is
 the agent the user is already chatting with.
 
 ```text
-$ hql --vault examples/tutorial --ai host render --emit after --in-place examples/notebook/next-meeting.hmd
-$ hql --vault examples/tutorial ai pending
+$ hql --vault examples/reading-club --ai host render --emit after --in-place examples/notebook/next-meeting.hmd
+$ hql --vault examples/reading-club ai pending
 5e10ae23…  messages  next-meeting.hmd:31  pick
-$ hql --vault examples/tutorial ai answer 5e10ae23… --text "Start with The Common Reader. …"
-$ hql --vault examples/tutorial render examples/notebook/next-meeting.hmd
+$ hql --vault examples/reading-club ai answer 5e10ae23… --text "Start with The Common Reader. …"
+$ hql --vault examples/reading-club render examples/notebook/next-meeting.hmd
 ```
 
 `hql ai pending` lists each waiting request with its key, the wire format its

@@ -1,6 +1,6 @@
 # The club's reading list
 
-Built from the vault with `hql --vault examples/tutorial render`.
+Built from the vault with `hql --vault examples/reading-club render`.
 
 ```hql id=books hidden
 cards | filter(c => c.metadata.category == "book")

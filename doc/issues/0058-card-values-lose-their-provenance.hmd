@@ -26,9 +26,9 @@ execute failure[division-by-zero]: division by zero
   = bindings: n = 112
 ```
 
-Run with `--vault examples/tutorial`, there is no `source` at all, though
+Run with `--vault examples/reading-club`, there is no `source` at all, though
 `112` is `metadata.pages` on line 8 of
-`examples/tutorial/books/a-room-of-ones-own.hmd`.
+`examples/reading-club/books/a-room-of-ones-own.hmd`.
 
 ## Work
 
