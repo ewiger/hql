@@ -53,13 +53,22 @@ for what extensions may expose.
 ## `contrib/`
 
 `contrib/` holds tooling that is not part of the binary and that `cargo test`
-never invokes. It may be written in another language, and
-[`contrib/semantics/`](../contrib/semantics/README.md) is: the embedding model
-that produces an HQL index belongs where the model ecosystem is, and the
-consumer belongs in Rust. Anything under `contrib/` MUST be runnable on its own,
-MUST carry its own tests and its own README, and MUST NOT be a build dependency
-of the crate — a contributor with no Python installed builds and tests
+never invokes. It may be written in another language. Anything under
+`contrib/` MUST be runnable on its own and MUST NOT be a build dependency of
+the crate — a contributor with no Python installed builds and tests
 everything.
+
+The semantic index `hmd.search.semantic` reads is not built here. The index
+belongs to the vault, so HyperMarkdown specifies it and builds it: the
+producer is [`hmd-semantics`](https://github.com/ewiger/hypermarkdown/tree/main/tools/hmd-semantics),
+a Python tool of the HyperMarkdown repository, and the index, its
+`[semantics]` table and its depth levels are specified by
+[HMD-0028](https://github.com/ewiger/hypermarkdown/blob/main/doc/proposals/HMD-0028/README.md)
+([[HQL-0059]]). The crate holds the consumer, `src/extensions/semantic.rs`.
+The text a card is indexed by is a contract between the two: `Document::text()`
+in `src/document.rs` and the producer's loader assemble it byte for byte the
+same, `tests/semantics.rs` holds the committed index of `tests/fixtures/birds`
+to it, and a change to one side changes the other.
 
 ## Tests
 
@@ -143,11 +152,7 @@ GitHub Actions runs what a contributor runs locally, and nothing else.
 once on the `rust-version` floor so the declared floor stays true.
 
 `contrib/` is not in CI. What CI proves is that the crate builds and tests with
-no Python installed at all, which is the property the producer/consumer split
-exists to have; running `contrib/`'s own suite there would prove something else.
-Its tests need neither a model nor a network — a fake transport and a fake model
-stand in for both — so they cost nothing to run locally, and `cd
-contrib/semantics && pytest` is the command.
+no Python installed at all.
 
 ## Documentation site
 

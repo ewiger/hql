@@ -1,7 +1,8 @@
 //! The `semantic` module's operation, in `search`: ranking against vectors a language model made.
 //!
-//! The model is not in this binary and never will be. `contrib/semantics/`
-//! embeds a vault ahead of time into an SQLite index, and this module reads it.
+//! The model is not in this binary and never will be. HyperMarkdown's
+//! `hmd-semantics` embeds a vault ahead of time into an SQLite index, and this
+//! module reads it.
 //! That is why a query must be in the index too: a consumer that cannot embed a
 //! document cannot embed a question either, and inventing a vector for one
 //! would be the silent wrongness the whole split exists to avoid.
@@ -34,7 +35,7 @@ pub const SCHEMA_VERSION: i64 = 1;
 /// allocation the size of the file.
 const MAX_DIMENSIONS: i64 = 8192;
 /// The command that produces an index, named by every failure that needs one.
-const BUILD: &str = "hql-semantics build";
+const BUILD: &str = "hmd-semantics build";
 /// The only metric this reader computes. `dot` over unit-length vectors is
 /// cosine similarity, and an index declaring anything else is refused rather
 /// than scored by an arithmetic it did not ask for.

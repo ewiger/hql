@@ -156,7 +156,7 @@ ranked = cards | semantic("a creature and its maker")
 {approximate: false, metric: "cosine", model: "sentence-transformers/all-MiniLM-L6-v2"}
 ```
 
-The binary never loads a model: [`contrib/semantics/`](https://github.com/ewiger/hql/tree/main/contrib/semantics)
+The binary never loads a model: HyperMarkdown's [`hmd-semantics`](https://github.com/ewiger/hypermarkdown/tree/main/tools/hmd-semantics)
 embeds the cards and builds the index, and embeds each question the index
 will be asked, named at build time with `--query`. The tutorial vault's index
 holds the three questions this book asks. A question it does not hold is a
@@ -168,7 +168,7 @@ cards | semantic("night hunting birds") | take(1)
 ```
 
 ```text
-execute failure[invalid-argument]: the index holds no vector for `night hunting birds`, and this binary has no model to make one: rerun `hql-semantics build --query "night hunting birds"`
+execute failure[invalid-argument]: the index holds no vector for `night hunting birds`, and this binary has no model to make one: rerun `hmd-semantics build --query "night hunting birds"`
  --> <expression>:2:9
   |
 2 | cards | semantic("night hunting birds") | take(1)

@@ -643,8 +643,8 @@ An HMD host may select an HQL project, but an HQL project never defines a HyperM
   while it is active; the semantic index in the vault's `.hmd/`; packages at
   two levels with `[packages] dependencies` and `lock.toml`; the source
   directory, `fs.source_dir()` and `fs.working_dir()`. Not built:
-  HyperMarkdown's Rust resolver crate, which `hmd` is to resolve through
-  (until then it resolves a reference by name within its vault), the VS
+  resolving through HyperMarkdown's Rust resolver crate
+  (until then `hmd` resolves a reference by name within its vault), the VS
   Code extension's context, and HyperMarkdown's depth levels of the index,
   all in the HyperMarkdown repository. `Card`, `Doc`, `uplinks`,
   `downlinks` and `expand` stay in `std`
@@ -660,3 +660,8 @@ An HMD host may select an HQL project, but an HQL project never defines a HyperM
 - 2026-11-15: in the crate, `hql::environment::RunEnvironment` holds the
   project's configuration and an optional `hql::vault::Vault`, which holds
   the cards alone; a run with no vault has `None`
+- 2026-11-15: the index producer left `contrib/semantics/` for
+  HyperMarkdown's `tools/hmd-semantics`, command `hmd-semantics`;
+  HyperMarkdown's HMD-0028 specifies `[hql] project`, `[semantics]` and the
+  depth levels of the index, and its HMD-0027 is the Rust resolver crate,
+  not yet published

@@ -10,7 +10,7 @@ that part rather than the gap:
 | Part | What it is | What it owns |
 | --- | --- | --- |
 | `hmd` | the HyperMarkDown Python CLI, package `hypermarkdown` | the vault: `.hmd/`, the namespace root, `hmd init` |
-| `contrib/semantics/` | the Python producer in this repository | the index: reads the vault, embeds each card, writes `.hql/index.sqlite` |
+| `hmd-semantics` | the Python producer, a tool of the HyperMarkdown repository | the index: reads the vault, embeds each card, writes `.hmd/index.sqlite` |
 | `hql` | the Rust binary | the query: reads the index, never builds one, has no model |
 
 The work is to make those three a toolchain rather than three tools that happen
@@ -18,13 +18,13 @@ to agree.
 
 ## What is missing
 
-**Nothing establishes a vault.** `contrib/semantics/cli.py` takes `--vault
+**Nothing establishes a vault.** `hmd-semantics` takes `--vault
 <DIR>` and walks it; it never asks whether the directory is a vault. A typo
 produces "no documents", not "that is not a vault". `hmd` already answers the
 question — it finds a project by walking up for `.hmd/`, falling back to
 `.git/` — and the producer should ask it rather than reimplement the walk.
 
-**The producer does not depend on `hmd`.** `contrib/semantics/requirements.txt`
+**The producer does not depend on `hmd`.** The tool's `pyproject.toml`
 names `transformers`, `torch` and `pytest`. Working with `HmdCard`s — the
 default case — means the `hypermarkdown` package is a real dependency, both for
 root discovery and for reading `.hmd/config.toml`. It is not declared, so the
@@ -41,7 +41,7 @@ a vault. Nothing checks that a vault is a vault, that the index it names in
 
 ## What to do
 
-1. Declare `hypermarkdown` a dependency of `contrib/semantics/` and use its root
+1. Declare `hypermarkdown` a dependency of `hmd-semantics` and use its root
    discovery: `--vault` resolves through the same walk `hmd` does, and a
    directory that is not a vault is refused by name.
 2. Read `.hmd/config.toml` where it exists and assume its defaults where it does

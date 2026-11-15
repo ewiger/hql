@@ -32,9 +32,10 @@ The language continues to be in active development.
   every cell, and reads a vault's `[hql] project` from its
   `.hmd/config.toml`.
 - The semantic index and its `[semantics]` table live in the vault's
-  `.hmd/`, not the project's configuration. `contrib/semantics` reads the
-  table from the vault's `.hmd/config.toml` and writes `.hmd/index.sqlite`
-  where the vault names no index; `--out` and `--index` are optional.
+  `.hmd/`, not the project's configuration. The index producer is no
+  longer `contrib/semantics` in this repository: it is HyperMarkdown's
+  [`hmd-semantics`](https://github.com/ewiger/hypermarkdown/tree/main/tools/hmd-semantics),
+  and the command a refusal names is `hmd-semantics build`.
 - A package is active per run. An import of one of its modules in the
   program or in a project module the program reaches activates it for
   every unit of the run, `hmd` included. A project module starts with the

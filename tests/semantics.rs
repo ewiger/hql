@@ -226,7 +226,7 @@ fn a_card_edited_since_the_build_still_ranks_and_says_it_is_stale() {
         said.contains("`barn-owl` has changed since the index was built"),
         "{said}"
     );
-    assert!(said.contains("hql-semantics build"), "{said}");
+    assert!(said.contains("hmd-semantics build"), "{said}");
 }
 
 #[test]
@@ -301,7 +301,7 @@ fn a_vault_with_no_index_is_told_to_build_one_rather_than_falling_back() {
         .map(|report| report.message.clone())
         .collect();
     assert!(said.contains("[semantics] index"), "{said}");
-    assert!(said.contains("hql-semantics build"), "{said}");
+    assert!(said.contains("hmd-semantics build"), "{said}");
     assert_eq!(outcome.value, None);
 }
 
@@ -318,7 +318,7 @@ fn an_index_that_does_not_claim_unit_length_vectors_is_refused() {
         "import hmd\ncards | semantic(\"night hunting birds\")",
     );
     assert!(said.contains("not normalized"), "{said}");
-    assert!(said.contains("hql-semantics build"), "{said}");
+    assert!(said.contains("hmd-semantics build"), "{said}");
 }
 
 #[test]
@@ -412,7 +412,7 @@ fn doctor_stops_at_the_first_missing_part_and_names_the_next_command() {
     assert_eq!(last.part, "index");
     assert!(!last.ok);
     assert!(
-        last.detail.contains("hql-semantics build"),
+        last.detail.contains("hmd-semantics build"),
         "{}",
         last.detail
     );
