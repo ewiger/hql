@@ -6883,23 +6883,31 @@
 <tbody>
 <tr>
 <td><code>hql eval &lt;program&gt;</code></td>
-<td>check and evaluate an argument</td>
-</tr>
-<tr>
-<td><code>hql check &lt;file&gt;</code></td>
-<td>print the type without evaluating</td>
+<td>check and evaluate a program given as an argument</td>
 </tr>
 <tr>
 <td><code>hql run &lt;file&gt;</code></td>
-<td>check and evaluate a file</td>
+<td>check and evaluate a program from a file</td>
+</tr>
+<tr>
+<td><code>hql check &lt;file&gt;</code></td>
+<td>check a program and print its type, without evaluating it</td>
 </tr>
 <tr>
 <td><code>hql repl</code></td>
-<td>read, evaluate and print, keeping bindings</td>
+<td>read, evaluate and print, one input at a time, keeping bindings</td>
 </tr>
 <tr>
-<td><code>hql render &lt;file&gt;</code></td>
-<td>run the HQL cells in a document and build the Markdown document they yield</td>
+<td><code>hql plan &lt;file&gt;</code></td>
+<td>print each pipeline's steps and the stage the planner gives each, without evaluating</td>
+</tr>
+<tr>
+<td><code>hql boundary &lt;file&gt; &lt;id&gt;</code></td>
+<td>print a configured endpoint's boundary: each field, its external name and type, and where each setting came from</td>
+</tr>
+<tr>
+<td><code>hql render &lt;file&gt;…</code></td>
+<td>run the HQL cells in a document and write each cell's output</td>
 </tr>
 <tr>
 <td><code>hql help &lt;name&gt;</code></td>
@@ -6907,19 +6915,23 @@
 </tr>
 <tr>
 <td><code>hql builtins</code></td>
-<td>list the steps</td>
+<td>list the steps a pipeline can use</td>
 </tr>
 <tr>
 <td><code>hql config</code></td>
-<td>the reporting mode and shown level in force, and where each came from</td>
+<td>the reporting settings in force and where each came from; list, show and select named contexts</td>
+</tr>
+<tr>
+<td><code>hql context [file]</code></td>
+<td>the execution context: the mode, the project, the vault, and where each came from</td>
 </tr>
 <tr>
 <td><code>hql doctor</code></td>
 <td>check the semantic-search chain and name the first missing part</td>
 </tr>
 <tr>
-<td><code>hql ai</code></td>
-<td>list the model requests waiting under <code>--ai host</code>, and answer one (next release)</td>
+<td><code>hql package &lt;command&gt;</code></td>
+<td>install, search, update, list, rebuild and remove packages; <a href="../book/36-installing-packages/">chapter 36</a></td>
 </tr>
 </tbody>
 </table>
