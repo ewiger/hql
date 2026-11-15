@@ -1,0 +1,221 @@
+# HQL-0060: One import mechanism for every module
+
+**Status**: drafted
+**Created**: 2026-11-15
+**Source**: design notes from the book rewrite of chapter 5, 2026-11-15
+**Target**: HQL v0.7.1
+
+## Abstract
+
+Every module is imported the same way, whichever package provides it:
+`std`, an installed extension, or a workspace module root. `import m` and
+`import m as a` bind the module's name, and give qualified access to its
+functions (`m.f`) and receiver calls on its receiver functions (`x.f()`).
+They bind no unqualified function names. A new `from` form binds them
+explicitly: `from m import f, g as h` binds the listed functions,
+`from m import *` binds every public function, `from m import .*` binds every
+receiver function, and `except` removes names from a wildcard. The prelude
+becomes a list of `from … import *` lines, so a program keeps the unqualified
+prelude functions it has today.
+
+## Motivation
+
+`hql` resolves the same `import` statement two ways, depending on where the
+module comes from:
+
+| After `import …` | `m.f(x)` | `x \| m.f` | `f(x)` | `x \| f` | `x.f()` |
+| --- | --- | --- | --- | --- | --- |
+| a module of an extension (`stats`, `regex`) | yes | yes | yes | yes | if `f` takes `self` |
+| a workspace module (`club.reading`) | yes | yes | no | no | if `f` takes `self` |
+
+- `import stats` binds `stats.mean` and also `mean`. `import club.reading`
+  binds `reading.days` only. A reader cannot tell from an import what it
+  binds without knowing where the module is installed.
+- Every import of an extension module adds names to the unqualified
+  namespace. `import regex` makes `split(…)` ambiguous between `string` and
+  `regex`, although the program asked for neither name.
+- There is no way to bind a workspace module's function unqualified, and no
+  way to import an extension module without binding all its names.
+- `std` receives treatment no other package can: its modules behave
+  differently from a workspace module with the same declarations.
+
+## Goals
+
+- One rule for what an import binds, independent of the module's provider.
+- Explicit control over qualified names, unqualified names and aliases.
+- Unchanged behaviour for programs that use only prelude functions and
+  receiver calls.
+
+## Non-goals
+
+- Receiver resolution (`x.f()`) is unchanged: which receiver functions a
+  value reaches, and how a call among several is chosen.
+- Shadowing and precedence are unchanged: a unit's own declarations win over
+  imported ones, and two imported declarations of one name are ambiguous at
+  the use, as today.
+- Type and trait names are unchanged. An imported module's types and traits
+  stay visible unqualified, as today; qualified type names are a separate
+  change.
+- Module roots, discovery, packages and `prelude = false` are unchanged.
+
+## Specification
+
+### 1. Syntax
+
+An import statement is one of two forms. Both stand at the head of a source
+unit, before its declarations, where `import` stands today.
+
+```text
+import_stmt  = "import" module_path [ "as" ident ]
+from_stmt    = "from" module_path "import" selection
+selection    = wildcard [ "except" excluded { "," excluded } ]
+             | item { "," item }
+wildcard     = "*" | ".*"
+item         = ident [ "as" ident ]
+excluded     = ident | ".*"
+```
+
+- `from`, `except` and the `as` of an item MUST be keywords only in an
+  import statement. An identifier named `except` or `from` elsewhere stays
+  valid, because both are ordinary names in programs today.
+- `.*` is written without a space. It names the receiver functions, the
+  functions declared with `self`, because those are the functions called with
+  a dot.
+
+### 2. `import m`
+
+`import m` binds the module and nothing in it.
+
+- It MUST bind the module's last path segment as a local module name, or the
+  alias given by `as`. `import m as a` MUST NOT also bind the segment.
+- Every public function of `m` MUST be reachable qualified: `a.f(x)` and
+  `x | a.f(…)`.
+- It MUST NOT bind any function of `m` unqualified. `f(x)` and `x | f` MUST
+  NOT resolve to `m.f` through this statement.
+- The receiver functions of `m` MUST be reachable as receiver calls, `x.f()`,
+  exactly as today.
+- These rules MUST hold for every module, whether `std`, an installed
+  extension or a workspace module root provides it.
+
+### 3. `from m import …`
+
+`from m import …` binds functions of `m` unqualified.
+
+- `from m import f` MUST bind `f`, reachable as `f(x)` and `x | f(…)`.
+- `from m import f as g` MUST bind `g` to `m.f`, and MUST NOT bind `f`.
+- `from m import *` MUST bind every public function of `m`, with and without
+  `self`.
+- `from m import .*` MUST bind every public receiver function of `m`, and no
+  function without `self`.
+- `except` MUST remove each listed name from the wildcard's bindings.
+  `except .*` MUST remove every receiver function, so
+  `from m import * except .*` binds the functions without `self`.
+- A `from` statement MUST NOT bind the module name `m`. A program that wants
+  both writes `import m` as well.
+- A module named in a `from` statement MUST be visible to receiver resolution
+  as if it were imported, so `from string import *` keeps `"a".upper()`
+  working.
+- Naming a function that `m` does not declare, or declares `private`, MUST be
+  a check error at the import, in an item and in an `except` list alike, so a
+  misspelt name is found where it is written.
+- Overloads are bound together: binding `mean` binds every public declaration
+  of `mean` in `m`.
+
+### 4. Names bound twice
+
+Name collisions follow the rules of today; no new precedence is introduced.
+
+- A unit's own declaration MUST win over an imported binding of the same
+  name, as it does today.
+- Two bindings of one unqualified name from different modules MUST be
+  reported where the name is used, with the existing ambiguity error, and not
+  at the imports. Writing the module name resolves it.
+- Binding one function twice, through two statements that name the same
+  declaration, MUST NOT be an error.
+
+### 5. The prelude
+
+The prelude is an ordinary list of import statements, run before each unit.
+
+- `lib/std/prelude.hql` MUST import each of its modules with
+  `from <module> import *`, so every prelude function stays reachable
+  unqualified and by receiver call.
+- `lib/hmd/prelude.hql` MUST do the same for its modules.
+- The prelude MUST follow sections 2 to 4 exactly. No module, package or
+  function receives a resolution rule of its own.
+- `prelude = false` under `[modules]` MUST keep withholding the whole list.
+
+### 6. Errors
+
+The check error for a bare name that an imported module declares MUST name
+both fixes:
+
+```text
+check error[unknown-name]: `is_match` is declared in the module `regex`, which is imported qualified: write `regex.is_match(…)`, or `from regex import is_match`
+```
+
+## Backwards Compatibility
+
+Pre-1.0, this change is made outright, with no compatibility mode.
+
+- A program that imports a non-prelude extension module and calls its
+  functions unqualified stops checking. For example, `import regex` followed
+  by `is_match(…)`, or `import time` followed by `now()`. The fix is
+  `regex.is_match(…)` or `from regex import is_match`; the error in section 6
+  says so.
+- Receiver calls, prelude functions and workspace-module calls are
+  unaffected.
+- `examples/`, the book (`doc/public/book/`) and the reference pages that
+  call non-prelude functions unqualified are updated in the same change.
+
+## Security Considerations
+
+None. Imports bind names at check time; nothing is read, loaded or run that
+was not before.
+
+## Deployment / Activation
+
+1. Write the example programs of the Test Plan first, with
+   `status: proposed`.
+2. Implement the parser, binding and prelude changes; promote each example to
+   `valid-now` as it checks.
+3. Update `examples/`, the book and the reference.
+4. Release in v0.7.1, with the breaking change named in `CHANGELOG.md`.
+
+## Reference Implementation
+
+- `src/parser.rs`: the `from` statement, `as` on items, `*`, `.*` and
+  `except`, as contextual keywords.
+- `src/extensions/mod.rs`: the extension resolution (`Resolution`) MUST bind
+  bare names only from `from` statements, not from every imported module.
+- `src/checker.rs`: the workspace-module scope, which binds only
+  `module.function` today, MUST also bind the names a `from` statement
+  selects.
+- `lib/std/prelude.hql`, `lib/hmd/prelude.hql`: rewritten as `from … import *`.
+- `src/library.rs`: the prelude loader accepts `from` statements.
+
+## Test Plan
+
+Example programs MUST cover, for an extension module and a workspace module
+alike:
+
+- `import m`: `m.f(x)` and `x | m.f` check; `f(x)` and `x | f` are the error
+  of section 6; `x.f()` checks for a receiver function.
+- `import m as a`: `a.f` checks, `m.f` does not.
+- `from m import f`, `from m import f, g`, `from m import f as g`.
+- `from m import *`, `from m import .*`, `from m import * except f`,
+  `from m import * except .*`.
+- A misspelt and a private name, in an item and in `except`.
+- Two `from` statements binding one name from two modules: ambiguous at the
+  use, not at the import.
+- A prelude function, unqualified and by receiver call, with and without
+  `prelude = false`.
+
+```bash
+cargo test
+cargo test --test book
+```
+
+## Changelog
+
+- 2026-11-15: drafted

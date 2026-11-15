@@ -119,3 +119,4 @@ outside this list.
 | [HQL-0057](HQL-0057/index.hmd) | implemented in part | Packages: the `hql-extensions` registry, `hql package`, and installed extensions |
 | HQL-0058 | drafted | AI memory: fused rankings, a written index, and `recall` (reserved; on `feat/ai-ext`) |
 | [HQL-0059](HQL-0059/index.hmd) | implemented in part | HyperMarkdown vaults and HQL project resolution |
+| [HQL-0060](HQL-0060/index.hmd) | drafted | One import mechanism for every module: `import m`, `from m import …`, `as` and `except` |
