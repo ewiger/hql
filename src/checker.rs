@@ -4027,6 +4027,45 @@ impl<'a> Checker<'a> {
         Ok(())
     }
 
+    /// Whether a name a `from` statement bound to a project module's function
+    /// is bound to a standard module's too, and the unit declares none of its
+    /// own: the use is ambiguous (HQL-0060).
+    fn imported_twice(&self, name: &str) -> bool {
+        self.from_functions.contains_key(name)
+            && !self.own_functions.contains(name)
+            && self.resolution.binds(name)
+    }
+
+    /// The refusal of a name two imports bind to different declarations.
+    fn ambiguous_import(&self, name: &str, span: Range<usize>) -> Diagnostic {
+        let mut providers: Vec<String> = Vec::new();
+        if let Some((module, original)) = self.from_functions.get(name) {
+            providers.push(format!("{module}.{original}"));
+        }
+        if let Some(held) = self.ambiguous_imports.get(name) {
+            for provider in held {
+                if !providers.contains(provider) {
+                    providers.push(provider.clone());
+                }
+            }
+        }
+        for module in self.resolution.binding_modules(name) {
+            providers.push(format!("{module}.{name}"));
+        }
+        Diagnostic::name(
+            span,
+            format!(
+                "`{name}` is imported from {}, so it is ambiguous; import one of them under \
+                 another name with `as`, or call it qualified",
+                providers
+                    .iter()
+                    .map(|held| format!("`{held}`"))
+                    .collect::<Vec<_>>()
+                    .join(" and ")
+            ),
+        )
+    }
+
     /// Why a name is bound to nothing here: two `from` statements bound it to
     /// two declarations, which is an ambiguity reported where it is used
     /// (HQL-0060), or nothing binds it.
@@ -4042,6 +4081,23 @@ impl<'a> Checker<'a> {
                         .map(|held| format!("`{held}`"))
                         .collect::<Vec<_>>()
                         .join(" and ")
+                ),
+            );
+        }
+        // A project module `import` bound declares it: name both fixes.
+        if let Some((local, module)) = self.modules.iter().find(|(local, module)| {
+            !local.starts_with("from ")
+                && module
+                    .functions
+                    .iter()
+                    .any(|function| function.name == name)
+        }) {
+            return Diagnostic::name(
+                span,
+                format!(
+                    "`{name}` is declared in the module `{}`, which is imported qualified: \
+                     write `{local}.{name}(…)`, or `from {} import {name}`",
+                    module.name, module.name
                 ),
             );
         }
@@ -5836,6 +5892,9 @@ impl<'a> Checker<'a> {
                 span,
                 "`_` is a hole only as a whole argument of a call, `f(a, _)`",
             )),
+            Kind::Ident(name) if self.imported_twice(name) => {
+                Err(self.ambiguous_import(name, span))
+            }
             Kind::Ident(name) => self.scope.get(name).cloned().ok_or_else(|| {
                 // Unbound only because no vault was given: say what to pass,
                 // rather than that the name does not exist.

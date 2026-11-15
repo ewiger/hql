@@ -1569,6 +1569,27 @@ impl Resolution {
         })
     }
 
+    /// The canonical names of the modules whose operations a `from`
+    /// statement bound under a name, each once.
+    pub(crate) fn binding_modules(&self, name: &str) -> Vec<&'static str> {
+        let mut found: Vec<&'static str> = Vec::new();
+        for reached in self.reached(name, false) {
+            let module =
+                self.environment
+                    .of(reached.step)
+                    .first()
+                    .map_or(reached.qualifier, |id| {
+                        self.environment
+                            .module(self.environment.declaration(*id).module)
+                            .name
+                    });
+            if !found.contains(&module) {
+                found.push(module);
+            }
+        }
+        found
+    }
+
     /// A module's public operation of a name.
     fn public(&self, module: binding::ModuleId, name: &str) -> Option<&'static Operation> {
         self.environment
