@@ -8,7 +8,7 @@ at the call says which of the two it reaches.
 
 This chapter is about the second kind. Every function of the standard
 library that a program cannot write for itself, from `abs` to `split`, is a
-declaration, and [[learn#part-v-extending-hql|Part V]] is about adding
+declaration, and [[book#part-v-extending-hql|Part V]] is about adding
 declarations of your own.
 
 ## A function has a body

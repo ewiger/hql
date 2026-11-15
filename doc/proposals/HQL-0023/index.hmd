@@ -143,7 +143,7 @@ as unresolved forward links go away.
   [[expressions]] and
   [[graphs]] models; the link row of
   [[HQL-0003]]; the document-name rule of
-  [[HQL-0011]]; and the learn pages under `doc/public/`.
+  [[HQL-0011]]; and the book pages under `doc/public/`.
   The spacing note for nested lists in the streams lesson is removed.
 - The [[wiki/hypermarkdown|hypermarkdown]] card states that code is not
   scanned for links

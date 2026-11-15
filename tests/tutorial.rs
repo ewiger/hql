@@ -1,4 +1,4 @@
-//! The HQL book runs: every `hql` block in `doc/public/learn/` is a program,
+//! The HQL book runs: every `hql` block in `doc/public/book/` is a program,
 //! and the `text` block after it is what `hql` writes for it.
 //!
 //! Directives, on a line before a block:
@@ -163,7 +163,7 @@ fn every_program_in_the_book_writes_what_the_book_shows() {
         String::from_utf8_lossy(&built.stderr)
     );
     let mut chapters = Vec::new();
-    pages(std::path::Path::new("doc/public/learn"), &mut chapters);
+    pages(std::path::Path::new("doc/public/book"), &mut chapters);
     chapters.sort();
     let mut checked = 0;
     // Every mismatch is gathered, so one run names all of them.
@@ -214,7 +214,7 @@ fn the_notebook_the_book_shows_builds() {
         String::from_utf8_lossy(&output.stderr)
     );
     let built = String::from_utf8(output.stdout).unwrap();
-    let chapter = std::fs::read_to_string("doc/public/learn/24-documents.hmd").unwrap();
+    let chapter = std::fs::read_to_string("doc/public/book/24-documents.hmd").unwrap();
     assert!(
         chapter.contains(built.trim_end()),
         "chapter 12 shows a different build:\n{built}"

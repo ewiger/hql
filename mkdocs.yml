@@ -25,6 +25,8 @@ use_directory_urls: true
 
 theme:
   name: material
+  # Template overrides; outside `docs_dir`, so nothing in it is published.
+  custom_dir: contrib/mkdocs/overrides
   logo: assets/logo.svg
   favicon: assets/favicon.svg
 
@@ -88,143 +90,145 @@ hooks:
   - contrib/mkdocs/folder_notes.py
 
 # `Learn` is the prose read cold, in reading order. `Reference` is what is
-# consulted afterwards.
+# consulted afterwards. A top-level tab with children opens as a menu of
+# them; see `contrib/mkdocs/overrides/partials/tabs-item.html`.
 nav:
   - Home: index.md
   - Learn:
       - Install: install.md
-      - The HQL book:
-          - learn.md
+      - HQL Book:
+          - book.md
           - "Part I: The language":
-              - 1. Hello world: learn/01-hello-world.md
+              - 1. Hello world: book/01-hello-world.md
               - 2. Data types:
-                  - learn/02-data-types.md
-                  - Int: learn/02-data-types/int.md
-                  - Float: learn/02-data-types/float.md
-                  - Decimal: learn/02-data-types/decimal.md
-                  - String: learn/02-data-types/string.md
-                  - Bool: learn/02-data-types/bool.md
-                  - Bytes: learn/02-data-types/bytes.md
-                  - Date and time: learn/02-data-types/time.md
-                  - Data: learn/02-data-types/data.md
-                  - Option: learn/02-data-types/option.md
-                  - Sets, Data and maps: learn/02-data-types/sets-data-and-maps.md
-              - 3. Collections: learn/03-collections.md
+                  - book/02-data-types.md
+                  - Int: book/02-data-types/int.md
+                  - Float: book/02-data-types/float.md
+                  - Decimal: book/02-data-types/decimal.md
+                  - String: book/02-data-types/string.md
+                  - Bool: book/02-data-types/bool.md
+                  - Bytes: book/02-data-types/bytes.md
+                  - Date and time: book/02-data-types/time.md
+                  - Data: book/02-data-types/data.md
+                  - Option: book/02-data-types/option.md
+                  - Sets, Data and maps: book/02-data-types/sets-data-and-maps.md
+              - 3. Collections: book/03-collections.md
               - 4. Functions:
-                  - learn/04-functions.md
-                  - Declaring a function: learn/04-functions/declaring.md
-                  - Function bodies: learn/04-functions/bodies.md
-                  - Generic functions: learn/04-functions/generics.md
-                  - Aliases and holes: learn/04-functions/aliases-and-holes.md
+                  - book/04-functions.md
+                  - Declaring a function: book/04-functions/declaring.md
+                  - Function bodies: book/04-functions/bodies.md
+                  - Generic functions: book/04-functions/generics.md
+                  - Aliases and holes: book/04-functions/aliases-and-holes.md
               - 5. Modules:
-                  - learn/05-modules.md
-                  - Receiver modules: learn/05-modules/receiver-modules.md
-                  - Visibility: learn/05-modules/visibility.md
-                  - How names resolve: learn/05-modules/names.md
-                  - Modules and packages: learn/05-modules/packages.md
-              - 6. SQL-like Queries: learn/06-sql-like-queries.md
-              - 7. Streams that do not end: learn/07-streams.md
-              - 8. Writing results out: learn/08-output.md
+                  - book/05-modules.md
+                  - Receiver modules: book/05-modules/receiver-modules.md
+                  - Visibility: book/05-modules/visibility.md
+                  - How names resolve: book/05-modules/names.md
+                  - Modules and packages: book/05-modules/packages.md
+              - 6. SQL-like Queries: book/06-sql-like-queries.md
+              - 7. Streams that do not end: book/07-streams.md
+              - 8. Writing results out: book/08-output.md
               - 9. I/O:
-                  - learn/09-io.md
-                  - Files and Standard Endpoints: learn/09-io/endpoints.md
-                  - Reading with source: learn/09-io/source.md
-                  - Writing with target and sink: learn/09-io/target.md
-                  - Finite or live: learn/09-io/finite-or-live.md
-                  - Formats and documents: learn/09-io/formats.md
-                  - Endpoints by id: learn/09-io/configured.md
-                  - Subjects and lakehouse tables: learn/09-io/subjects-and-lakehouses.md
-                  - Channels: learn/09-io/channels.md
-                  - Logging: learn/09-io/logging.md
-                  - The network: learn/09-io/network.md
-                  - Files and folders: learn/09-io/files-and-folders.md
-                  - Environment and arguments: learn/09-io/environment.md
-                  - Effects and what a host allows: learn/09-io/hosts.md
-                  - hql on the command line: learn/09-io/command-line.md
+                  - book/09-io.md
+                  - Files and Standard Endpoints: book/09-io/endpoints.md
+                  - Reading with source: book/09-io/source.md
+                  - Writing with target and sink: book/09-io/target.md
+                  - Finite or live: book/09-io/finite-or-live.md
+                  - Formats and documents: book/09-io/formats.md
+                  - Endpoints by id: book/09-io/configured.md
+                  - Subjects and lakehouse tables: book/09-io/subjects-and-lakehouses.md
+                  - Channels: book/09-io/channels.md
+                  - Logging: book/09-io/logging.md
+                  - The network: book/09-io/network.md
+                  - Files and folders: book/09-io/files-and-folders.md
+                  - Environment and arguments: book/09-io/environment.md
+                  - Effects and what a host allows: book/09-io/hosts.md
+                  - hql on the command line: book/09-io/command-line.md
               - 10. The type system:
-                  - learn/10-the-type-system.md
-                  - Records: learn/10-the-type-system/records.md
-                  - Unions and match: learn/10-the-type-system/unions-and-match.md
-                  - Results: learn/10-the-type-system/results.md
-                  - Subtypes and narrowing: learn/10-the-type-system/subtypes.md
-                  - Generics: learn/10-the-type-system/generics.md
-                  - Receiver calls: learn/10-the-type-system/receiver-calls.md
-                  - Operators: learn/10-the-type-system/operators.md
-                  - Traits: learn/10-the-type-system/traits.md
+                  - book/10-the-type-system.md
+                  - Records: book/10-the-type-system/records.md
+                  - Unions and match: book/10-the-type-system/unions-and-match.md
+                  - Results: book/10-the-type-system/results.md
+                  - Subtypes and narrowing: book/10-the-type-system/subtypes.md
+                  - Generics: book/10-the-type-system/generics.md
+                  - Receiver calls: book/10-the-type-system/receiver-calls.md
+                  - Operators: book/10-the-type-system/operators.md
+                  - Traits: book/10-the-type-system/traits.md
               - 11. Advanced data typing:
-                  - learn/11-advanced-data-typing.md
-                  - Open and closed types: learn/11-advanced-data-typing/open-and-closed.md
-                  - Type contracts: learn/11-advanced-data-typing/type-contracts.md
-                  - Data contracts: learn/11-advanced-data-typing/data-contracts.md
-                  - Validators: learn/11-advanced-data-typing/validators.md
-                  - Validation as a value: learn/11-advanced-data-typing/validation-as-a-value.md
-                  - Contracts and schemas: learn/11-advanced-data-typing/contracts-and-schemas.md
+                  - book/11-advanced-data-typing.md
+                  - Open and closed types: book/11-advanced-data-typing/open-and-closed.md
+                  - Type contracts: book/11-advanced-data-typing/type-contracts.md
+                  - Data contracts: book/11-advanced-data-typing/data-contracts.md
+                  - Validators: book/11-advanced-data-typing/validators.md
+                  - Validation as a value: book/11-advanced-data-typing/validation-as-a-value.md
+                  - Contracts and schemas: book/11-advanced-data-typing/contracts-and-schemas.md
               - 12. Errors:
-                  - learn/12-errors.md
-                  - Failures as data: learn/12-errors/handling.md
-                  - Diagnostics: learn/12-errors/diagnostics.md
-              - 13. Working with hql: learn/13-working-with-hql.md
+                  - book/12-errors.md
+                  - Failures as data: book/12-errors/handling.md
+                  - Diagnostics: book/12-errors/diagnostics.md
+              - 13. Working with hql: book/13-working-with-hql.md
           - "Part II: Data flows":
               - 14. ETL pipelines:
-                  - Overview: learn/14-etl-pipelines.md
-                  - Logical steps and physical plans: learn/14-planning-and-backends.md
-              - 15. Endpoints: learn/15-endpoints.md
-              - 16. Tables and topics: learn/16-tables-and-topics.md
-              - 17. Subjects and the lakehouse: learn/17-subjects-and-the-lakehouse.md
-              - 18. APIs, webhooks and stores: learn/18-apis-webhooks-and-stores.md
+                  - Overview: book/14-etl-pipelines.md
+                  - Logical steps and physical plans: book/14-planning-and-backends.md
+              - 15. Endpoints: book/15-endpoints.md
+              - 16. Tables and topics: book/16-tables-and-topics.md
+              - 17. Subjects and the lakehouse: book/17-subjects-and-the-lakehouse.md
+              - 18. APIs, webhooks and stores: book/18-apis-webhooks-and-stores.md
               - 19. OLTP:
-                  - learn/19-oltp.md
-                  - The shop's day in one file: learn/19-oltp/the-shops-day.md
-                  - When a mistake is found: learn/19-oltp/mistakes.md
-                  - A replay is the same file: learn/19-oltp/replay.md
-                  - Streams against tables: learn/19-oltp/streams-against-tables.md
-                  - A transfer is one transaction: learn/19-oltp/transfers.md
+                  - book/19-oltp.md
+                  - The shop's day in one file: book/19-oltp/the-shops-day.md
+                  - When a mistake is found: book/19-oltp/mistakes.md
+                  - A replay is the same file: book/19-oltp/replay.md
+                  - Streams against tables: book/19-oltp/streams-against-tables.md
+                  - A transfer is one transaction: book/19-oltp/transfers.md
               - 20. OLAP:
-                  - learn/20-olap.md
-                  - Bronze, silver and gold: learn/20-olap/bronze-silver-and-gold.md
-                  - Grain and keys: learn/20-olap/grain-and-keys.md
-                  - Deduplication: learn/20-olap/deduplication.md
-                  - Windows: learn/20-olap/windows.md
-                  - Merge: learn/20-olap/merge.md
-                  - Incremental loads: learn/20-olap/incremental-loads.md
+                  - book/20-olap.md
+                  - Bronze, silver and gold: book/20-olap/bronze-silver-and-gold.md
+                  - Grain and keys: book/20-olap/grain-and-keys.md
+                  - Deduplication: book/20-olap/deduplication.md
+                  - Windows: book/20-olap/windows.md
+                  - Merge: book/20-olap/merge.md
+                  - Incremental loads: book/20-olap/incremental-loads.md
           - "Part III: Knowledge and AI":
-              - 21. A vault of documents: learn/21-a-vault.md
-              - 22. Links and graphs: learn/22-graphs.md
-              - 23. Finding cards by meaning: learn/23-retrieval.md
-              - 24. Queries inside documents: learn/24-documents.md
-              - 25. Agents and runs: learn/25-agents-and-runs.md
-              - 26. Agents inside documents: learn/26-agents-inside-documents.md
-              - 27. The hyper web: learn/27-the-hyper-web.md
+              - 21. A vault of documents: book/21-a-vault.md
+              - 22. Links and graphs: book/22-graphs.md
+              - 23. Finding cards by meaning: book/23-retrieval.md
+              - 24. Queries inside documents: book/24-documents.md
+              - 25. Agents and runs: book/25-agents-and-runs.md
+              - 26. Agents inside documents: book/26-agents-inside-documents.md
+              - 27. The hyper web: book/27-the-hyper-web.md
           - "Part IV: The standard library":
-              - 28. Statistics: learn/28-statistics.md
-              - 29. Random values: learn/29-random.md
-              - 30. Digests and encodings: learn/30-digests-and-encodings.md
-              - 31. Keys and cryptography: learn/31-cryptography.md
+              - 28. Statistics: book/28-statistics.md
+              - 29. Random values: book/29-random.md
+              - 30. Digests and encodings: book/30-digests-and-encodings.md
+              - 31. Keys and cryptography: book/31-cryptography.md
           - "Part V: Extending HQL":
               - 32. Functions and declarations:
-                  - learn/32-functions-and-declarations.md
-                  - Declarations: learn/32-functions-and-declarations/declarations.md
-                  - How the standard library is built: learn/32-functions-and-declarations/how-std-is-built.md
-              - 33. Packages and extensions: learn/33-packages-and-extensions.md
+                  - book/32-functions-and-declarations.md
+                  - Declarations: book/32-functions-and-declarations/declarations.md
+                  - How the standard library is built: book/32-functions-and-declarations/how-std-is-built.md
+              - 33. Packages and extensions: book/33-packages-and-extensions.md
               - 34. Writing an extension:
-                  - learn/34-writing-an-extension.md
-                  - The crate: learn/34-writing-an-extension/the-crate.md
-                  - The prelude: learn/34-writing-an-extension/the-prelude.md
-                  - The contract: learn/34-writing-an-extension/contracts.md
-                  - Natives: learn/34-writing-an-extension/natives.md
-                  - Values and errors: learn/34-writing-an-extension/values-and-errors.md
-                  - Functions and the context: learn/34-writing-an-extension/lambdas-and-context.md
+                  - book/34-writing-an-extension.md
+                  - The crate: book/34-writing-an-extension/the-crate.md
+                  - The prelude: book/34-writing-an-extension/the-prelude.md
+                  - The contract: book/34-writing-an-extension/contracts.md
+                  - Natives: book/34-writing-an-extension/natives.md
+                  - Values and errors: book/34-writing-an-extension/values-and-errors.md
+                  - Functions and the context: book/34-writing-an-extension/lambdas-and-context.md
               - 35. How a library is loaded:
-                  - learn/35-how-a-library-is-loaded.md
-                  - Static and dynamic libraries: learn/35-how-a-library-is-loaded/static-and-dynamic.md
-                  - The entry point: learn/35-how-a-library-is-loaded/the-entry-point.md
-                  - The version rule: learn/35-how-a-library-is-loaded/the-version-rule.md
+                  - book/35-how-a-library-is-loaded.md
+                  - Static and dynamic libraries: book/35-how-a-library-is-loaded/static-and-dynamic.md
+                  - The entry point: book/35-how-a-library-is-loaded/the-entry-point.md
+                  - The version rule: book/35-how-a-library-is-loaded/the-version-rule.md
               - 36. Installing packages:
-                  - learn/36-installing-packages.md
-                  - A local crate: learn/36-installing-packages/a-local-crate.md
-                  - A shared project: learn/36-installing-packages/a-shared-project.md
-              - 37. The registry and publishing: learn/37-the-registry-and-publishing.md
-              - 38. The ml package: learn/38-the-ml-package.md
+                  - book/36-installing-packages.md
+                  - A local crate: book/36-installing-packages/a-local-crate.md
+                  - A shared project: book/36-installing-packages/a-shared-project.md
+              - 37. The registry and publishing: book/37-the-registry-and-publishing.md
+              - 38. The ml package: book/38-the-ml-package.md
+      - Demo: https://github.com/ewiger/hql-demo
       - Examples: examples.md
   # A section per package, a page per module; a function, type or trait is
   # reached from its module's page. `cargo test` fails when this

@@ -8,7 +8,7 @@ module option for Option<T>
 The ways out of an `Option<T>`, in the prelude, each stating what
 absence gives. There is no `unwrap`. `map` and `filter` over an option
 are the core's steps applied to the present value. See
-[[/learn/02-data-types/option|Option: a value that may be missing]].
+[[/book/02-data-types/option|Option: a value that may be missing]].
 
 - [`is_some`](is_some.hmd) — Whether `self` holds a value: `some(3) | is_some` is `true`.
 - [`is_none`](is_none.hmd) — Whether `self` is `none`: `[1, 2][5] | is_none` is `true`.

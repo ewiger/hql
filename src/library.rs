@@ -616,7 +616,7 @@ pub fn check() -> Result<(), Diagnostic> {
             0..0,
             format!(
                 "{module} cites `[[{target}]]`; a standard doc string cites a published page \
-                 by its path, `[[/learn/…]]`"
+                 by its path, `[[/book/…]]`"
             ),
         ));
     }

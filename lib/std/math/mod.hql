@@ -71,7 +71,7 @@ fn round(self: Float) : Float
 
 /// `self` rounded half to even to `places` digits after the point, and
 /// kept at that scale: `round(2.345, 2)` is `2.34`, and `round(x)` is
-/// `round(x, 0)`. See [[/learn/02-data-types/decimal#division-and-rounding|Division and rounding]].
+/// `round(x, 0)`. See [[/book/02-data-types/decimal#division-and-rounding|Division and rounding]].
 fn round(self: Decimal) : Decimal
 fn round(self: Decimal, places: Int) : Decimal
 

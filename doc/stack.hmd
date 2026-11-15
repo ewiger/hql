@@ -171,7 +171,7 @@ arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
   each `.hmd` page under its `.md` name, so the nav in `mkdocs.yml` names
   `x.md` and the URL is the one a Markdown page had. Every page inherits
   `nav.visibility: public` from the root `index.hmd`. An absolute reference
-  such as `[[/learn/02-data-types/int]]` is written from the site's root.
+  such as `[[/book/02-data-types/int]]` is written from the site's root.
 - The site is for people using HQL, not for people designing it. Only
   `doc/public/` is published; the wiki, the models, the proposals and the rest
   of `doc/` stay in the repository, and a public page does not link to them.

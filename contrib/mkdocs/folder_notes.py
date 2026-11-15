@@ -5,8 +5,8 @@ The plugin registers a folder note `a/b/index.hmd` as the page `a/b.md`,
 one directory above the file, so `a/b/` is its URL. Wikilinks are rewritten
 for that place, but an ordinary relative Markdown link is left as written,
 against the file's own directory, and MkDocs then resolves it from `a/`.
-`[`Bool`](bool.hmd)` written in `learn/02-data-types/index.hmd` arrives at
-`learn/bool.hmd`.
+`[`Bool`](bool.hmd)` written in `book/02-data-types/index.hmd` arrives at
+`book/bool.hmd`.
 
 This hook runs after the plugin. In a folder note it takes each relative link
 that names nothing from the registered page but names a file from the folder

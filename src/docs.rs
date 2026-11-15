@@ -454,7 +454,7 @@ mod tests {
         );
         assert_eq!(first_sentence("No mark at\nall", "1.0.0"), "No mark at all");
         assert_eq!(
-            first_sentence("See [[/learn/x|X]]. More.", "1.0.0"),
+            first_sentence("See [[/book/x|X]]. More.", "1.0.0"),
             "See X."
         );
     }
@@ -463,10 +463,10 @@ mod tests {
     fn citations_print_as_versioned_urls() {
         assert_eq!(
             render(
-                "See [[/learn/02-data-types/decimal#division-and-rounding|Division]].",
+                "See [[/book/02-data-types/decimal#division-and-rounding|Division]].",
                 "0.5.0"
             ),
-            "See Division <https://hql-lang.org/v0.5.0/learn/02-data-types/decimal/#division-and-rounding>."
+            "See Division <https://hql-lang.org/v0.5.0/book/02-data-types/decimal/#division-and-rounding>."
         );
         assert_eq!(
             render("[[/reference/std/seq/index]]", "0.5.0"),

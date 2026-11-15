@@ -35,7 +35,7 @@ HQL reads.
   `memory/`.
 - [x] Proposals.
 - [x] Issues, archive included, and `kanban.yaml`.
-- [x] The book, `doc/public/learn/`.
+- [x] The book, `doc/public/book/`.
 - [x] The reference: `hql reference` writes cards.
 - [x] Clean-up: no `.md` fallbacks in the tests; `hmd lint --root doc/public`
   in the Pages workflow.

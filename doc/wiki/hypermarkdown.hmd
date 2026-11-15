@@ -41,7 +41,7 @@ card beneath it and are optional; where a key is absent its default is assumed.
 Vaults nest, and a marker below the root ends the vault there. `doc/public/`
 carries its own [`.hmd/`](../public/.hmd/config.toml): it is the published
 site, a second vault inside this one, and none of its pages belongs to `doc/`.
-A page there resolves against `doc/public/`, so `[[/learn/…]]` means the same
+A page there resolves against `doc/public/`, so `[[/book/…]]` means the same
 page in the editor, in lint and on the site; and no card here can be reached
 from it by a wikilink. Between the two vaults a link is an ordinary relative
 Markdown link, and a public page reaches the design material only by URL.

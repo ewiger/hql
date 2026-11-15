@@ -5,7 +5,7 @@
 /// The ways out of an `Option<T>`, in the prelude, each stating what
 /// absence gives. There is no `unwrap`. `map` and `filter` over an option
 /// are the core's steps applied to the present value. See
-/// [[/learn/02-data-types/option|Option: a value that may be missing]].
+/// [[/book/02-data-types/option|Option: a value that may be missing]].
 module option for Option<T>
 
 import core

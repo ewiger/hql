@@ -82,9 +82,9 @@ Each term is defined as the implementation has it.
    Done. The site was reorganised under
    [[0054-user-facing-website|0054]] since: the landing page is
    `doc/public/index.md`, retrieval is the Learn chapter
-   `doc/public/learn/23-retrieval.hmd`, the reference is
+   `doc/public/book/23-retrieval.hmd`, the reference is
    `doc/public/reference/index.hmd`, and the introduction and tour became the
-   Learn book under `doc/public/learn/`.
+   Learn book under `doc/public/book/`.
 3. **The published pages under `doc/public/`.** Only `doc/public/` is
    published ([[0054-user-facing-website|0054]]), so the wiki cards and the
    models are out of scope. Done for the Learn pages that said *knows* of the

@@ -1,4 +1,4 @@
-# The project the HQL tutorial runs in. See doc/public/learn/index.hmd. Its
+# The project the HQL tutorial runs in. See doc/public/book/index.hmd. Its
 # documents are a vault too, marked by `.hmd/` beside this directory.
 
 # The book's own modules, `club.reading` and `club.titles`, are files under

@@ -154,7 +154,7 @@ built = "2026-11-13T10:02:41Z"
 - There are two installation roots: `<project>/.hql/packages/`, the
   default, and `~/.hql/packages/`, selected by `--home`; `$HQL_HOME` moves
   the second with the rest of the home
-  ([chapter 13](../../../public/learn/13-working-with-hql.hmd)). A crate
+  ([chapter 13](../../../public/book/13-working-with-hql.hmd)). A crate
   on disk that is not installed is reached through `[packages] paths`.
 - A level's `config.toml` declares its package dependencies by name in
   `[packages] dependencies`, with no version, and its `lock.toml` pins

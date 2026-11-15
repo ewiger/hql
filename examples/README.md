@@ -3,7 +3,7 @@
 The [tutorial vault](tutorial/) is the reading club the HQL book runs
 against: seven books, five authors, the links between them, one relation card,
 the librarian agent card, and an embedding index built for the questions the
-book asks. Every program in `doc/public/learn/` runs against it.
+book asks. Every program in `doc/public/book/` runs against it.
 
 The [notebook](notebook/README.md) documents are rendered against the tutorial
 vault: a reading list whose cells share values by id, and a meeting note whose

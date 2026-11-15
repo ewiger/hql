@@ -198,26 +198,26 @@ Transactions are in the prelude; each module after them is imported by name,
   { … }` runs `insert`, `update` and `delete` over its participants as one
   database transaction, committed together or not at all, and `attempts = n`
   retries a serialization failure
-  ([a transfer is one transaction](https://hql-lang.org/latest/learn/19-oltp/transfers/)).
+  ([a transfer is one transaction](https://hql-lang.org/latest/book/19-oltp/transfers/)).
 - **`time`.** `Date`, `DateTime`, `Instant` and `Duration`, constructed from
   ISO 8601 text, with their parts and calendar arithmetic
-  ([time types](https://hql-lang.org/latest/learn/02-data-types/time/)).
+  ([time types](https://hql-lang.org/latest/book/02-data-types/time/)).
 - **`stats`.** `mean`, `median`, `mode`, `variance`, `stdev`, `quantile`,
   `correlation` and their relatives over a list or a query's column
-  ([statistics](https://hql-lang.org/latest/learn/28-statistics/)).
+  ([statistics](https://hql-lang.org/latest/book/28-statistics/)).
 - **`random`.** `sample`, `shuffle`, `choice` and `uuid`, each pure when given
   a `seed` and drawn from the evaluation seed otherwise
-  ([random values](https://hql-lang.org/latest/learn/29-random/)).
+  ([random values](https://hql-lang.org/latest/book/29-random/)).
 - **`crypto`.** Typed public, private and secret keys, read, written and
   generated; `sign` and `verify`, `mac` and password hashes; a private key is
   kept out of every output
-  ([keys and cryptography](https://hql-lang.org/latest/learn/31-cryptography/)).
+  ([keys and cryptography](https://hql-lang.org/latest/book/31-cryptography/)).
 - **`io.fs`.** `folder(path)`, its `entries`, `walk` and `glob`, and `exists`,
   so a program lists a folder before it reads the files
-  ([files and folders](https://hql-lang.org/latest/learn/09-io/files-and-folders/)).
+  ([files and folders](https://hql-lang.org/latest/book/09-io/files-and-folders/)).
 - **`io.env`.** `env.var(name)` and `env.arg(name)` read the environment and
   the `--arg name=value` pairs of the invocation, fixed for the whole
-  evaluation ([environment and arguments](https://hql-lang.org/latest/learn/09-io/environment/)).
+  evaluation ([environment and arguments](https://hql-lang.org/latest/book/09-io/environment/)).
 
 ### Checked before it runs
 
@@ -516,7 +516,7 @@ the data.
 
 ## HQL as an ETL and integration language
 
-> The book's [ETL pipelines](https://hql-lang.org/latest/learn/14-etl-pipelines/)
+> The book's [ETL pipelines](https://hql-lang.org/latest/book/14-etl-pipelines/)
 > chapter is the frame, and Part II follows one shop's orders through files,
 > SQLite, PostgreSQL, Kafka, NATS and a lakehouse, all in the current
 > release; REST, webhooks and object stores are design.
@@ -617,7 +617,7 @@ This makes HQL a natural language for AI harnesses: retrieval, context construct
 > [!WARNING]
 > **Design only.** Retrieval and graph expansion ship today. Agents, prompts
 > and runs as values, the `ai` module, are not in the current release; the
-> book's [Agents and runs](https://hql-lang.org/latest/learn/25-agents-and-runs/)
+> book's [Agents and runs](https://hql-lang.org/latest/book/25-agents-and-runs/)
 > chapter specifies them.
 
 In HyperMarkDown, agent definitions and instructions can themselves be documents.
@@ -1195,7 +1195,7 @@ The full language documentation is at:
 
 **[hql-lang.org](https://hql-lang.org/)**
 
-[The HQL book](https://hql-lang.org/latest/learn/) is read from the first page
+[The HQL book](https://hql-lang.org/latest/book/) is read from the first page
 to the last, every program in it runs against a small reading-club vault, and
 it is in three parts:
 

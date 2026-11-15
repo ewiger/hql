@@ -1,0 +1,67 @@
+{#-
+  Material's tabs-item partial (9.7), with one change: a top-level tab whose
+  children are pages or sections also lists them in a menu that opens on hover
+  or keyboard focus. The tab's own link still goes to its first page, and a
+  page titled as the tab is left out of the menu, since the tab is it. The menu
+  is styled in `doc/public/assets/hql.css`.
+-#}
+{% macro render_content(nav_item, ref) %}
+  {% set ref = ref or nav_item %}
+  {% if nav_item == ref or "navigation.indexes" in features %}
+    {% if nav_item.is_index and nav_item.meta.icon %}
+      {% include ".icons/" ~ nav_item.meta.icon ~ ".svg" %}
+    {% endif %}
+  {% endif %}
+  {{ ref.title }}
+{% endmacro %}
+{% macro first_url(nav_item) -%}
+  {%- if nav_item.children -%}
+    {{ first_url(nav_item.children | first) }}
+  {%- else -%}
+    {{ nav_item.url | url }}
+  {%- endif -%}
+{%- endmacro %}
+{% macro render_menu(nav_item) %}
+  <ul class="hql-tabs__menu">
+    {% for child in nav_item.children if not (child.is_page and child.title == nav_item.title) %}
+      {% set external = child.url and (child.url.startswith("http://") or child.url.startswith("https://")) %}
+      <li class="hql-tabs__menu-item">
+        <a href="{{ first_url(child) }}" class="hql-tabs__menu-link"{% if external %} rel="noopener"{% endif %}>
+          {{- child.title -}}
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endmacro %}
+{% macro render(nav_item, ref) %}
+  {% set ref = ref or nav_item %}
+  {% set class = "md-tabs__item" %}
+  {% if ref.active %}
+    {% set class = class ~ " md-tabs__item--active" %}
+  {% endif %}
+  {% if nav_item.children %}
+    {% set first = nav_item.children | first %}
+    {% if nav_item == ref and nav_item.children | length > 1 %}
+      <li class="{{ class }} hql-tabs__item--menu">
+        <a href="{{ first_url(nav_item) }}" class="md-tabs__link" aria-haspopup="true">
+          {{ render_content(nav_item) }}
+        </a>
+        {{ render_menu(nav_item) }}
+      </li>
+    {% elif first.children %}
+      {{ render(first, ref) }}
+    {% else %}
+      <li class="{{ class }}">
+        <a href="{{ first.url | url }}" class="md-tabs__link">
+          {{ render_content(first, ref) }}
+        </a>
+      </li>
+    {% endif %}
+  {% else %}
+    <li class="{{ class }}">
+      <a href="{{ nav_item.url | url }}" class="md-tabs__link">
+        {{ render_content(nav_item) }}
+      </a>
+    </li>
+  {% endif %}
+{% endmacro %}

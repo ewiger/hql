@@ -62,7 +62,7 @@ fn link(path: &Path) -> String {
 }
 
 /// A doc string's text as a page shows it. A citation is a wikilink from
-/// the site's root, `[[/learn/…]]`, and `doc/public/` is the vault the page
+/// the site's root, `[[/book/…]]`, and `doc/public/` is the vault the page
 /// resolves it in, so it is kept as written; one with no display text gets
 /// its path, without the leading `/`, as its text.
 fn linked(text: &str) -> String {
@@ -383,14 +383,14 @@ mod tests {
     #[test]
     fn citations_stay_wikilinks_from_the_sites_root() {
         assert_eq!(
-            linked("See [[/learn/02-data-types/decimal#division|Division]]."),
-            "See [[/learn/02-data-types/decimal#division|Division]]."
+            linked("See [[/book/02-data-types/decimal#division|Division]]."),
+            "See [[/book/02-data-types/decimal#division|Division]]."
         );
         assert_eq!(
-            linked("See [[/learn/20-olap/windows]]."),
-            "See [[/learn/20-olap/windows|learn/20-olap/windows]]."
+            linked("See [[/book/20-olap/windows]]."),
+            "See [[/book/20-olap/windows|book/20-olap/windows]]."
         );
-        assert_eq!(linked("`[[/learn/x]]`"), "`[[/learn/x]]`");
+        assert_eq!(linked("`[[/book/x]]`"), "`[[/book/x]]`");
     }
 
     /// The `Reference` entry of the site's `nav` in `mkdocs.yml`: the index,

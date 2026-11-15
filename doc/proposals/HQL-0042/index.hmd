@@ -25,7 +25,7 @@ doc string; `:type <name>` prints the declarations and the doc string's first
 sentence; `hql builtins` takes each step's description from its doc string.
 The Rust `summary:` field on `Operation` and the line-scanning
 `library::declarations()` are removed. A standard-library doc string cites a
-published page with an absolute wikilink, `[[/learn/02-data-types/decimal]]`;
+published page with an absolute wikilink, `[[/book/02-data-types/decimal]]`;
 `help` prints the page's URL under the binary's own version, as
 [[HQL-0043]] gives it, and a citation naming no published
 page fails the library check. The `//` comments above
@@ -309,8 +309,8 @@ A standard-library doc string cites a published page with a wikilink. Only
 - A citation MUST use the **absolute** form of
   [[wiki/hypermarkdown|hyper-markdown references]]: `[[/path]]`,
   `[[/path#fragment]]`, each optionally `|display text`. The path is from the
-  `doc/public/` root, without the extension; `[[/learn/02-data-types/decimal]]`
-  names `doc/public/learn/02-data-types/decimal.hmd`, and a path naming a
+  `doc/public/` root, without the extension; `[[/book/02-data-types/decimal]]`
+  names `doc/public/book/02-data-types/decimal.hmd`, and a path naming a
   folder names its `index.md`. A doc string has no place in `doc/public/`, so
   the spine walk has nowhere to start, and an absolute reference binds by path
   alone, so the binary resolves it with no index of pages. Unqualified and
@@ -338,9 +338,9 @@ The library check refuses, besides what it refuses today:
 
 - an exported declaration in a paragraph with no doc string, as [Overloads](#overloads) requires;
 - a citation that is not absolute: ``std/seq cites `[[decimal]]`; a standard
-  doc string cites a published page by its path, `[[/learn/…]]` ``;
+  doc string cites a published page by its path, `[[/book/…]]` ``;
 - a citation that names no published page: ``std/math cites
-  `[[/learn/02-data-types/decimal#rounding]]`, which names no published page``.
+  `[[/book/02-data-types/decimal#rounding]]`, which names no published page``.
 
 The first two need only the library and run in `library::check()`. The third
 needs `doc/public/`, which the published crate does not carry, so it runs in
@@ -398,7 +398,7 @@ fn round(self: Float) : Float
 
 /// `self` rounded half to even to `places` digits after the point, and
 /// kept at that scale: `round(2.345, 2)` is `2.34`, and `round(x)` is
-/// `round(x, 0)`. See [[/learn/02-data-types/decimal#division-and-rounding|Division and rounding]].
+/// `round(x, 0)`. See [[/book/02-data-types/decimal#division-and-rounding|Division and rounding]].
 fn round(self: Decimal) : Decimal
 fn round(self: Decimal, places: Int) : Decimal
 ```

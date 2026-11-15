@@ -34,7 +34,7 @@ type Float : {Scalar, Orderable}
 
 /// An exact decimal number, written with a decimal point and no suffix
 /// (`2.50`), ordered by value: `0.1 + 0.2 == 0.3` is `true`. See
-/// [[/learn/02-data-types/decimal|Decimal]].
+/// [[/book/02-data-types/decimal|Decimal]].
 type Decimal : {Scalar, Orderable}
 
 /// Text, ordered character by character: `"ab" + "cd"` is `"abcd"`, and
@@ -246,7 +246,7 @@ type Ordering
 /// its key, in the order `over` gives them, and its position among them.
 /// It has no fields: the `seq` module's window functions read it, and a
 /// window does not leave the `into` it is handed to. See
-/// [[/learn/20-olap/windows|Windows]].
+/// [[/book/20-olap/windows|Windows]].
 type Window<T>
 
 /// A type written as an argument: `is(Card)`, `of_type(Card)`. A parameter

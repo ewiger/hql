@@ -34,7 +34,7 @@ with it and its extension is compiled into it. There are two.
 | `hmd`, HyperMarkdown | `hmd`, `hmd.vault`, `hmd.search`, `hmd.search.lexical`, `hmd.search.semantic` | `import hmd`, whose prelude imports the rest |
 
 "The standard library" is another name for the `std` package, and
-[[learn#part-iv-the-standard-library|Part IV]] is its guide. `hql builtins` names the package beside
+[[book#part-iv-the-standard-library|Part IV]] is its guide. `hql builtins` names the package beside
 each module, `collections (std 0.7.0, always available)`
 ([[13-working-with-hql|chapter 13]]).
 
@@ -80,7 +80,7 @@ A package is
 name, `hql package install --path <dir>` a path package, and
 `hql package list` shows what is installed.
 
-[[learn#part-v-extending-hql|Part V]] is the whole of this subject: how a
+[[book#part-v-extending-hql|Part V]] is the whole of this subject: how a
 declaration without a body is implemented
 ([[32-functions-and-declarations|chapter 32]]), writing a package
 ([[34-writing-an-extension|chapter 34]]), how its library is loaded
