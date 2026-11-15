@@ -66,7 +66,7 @@ abstract: "abstract: named in signatures, no values of their own" {
 }
 
 values: "concrete: values you build" {
-  direction: right
+  direction: down
   style.fill: "#eef6ee"
   list: "List<T>\n[412, 280, 280]\npositions, repeats kept"
   set: "Set<T>\n{\"sf\", \"novel\"}\nno positions, no repeats"
@@ -148,7 +148,7 @@ execute error[contract-violation]: this does not read as BookData: field `tags.1
 ```
 
 ```d2
-direction: right
+direction: down
 
 doc: "List<Data>\n[{title: \"Dune\", tags: [...]}, ...]\nany shape" {
   shape: page

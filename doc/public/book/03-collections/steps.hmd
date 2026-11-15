@@ -110,7 +110,7 @@ groups and joins tables.
 Every conversion between collection types is written in the program.
 
 ```d2
-direction: right
+direction: down
 
 list: "List<T>" {style.fill: "#eef6ee"}
 set: "Set<T>" {style.fill: "#eef6ee"}
