@@ -14,8 +14,8 @@ functions (`m.f`) and receiver calls on its receiver functions (`x.f()`).
 They bind no unqualified function names. A new `from` form binds them
 explicitly: `from m import f, g as h` binds the listed functions,
 `from m import *` binds every public function, `from m import String.*` binds
-the receiver functions `m` declares for `String`, `String.upper` binds one of
-them, `except` subtracts names and receiver groups from a selection, and `as`
+the receiver functions of `m` whose `self` is a `String`, `String.upper` binds
+one of them, `except` subtracts names and receiver groups from a selection, and `as`
 renames what is bound, one name or a whole group by a pattern:
 `String.* as String.bar_*` binds each `String` receiver as a receiver named
 with the prefix `bar_`. The prelude
@@ -61,7 +61,8 @@ module comes from:
   the use, as today.
 - Type and trait names are unchanged. An imported module's types and traits
   stay visible unqualified, as today; qualified type names are a separate
-  change.
+  change. A `from` statement may also name a type or a trait, so a program
+  can import one without the module's functions.
 - Module roots, discovery, packages and `prelude = false` are unchanged.
 
 ## Specification
@@ -69,19 +70,23 @@ module comes from:
 ### 1. Syntax
 
 An import statement is one of two forms. Both stand at the head of a source
-unit, before its declarations, where `import` stands today.
+unit, before its declarations, where `import` stands today. A unit is a
+program or a module; both forms are allowed in either, and what they bind
+applies to that unit only, as imports do today.
 
 ```text
 import_stmt  = "import" module_path [ "as" ident ]
-from_stmt    = "from" module_path "import" selection
-selection    = group [ "except" selector { "," selector } ] [ "as" pattern ]
-             | item { "," item }
+from_stmt    = "from" module_path "import" entry { "," entry }
+entry        = group [ "except" exclusion ] [ "as" pattern ]
+             | item [ "as" alias ]
 group        = "*" | type_name "." "*"
-item         = selector [ "as" alias ]
-selector     = ident | type_name "." ident | type_name "." "*"
+exclusion    = excluded | "(" excluded { "," excluded } ")"
+excluded     = ident | type_name "." ident | type_name "." "*"
+item         = ident | type_name "." ident
 alias        = ident | type_name "." ident
 pattern      = name_pattern | type_name "." name_pattern
-name_pattern = [ ident_part ] "*" [ ident_part ]
+name_pattern = ident_part "*" [ ident_part ] | "*" ident_part
+ident_part   = ( letter | digit | "_" ) { letter | digit | "_" }
 type_name    = ident
 ```
 
@@ -89,12 +94,15 @@ A **selector** names what an import binds:
 
 | Selector | Selects |
 | --- | --- |
-| `*` | every public function of the module |
+| `*` | every public function, type and trait of the module |
 | `mean` | the public function `mean`, every overload of it |
-| `String.*` | every public receiver function the module declares for `String` |
-| `String.upper` | the public receiver function `upper` declared for `String` |
-| `* except String.*` | every public function but the receivers declared for `String` |
-| `String.* except upper` | the receivers declared for `String` but `upper` |
+| `Hex` | the public type `Hex` |
+| `String.*` | every public receiver function whose `self` is a `String` |
+| `String.upper` | the public receiver function `upper` whose `self` is a `String` |
+| `* except String.*` | everything public but the receivers over `String` |
+| `String.* except upper` | the receivers over `String` but `upper` |
+| `String.* except (upper, lower)` | the receivers over `String` but `upper` and `lower` |
+| `split, String.* except upper` | `split`, and the receivers over `String` but `upper` |
 | `String.upper as up` | the receiver `upper`, bound as the function `up` |
 | `String.upper as String.up` | the receiver `upper`, bound as the receiver `up` |
 | `String.* as String.bar_*` | every receiver for `String`, each as a receiver `bar_` + its name |
@@ -107,6 +115,16 @@ A **selector** names what an import binds:
   function has no members, so the dotted form is never a function name, and a
   module that exports a function named `String` is selected by the bare
   `String`. The parser needs no lookahead to tell them apart.
+- A bare selector MUST select every public declaration of that name in the
+  module: the function with its overloads, and the type or trait. A type or
+  trait so selected is visible unqualified, as after `import m`; it MUST NOT
+  take an alias in this proposal.
+- One statement MAY list groups and items together, separated by commas.
+  An `except` MUST apply only to the group it follows. It excludes one
+  selector, or several in parentheses, so a comma after an `except` always
+  starts the next entry: in `from string import String.* except upper, split`
+  the name `split` is imported, not excluded.
+- A pattern MUST hold exactly one `*` and at least one `ident_part`.
 - A type selector is an import selector, not a member expression. It is
   checked against the module's declarations and is never evaluated.
 
@@ -132,17 +150,19 @@ A **selector** names what an import binds:
 - `from m import f` MUST bind `f`, reachable as `f(x)` and `x | f(…)`.
 - `from m import f as g` MUST bind `g` to `m.f`, and MUST NOT bind `f`.
 - `from m import *` MUST bind every public function of `m`, with and without
-  `self`.
+  `self`, and make every public type and trait of `m` visible.
 - `from m import T.*` MUST bind every public receiver function of `m` whose
-  receiver is declared at the type `T`, and no other function.
-- `from m import T.f` MUST bind the public receiver function `f` of `m`
-  declared at `T`, every overload at `T`, and no function `f` declared at
-  another receiver type or without `self`.
-- `except` MUST subtract each selector from the selection before it:
-  `* except String.*` binds every public function but the receivers declared
-  for `String`, and `String.* except upper` every receiver for `String` but
-  `upper`. A bare name in an `except` list subtracts every function of that
-  name in the selection.
+  receiver type is `T`, and no other function.
+- `from m import T.f` MUST bind the overloads of the public function `f` of
+  `m` whose receiver type is `T`, and no overload of `f` at another receiver
+  type or without `self`.
+- `from m import Hex`, where `Hex` is a public type or trait of `m`, MUST make
+  it visible unqualified, and bind no function of `m` but one named `Hex`.
+- `except` MUST subtract each excluded selector from the group it follows:
+  `* except String.*` binds everything public but the receivers over
+  `String`, and `String.* except upper` every receiver over `String` but
+  `upper`. A bare name in an `except` subtracts every function of that name
+  in the group.
 - A `from` statement MUST NOT bind the module name `m`. A program that wants
   both writes `import m` as well.
 - A `from` statement MUST make reachable by receiver call exactly the
@@ -152,34 +172,41 @@ A **selector** names what an import binds:
   `"a".upper()` working; `from foo import String.* as String.bar_*` makes
   `s.bar_upper()` reachable and not `s.upper()`. A plain `import m` keeps
   making every receiver of `m` reachable, as today.
-- Naming a function that `m` does not declare, or declares `private`, MUST be
-  a check error at the import, in an item and in an `except` list alike, so a
-  misspelt name is found where it is written. A type selector that selects
+- Naming a function, type or trait that `m` does not declare, or declares
+  `private`, MUST be a check error at the import, in an item and in an
+  `except` alike, so a misspelt name is found where it is written. A type selector that selects
   no public receiver function of `m` MUST be the same error.
 - Overloads are bound together: binding `mean` binds every public declaration
   of `mean` in `m`.
 
 ### 4. Type selectors
 
-`T` in `T.*` and `T.f` names the concrete type a receiver module is
-declared for, the type in its `for` clause, and selects receivers by that
-type's identity.
+`T` in `T.*` and `T.f` names a receiver type, and selects the receiver
+functions over that type by its identity.
 
+- A function's **receiver type** is the declared type of its `self`
+  parameter: `fn abs(self: Int)` has the receiver type `Int`, and
+  `fn mean(self: Collection<Int>)` has `Collection<Int>`. Where `self` is
+  written without a type, the receiver type is the type in the module's `for`
+  clause: in `module string for String`, `fn upper(self)` has `String`. A
+  function without `self` has none and is never selected by a type selector.
 - `T` MUST be resolved by the type resolver in the scope of `m`'s
   declarations, as a type written in `m` would be. An alias MUST resolve to
   the type it names, so a selector matches the type and not its spelling.
   A name that is not a type there MUST be a check error.
-- A receiver function is selected by `T` when the type in its module's `for`
-  clause is the type `T` resolves to: `module string for String` is selected
-  by `String.*`.
+- A function is selected by `T` when its receiver type is the type `T`
+  resolves to. Each overload is selected on its own: `from math import Int.abs`
+  binds `abs(self: Int)` and not `abs(self: Float)`.
 - The match MUST be exact. The type hierarchy is not consulted in either
   direction: no supertype and no subtype of `T` is selected by `T`, and `T`
-  is not selected by its supertypes. A module declared `for List<T>` is
-  selected by `List.*`, and never by `Seq.*` or `Collection.*`. A selector
-  names the declarations it binds, so a program can read from the import
-  which functions it receives.
+  is not selected by its supertypes. A function over `List<T>` is selected by
+  `List.*`, and never by `Seq.*` or `Collection.*`; `from stats import
+  Collection.*` selects `mean`, and `List.*` selects nothing from `stats`. A
+  selector names the declarations it binds, so a program can read from the
+  import which functions it receives.
 - A generic type is selected by its constructor alone: `Seq.*` MUST select
-  the receivers of a module declared `for Seq<T>`, whatever `T` is. A
+  every function over `Seq<T>`, whatever `T` is, and `Collection.*` every
+  function over `Collection<Int>`, `Collection<Float>` and the rest. A
   selector MUST NOT be written with type arguments.
 - The same rules apply to a type a program or a workspace module declares,
   `Book.*`, as to a core type.
@@ -199,10 +226,12 @@ is bound.
   selector's: a receiver keeps its receiver type, so `String.upper as
   Text.up` is a check error.
 - A group's alias MUST be a **pattern** holding exactly one `*`, which stands
-  for each selected function's own name: `bar_*`, `*_v2`. Every name the
-  pattern produces MUST be an identifier. A group renamed by a name without
-  `*` MUST be a check error, because it would bind every function to one
-  name.
+  for each selected function's own name, and text before it, after it or
+  both: `bar_*`, `*_v2`. A group renamed by a name without `*` MUST be a
+  check error, because it would bind every function to one name; so MUST a
+  pattern with two `*` or with nothing but `*`.
+- A pattern renames functions only. The types and traits a `*` makes visible
+  keep their names.
 - A group's pattern follows the item rules: `* as stats_*` binds functions,
   `T.* as T.bar_*` binds receivers, and `T.* as bar_*` binds the receivers as
   functions only.
@@ -266,11 +295,34 @@ on the command line, MUST be read as an import statement added to each unit:
 
 ### 8. Errors
 
-The check error for a bare name that an imported module declares MUST name
-both fixes:
+Each error names what was written and how to fix it.
+
+A bare name that an imported module declares, with no `from` binding it:
 
 ```text
 check error[unknown-name]: `is_match` is declared in the module `regex`, which is imported qualified: write `regex.is_match(…)`, or `from regex import is_match`
+```
+
+A name the module does not declare, or declares `private`, reported at the
+import:
+
+```text
+check error[unknown-name]: the module `regex` declares no public `is_mach`; did you mean `is_match`?
+check error[unknown-name]: `normalize` is private to the module `stats`, and cannot be imported
+```
+
+A type selector that selects nothing:
+
+```text
+check error[unknown-name]: `List.*` selects nothing in the module `stats`: no public function has the receiver type `List`; its receivers are over `Collection`
+```
+
+An alias that changes the receiver type, and a group renamed without a valid
+pattern:
+
+```text
+check error[invalid-import]: `String.upper as Text.up` changes the receiver type from `String` to `Text`; a receiver alias keeps its type: write `String.upper as String.up`
+check error[invalid-import]: `String.* as text` renames a group to one name; write a pattern with one `*`, such as `String.* as String.text_*`
 ```
 
 ## Backwards Compatibility
@@ -326,14 +378,19 @@ alike:
   under Errors; `x.f()` checks for a receiver function.
 - `import m as a`: `a.f` checks, `m.f` does not.
 - `from m import f`, `from m import f, g`, `from m import f as g`.
-- `from m import *`, `from m import * except f`.
+- `from m import *`, `from m import * except f`,
+  `from m import * except (f, g)`, and a list mixing a group and an item,
+  `from string import split, String.* except upper`, where `split` is bound.
+- `from encoding import Hex`: the type is visible without `import encoding`.
 - Type selectors: `String.*`, `String.upper`, `String.upper as up`,
   `* except String.*`, `String.* except upper`.
 - A type selector through an alias, and over a generic receiver: `Seq.*`
   selects the receivers of a module declared `for Seq<T>`.
-- Exact match: a module declared `for List<T>` is selected by `List.*`, and
-  not by `Seq.*` or `Collection.*`; a module declared `for Collection<T>` is
-  not selected by `List.*`.
+- Receiver types from `self`: `from stats import Collection.*` binds `mean`;
+  `from math import Int.abs` binds the `Int` overload only.
+- Exact match: a function over `List<T>` is selected by `List.*`, and not by
+  `Seq.*` or `Collection.*`; a function over `Collection<T>` is not selected
+  by `List.*`.
 - A program-declared type, `Book.*`, and a selector that selects nothing.
 - A module exporting a function named like a type: bare `String` binds the
   function, `String.*` the receivers.
@@ -363,3 +420,8 @@ cargo test --test book
 - 2026-11-15: a type selector matches the type of the module's `for` clause exactly, with no supertype or subtype
 - 2026-11-15: `core` and `collections` are ordinary prelude lines; the always-available rule is removed
 - 2026-11-15: a configured import is an import statement; a bare module name is `import m`
+- 2026-11-15: a receiver type is the type of `self`, or the `for` type where `self` is bare
+- 2026-11-15: groups and items mix in one statement; `except` takes one selector or a parenthesised list
+- 2026-11-15: a `from` statement may name a type or trait; `*` makes the module's types and traits visible
+- 2026-11-15: error examples for each import error
+- 2026-11-15: `from` is allowed in a module as in a program
