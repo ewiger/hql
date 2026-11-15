@@ -15,7 +15,10 @@ They bind no unqualified function names. A new `from` form binds them
 explicitly: `from m import f, g as h` binds the listed functions,
 `from m import *` binds every public function, `from m import String.*` binds
 the receiver functions `m` declares for `String`, `String.upper` binds one of
-them, and `except` subtracts names and receiver groups from a selection. The prelude
+them, `except` subtracts names and receiver groups from a selection, and `as`
+renames what is bound, one name or a whole group by a pattern:
+`String.* as String.bar_*` binds each `String` receiver as a receiver named
+with the prefix `bar_`. The prelude
 becomes a list of `from … import *` lines, so a program keeps the unqualified
 prelude functions it has today.
 
@@ -49,8 +52,10 @@ module comes from:
 
 ## Non-goals
 
-- Receiver resolution (`x.f()`) is unchanged: which receiver functions a
-  value reaches, and how a call among several is chosen.
+- Receiver resolution (`x.f()`) is unchanged: how a call is resolved among
+  the receiver functions reachable for a value's type. `import m` makes the
+  same receivers reachable as today; what a `from` statement makes reachable
+  is specified below.
 - Shadowing and precedence are unchanged: a unit's own declarations win over
   imported ones, and two imported declarations of one name are ambiguous at
   the use, as today.
@@ -69,11 +74,14 @@ unit, before its declarations, where `import` stands today.
 ```text
 import_stmt  = "import" module_path [ "as" ident ]
 from_stmt    = "from" module_path "import" selection
-selection    = group [ "except" selector { "," selector } ]
+selection    = group [ "except" selector { "," selector } ] [ "as" pattern ]
              | item { "," item }
 group        = "*" | type_name "." "*"
-item         = selector [ "as" ident ]
+item         = selector [ "as" alias ]
 selector     = ident | type_name "." ident | type_name "." "*"
+alias        = ident | type_name "." ident
+pattern      = name_pattern | type_name "." name_pattern
+name_pattern = [ ident_part ] "*" [ ident_part ]
 type_name    = ident
 ```
 
@@ -87,6 +95,10 @@ A **selector** names what an import binds:
 | `String.upper` | the public receiver function `upper` declared for `String` |
 | `* except String.*` | every public function but the receivers declared for `String` |
 | `String.* except upper` | the receivers declared for `String` but `upper` |
+| `String.upper as up` | the receiver `upper`, bound as the function `up` |
+| `String.upper as String.up` | the receiver `upper`, bound as the receiver `up` |
+| `String.* as String.bar_*` | every receiver for `String`, each as a receiver `bar_` + its name |
+| `* as stats_*` | every public function, each bound as `stats_` + its name |
 
 - `from`, `except` and the `as` of an item MUST be keywords only in an
   import statement. An identifier named `except` or `from` elsewhere stays
@@ -125,7 +137,7 @@ A **selector** names what an import binds:
   receiver is declared at the type `T`, and no other function.
 - `from m import T.f` MUST bind the public receiver function `f` of `m`
   declared at `T`, every overload at `T`, and no function `f` declared at
-  another receiver type or without `self`. `T.f as g` binds it as `g`.
+  another receiver type or without `self`.
 - `except` MUST subtract each selector from the selection before it:
   `* except String.*` binds every public function but the receivers declared
   for `String`, and `String.* except upper` every receiver for `String` but
@@ -133,9 +145,13 @@ A **selector** names what an import binds:
   name in the selection.
 - A `from` statement MUST NOT bind the module name `m`. A program that wants
   both writes `import m` as well.
-- A module named in a `from` statement MUST be visible to receiver resolution
-  as if it were imported, so `from string import *` keeps `"a".upper()`
-  working.
+- A `from` statement MUST make reachable by receiver call exactly the
+  receiver functions it selects, under the names it binds them as. It MUST
+  NOT make the other receivers of `m` reachable. `from string import *`
+  selects every receiver of `string` under its own name, so it keeps
+  `"a".upper()` working; `from foo import String.* as String.bar_*` makes
+  `s.bar_upper()` reachable and not `s.upper()`. A plain `import m` keeps
+  making every receiver of `m` reachable, as today.
 - Naming a function that `m` does not declare, or declares `private`, MUST be
   a check error at the import, in an item and in an `except` list alike, so a
   misspelt name is found where it is written. A type selector that selects
@@ -165,7 +181,35 @@ A **selector** names what an import binds:
 - The same rules apply to a type a program or a workspace module declares,
   `Book.*`, as to a core type.
 
-### 5. Names bound twice
+### 5. Aliases
+
+`as` binds a selection under other names. The form of the alias decides what
+is bound.
+
+- An item's alias that is a bare name, `f as g` or `T.f as g`, MUST bind a
+  function reachable unqualified, `g(x)` and `x | g(…)`, and not by receiver
+  call.
+- An item's alias with a type, `T.f as T.g`, MUST bind a receiver function
+  reachable as `x.g()`, and also unqualified as `g(x)`, as a selected
+  receiver is.
+- The type of a receiver alias MUST resolve to the same type as the
+  selector's: a receiver keeps its receiver type, so `String.upper as
+  Text.up` is a check error.
+- A group's alias MUST be a **pattern** holding exactly one `*`, which stands
+  for each selected function's own name: `bar_*`, `*_v2`. Every name the
+  pattern produces MUST be an identifier. A group renamed by a name without
+  `*` MUST be a check error, because it would bind every function to one
+  name.
+- A group's pattern follows the item rules: `* as stats_*` binds functions,
+  `T.* as T.bar_*` binds receivers, and `T.* as bar_*` binds the receivers as
+  functions only.
+- `except` MUST apply before `as`: `String.* except upper as String.bar_*`
+  renames every `String` receiver but `upper`, and binds `upper` under no
+  name.
+- An alias MUST bind only the new name. `from m import f as g` does not bind
+  `f`.
+
+### 6. Names bound twice
 
 Name collisions follow the rules of today; no new precedence is introduced.
 
@@ -177,7 +221,7 @@ Name collisions follow the rules of today; no new precedence is introduced.
 - Binding one function twice, through two statements that name the same
   declaration, MUST NOT be an error.
 
-### 6. The prelude
+### 7. The prelude
 
 The prelude is an ordinary list of import statements, run before each unit.
 
@@ -186,11 +230,11 @@ The prelude is an ordinary list of import statements, run before each unit.
   unqualified and by receiver call.
 - `lib/hmd/prelude.hql` MUST do the same for its modules.
 - The prelude MUST follow the rules for `import m`, `from m import …`, type
-  selectors and names bound twice exactly. No module, package or
+  selectors, aliases and names bound twice exactly. No module, package or
   function receives a resolution rule of its own.
 - `prelude = false` under `[modules]` MUST keep withholding the whole list.
 
-### 7. Errors
+### 8. Errors
 
 The check error for a bare name that an imported module declares MUST name
 both fixes:
@@ -259,6 +303,13 @@ alike:
 - A program-declared type, `Book.*`, and a selector that selects nothing.
 - A module exporting a function named like a type: bare `String` binds the
   function, `String.*` the receivers.
+- Aliases: `String.upper as up` is not a receiver; `String.upper as String.up`
+  is, and `s.upper()` does not reach that module through it.
+- Patterns: `String.* as String.bar_*`, `* as stats_*`,
+  `String.* except upper as String.bar_*`; two modules declaring
+  `String.upper`, one renamed, both reachable without ambiguity.
+- Rejected aliases: `String.upper as Text.up`, a group renamed without `*`,
+  and a pattern with two `*`.
 - A misspelt and a private name, in an item and in `except`.
 - Two `from` statements binding one name from two modules: ambiguous at the
   use, not at the import.
@@ -274,3 +325,4 @@ cargo test --test book
 
 - 2026-11-15: drafted
 - 2026-11-15: receiver selection is by type, `T.*` and `T.f`, in place of `.*`
+- 2026-11-15: aliases bind receivers or functions by their form, and rename groups by a `*` pattern
