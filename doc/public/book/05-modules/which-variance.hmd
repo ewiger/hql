@@ -1,0 +1,161 @@
+# Which `variance`?
+
+Two modules of the standard library declare a function named `variance`, and
+they compute different things:
+
+| Function | Module | Computes | Over `[1, 2, 3, 4]` |
+| --- | --- | --- | --- |
+| `collections.variance` | `collections`, in the prelude | the population variance | `1.25` |
+| `stats.variance` | `stats`, imported where it is used | the sample variance | `1.6666666666666667` |
+
+Which one a bare `variance` calls depends only on the import statements. The
+programs below differ in those statements alone, and apply the rules of
+[[05-modules/imports|Calling a module's functions]] and
+[[names|How names resolve]].
+
+```d2
+direction: down
+
+call: "[1, 2, 3, 4] | variance" {shape: page}
+bound: "which imports bind\nthe name variance?" {shape: diamond}
+
+prelude: "the prelude only\nfrom collections import *" {style.fill: "#eef6ee"}
+both: "the prelude and\nfrom stats import *" {style.fill: "#f6efe6"}
+
+population: "collections.variance\n1.25" {style.fill: "#eef6ee"}
+ambiguous: "check error\nambiguous: qualify it" {style.stroke: "#b23b3b"}
+
+call -> bound
+bound -> prelude: "one"
+bound -> both: "two"
+prelude -> population
+both -> ambiguous {style.stroke: "#b23b3b"; style.stroke-dash: 5}
+```
+
+## The prelude's `variance`
+
+Every program starts with the prelude, which runs `from collections import *`.
+A bare `variance` is the population variance:
+
+```hql
+[1, 2, 3, 4] | variance
+```
+
+```text
+1.25
+```
+
+## `import stats` changes nothing
+
+`import stats` binds one name, `stats`. The functions of the module are
+reached through it, and none of them is bound by its own name. So the bare
+`variance` is still the prelude's, and `stats.variance` is the sample
+variance:
+
+```hql
+import stats
+
+[[1, 2, 3, 4] | variance, [1, 2, 3, 4] | stats.variance]
+```
+
+```text
+[1.25, 1.6666666666666667]
+```
+
+Importing a module this way does not change what the program's existing
+calls mean: the import adds the name `stats`, and the bare names stay as they
+were.
+
+## `from stats import *` makes it ambiguous
+
+`from stats import *` binds every function of `stats` by its own name,
+`variance` among them. Now two imports bind `variance` to two different
+functions, and both take a `List<Int>`. The call is a check error, reported
+where the name is used:
+
+```hql
+from stats import *
+
+[1, 2, 3, 4] | variance
+```
+
+```text
+check error[unknown-name]: `variance` over List<Int> is declared by `collections` and `stats`, so the call is ambiguous; qualify it, `collections.variance(…)`
+ --> <expression>:3:16
+  |
+3 | [1, 2, 3, 4] | variance
+  |                ^^^^^^^^
+```
+
+The other functions of `stats` are not affected. Only a name two imports
+bind is ambiguous, and only where a call could reach both:
+
+```hql
+from stats import *
+
+[mean([1, 2, 3, 4]), median([1, 2, 3, 4])]
+```
+
+```text
+[2.5, 2.5]
+```
+
+## Choosing one
+
+There are three ways to say which `variance` a call means. Writing the
+module's name always chooses. `from` does not bind the name `stats`, so a
+program that writes both forms imports `stats` both ways, as the prelude
+imports its own modules:
+
+```hql
+import stats
+from stats import *
+
+[[1, 2, 3, 4] | collections.variance, [1, 2, 3, 4] | stats.variance]
+```
+
+```text
+[1.25, 1.6666666666666667]
+```
+
+`except` leaves the name out of the star import, so the bare `variance` is
+the prelude's again:
+
+```hql
+from stats import * except variance
+
+[[1, 2, 3, 4] | variance, mean([1, 2, 3, 4])]
+```
+
+```text
+[1.25, 2.5]
+```
+
+`as` binds the sample variance under a name of its own:
+
+```hql
+from stats import variance as sample_variance
+
+[[1, 2, 3, 4] | variance, [1, 2, 3, 4] | sample_variance]
+```
+
+```text
+[1.25, 1.6666666666666667]
+```
+
+## Where the input chooses
+
+Two functions bound to one name are ambiguous only for an input both accept.
+The prelude's `variance` takes `Int` and `Float` values, and only the one of
+`stats` takes `Decimal` values. For a list of `Decimal` values, the input's
+type chooses, and the bare name is not ambiguous:
+
+```hql
+from stats import *
+
+[1.5, 2.5] | variance
+```
+
+```text
+0.50
+```

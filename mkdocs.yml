@@ -127,6 +127,7 @@ nav:
               - 5. Modules:
                   - book/05-modules.md
                   - "Calling a module's functions": book/05-modules/imports.md
+                  - "Which variance?": book/05-modules/which-variance.md
                   - Receiver modules: book/05-modules/receiver-modules.md
                   - Visibility: book/05-modules/visibility.md
                   - How names resolve: book/05-modules/names.md

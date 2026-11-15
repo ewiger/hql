@@ -191,6 +191,7 @@ The [[reference]] has a page per standard module.
 | Page | What it covers |
 | --- | --- |
 | [Calling a module's functions](imports.hmd) | `import` and `from`, `as` and `except`, receivers selected by type, and the prelude |
+| [Which `variance`?](which-variance.hmd) | one name in two modules, followed through `import`, `from`, `except` and `as` |
 | [Receiver modules](receiver-modules.hmd) | `module m for T`, functions taking `self`, and `value.f()` calls |
 | [Visibility](visibility.hmd) | public and `private` declarations, and a module's contract |
 | [How names resolve](names.hmd) | import units, a unit's own names, ambiguity, and modules as closures |
