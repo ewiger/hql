@@ -3,7 +3,8 @@
 The `io.env` module reads the invocation that runs a program: its
 **environment variables** and its **arguments**, the `--arg name=value` pairs
 of the command line. A program imports it, `import io.env`, and reaches it as
-`env`. Each operation reads a value fixed for the whole evaluation, so a
+`env`: `env.arg(…)`. `from io.env import arg` would bind `arg` itself. Each
+operation reads a value fixed for the whole evaluation, so a
 program that reads the same name twice reads the same value.
 
 ## Arguments

@@ -5,8 +5,8 @@
 /// SQLite: one table of a database file, as a transport read by `source`
 /// and `tap` and written by `target` like any other endpoint (module `io`).
 /// The `sqlite` kind of a configured endpoint is this transport under an
-/// id, with a schema boundary. A program imports the module:
-/// `import io.db.sqlite`.
+/// id, with a schema boundary. A program binds the constructor,
+/// `from io.db.sqlite import sqlite`.
 module io.db.sqlite
 
 import core

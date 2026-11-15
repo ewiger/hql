@@ -82,7 +82,9 @@ times reads the same whichever is subtracted from which:
 ## The time module
 
 Every operation over a time value is in the module `time`, which is not in
-the prelude: a program writes `import time`.
+the prelude: a program writes `import time`. The operations below are
+receivers, `d.year()`, which `import time` reaches; a call written without
+the module's name, `now()`, needs `from time import now`.
 
 ### Parts and calendar arithmetic
 

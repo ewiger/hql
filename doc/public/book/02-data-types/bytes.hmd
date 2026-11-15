@@ -31,7 +31,8 @@ b = Bytes("hé")
 
 `Bytes(text, Encoding)` reads octets written in an encoding of the module
 `encoding`: `Hex`, `Base64`, `Base64Url` or `Percent`. The module is not in
-the prelude, so a program writes `import encoding`:
+the prelude, so a program imports what it calls, `from encoding import
+Bytes`:
 
 ```hql
 from encoding import Bytes

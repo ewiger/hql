@@ -8,8 +8,9 @@
 /// the listing operations read the file system, each once, where it is
 /// written, and give a `Seq<Entry>` in the order of a sorted walk, never
 /// the file system's. A listing is granted exactly where reading a file at
-/// the same path is. A program imports the module: `import io.fs`, and
-/// reaches it as `fs`.
+/// the same path is. A program imports the module, `import io.fs`, and
+/// reaches it as `fs`, `fs.folder(…)`, or binds what it calls,
+/// `from io.fs import folder`.
 module io.fs
 
 import core

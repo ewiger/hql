@@ -8,6 +8,34 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Changed
+
+- **One import mechanism for every module**
+  ([HQL-0060](doc/proposals/HQL-0060/index.hmd)). `import m` binds the
+  module's name only: its functions are called `m.f(x)` and `x | m.f`, its
+  receivers `x.f()`, and its types' constructors by their type's name. **A
+  program that called a non-prelude module's function bare after `import m`,
+  `import stats` then `mean(xs)`, no longer checks**; the error names both
+  fixes, `stats.mean(…)` and `from stats import mean`. The same rules hold for
+  a standard module, a package's and a project module.
+- The prelude is an ordinary list of import statements, `import m` and
+  `from m import *` for each of its modules. `core` and `collections` are in
+  it like the rest, so `prelude = false` withholds them too.
+- An entry of `[modules] import` and `--import` is an import statement: a
+  module's name is `import m`, and an entry may be a whole `from` statement.
+
+### Added
+
+- **`from m import …`** binds names unqualified: `from stats import mean,
+  median`, `*`, `as` for another name, and `except` to leave names out,
+  `from stats import * except (variance, stdev)`.
+- **Type selectors** select receivers by the type of their `self`:
+  `from club.titles import String.*`, `String.initials`, and a group renamed
+  by a pattern, `String.* as String.club_*`. The match is exact, with no
+  supertype or subtype. An alias is the same function under another name.
+- The check error kind `invalid-import`, for an alias that changes a
+  receiver's type and a group renamed without a pattern.
+
 ## [0.7.0] — 2026-11-15
 
 ### Changed

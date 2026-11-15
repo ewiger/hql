@@ -5,7 +5,8 @@
 /// Time: zones, the units a value truncates to, and the operations over the
 /// time scalars of `core`: conversion from text, parts, arithmetic,
 /// truncation, rendering, and the evaluation clock. Not in the prelude: a
-/// program writes `import time`.
+/// program writes `import time` for `time.now()`, or `from time import now`
+/// for `now()`.
 module time
 
 import core

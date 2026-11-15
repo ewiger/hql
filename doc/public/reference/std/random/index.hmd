@@ -11,7 +11,8 @@ the seed, its input and its call site. Without one it is effectful and
 draws from the evaluation seed, fixed once per evaluation from the host's
 entropy or `--seed`. The generator is ChaCha12 and is not fit for keys,
 tokens or any other secret: a seeded draw is predictable by design. Not
-in the prelude: a program writes `import random`.
+in the prelude: a program writes `import random` for
+`random.shuffle(…)`, or `from random import shuffle` for `shuffle(…)`.
 
 - [`sample`](sample.hmd) — `n` elements of `self` drawn without replacement, in their order in `self`; all of `self` where `n` is not below its size.
 - [`shuffle`](shuffle.hmd) — The elements of `self` in a uniformly random order (Fisher–Yates).

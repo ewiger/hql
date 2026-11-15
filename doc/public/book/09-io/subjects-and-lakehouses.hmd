@@ -224,9 +224,10 @@ Bool
 ```
 
 A module is imported by its full path, and naming it in the program's first
-lines is how a program states that it reaches NATS. Each module declares only
-its own transport: `nats(...)` takes no `stream`, and `import io.msg.nats`
-does not bring `nats_jetstream` into scope. The address is
+lines is how a program states that it reaches NATS:
+`from io.msg.nats import nats`. Each module declares only its own transport:
+`nats(...)` takes no `stream`, and `io.msg.nats` has no `nats_jetstream` to
+import. The address is
 still `url` or the variable `url_env` names: a constructor takes no secret,
 and a `url` that holds credentials is refused.
 

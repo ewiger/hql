@@ -4,8 +4,8 @@
 /// result. A logger owns no writer: it names a producer and holds a
 /// destination, as `sink` would write it (module `io`): `stderr` or a file
 /// in a format, a network endpoint, or a `Channel<LogEvent>` that keeps the
-/// events as values for the host. A program imports the module:
-/// `import logging`.
+/// events as values for the host. A program imports the module,
+/// `import logging`, which binds the constructor `Logger`.
 module io.logging
 
 import core

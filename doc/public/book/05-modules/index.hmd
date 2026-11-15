@@ -11,9 +11,12 @@ without breaking anyone. The checker checks every use of a module against
 that contract before the program runs: a call to a function the module does
 not export, or with the wrong arguments, is a check error.
 
-The standard library is built the same way. `"Dune".upper()` calls a function
-of the module `string`, and `import regex` imports a standard module as a
-program imports its own.
+A program reaches a module's functions in one of two ways. `import m` binds
+the module's name, and calls are written through it, `reading.days(412, 40)`.
+`from m import f` binds the function's own name, `days(412, 40)`. The rules
+are the same for every module, whether a program's own or one of the
+standard library: `"Dune".upper()` calls a function of the module `string`,
+which every program starts with imported.
 
 ```d2
 direction: down
@@ -25,12 +28,16 @@ file: "lib/club/reading.hql\nmodule club.reading" {
 module: "module club.reading\npublic: days, days_for_all\nprivate: rounded_up" {
   style.fill: "#eef6ee"
 }
-program: "program\nimport club.reading\nreading.days(412, 40)" {
+qualified: "import club.reading\nreading.days(412, 40)" {
+  shape: page
+}
+unqualified: "from club.reading import days\ndays(412, 40)" {
   shape: page
 }
 
 file -> module: "its place under the module root lib/\ngives its name"
-module -> program: "import makes the public\ndeclarations visible as reading"
+module -> qualified: "binds reading"
+module -> unqualified: "binds days"
 ```
 
 ## A module is a file under a module root
@@ -114,6 +121,19 @@ import club.reading
 [11, 7]
 ```
 
+`from club.reading import days` binds the function itself, and
+[[05-modules/imports|Calling a module's functions]] covers that statement:
+
+```hql
+from club.reading import days
+
+days(412, 40)
+```
+
+```text
+11
+```
+
 Imports come first in a file, before its declarations and expressions. Two
 imports cannot use the same local name:
 
@@ -148,9 +168,11 @@ check error[unknown-name]: `reading` is not bound
 ## The standard modules
 
 The standard library is made of modules of the same kind. The **prelude** is
-the list of modules every program imports without writing an `import`:
-`string`, `seq`, `math`, `option` and `result`, among others. `"a,b".split(",")` calls the
-prelude's `string.split`. Other standard modules are imported by name:
+the list of import statements every program starts with. It imports
+`string`, `seq`, `math`, `option` and `result`, among others, both ways, so
+`"a,b".split(",")`, `split("a,b", ",")` and `string.split("a,b", ",")` all
+call the prelude's `string.split`. Other standard modules are imported by
+name:
 
 ```hql
 import regex
@@ -168,6 +190,7 @@ The [[reference]] has a page per standard module.
 
 | Page | What it covers |
 | --- | --- |
+| [Calling a module's functions](imports.hmd) | `import` and `from`, `as` and `except`, receivers selected by type, and the prelude |
 | [Receiver modules](receiver-modules.hmd) | `module m for T`, functions taking `self`, and `value.f()` calls |
 | [Visibility](visibility.hmd) | public and `private` declarations, and a module's contract |
 | [How names resolve](names.hmd) | import units, a unit's own names, ambiguity, and modules as closures |

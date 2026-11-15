@@ -1,6 +1,7 @@
 # The network
 
-`import net` adds endpoints that are transports. They are read and written by
+`import net` adds endpoints that are transports, `net.http(…)`, and
+`from net import http` binds the constructor as `http(…)`. They are read and written by
 `source`, `tap`, `target` and `sink` like any other endpoint, and
 constructing one sends nothing. Naming the module in the program's first
 lines is how a program states that it may reach the network.

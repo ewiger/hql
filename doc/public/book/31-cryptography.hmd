@@ -11,7 +11,9 @@ the [[02-data-types/bytes|Bytes]] type of chapter 2.
 
 ## Algorithms and key types
 
-`crypto` is not in the prelude: a program writes `import crypto`. An
+`crypto` is not in the prelude: a program binds what it calls,
+`from crypto import read_private_key`, or writes `import crypto` and calls
+`crypto.read_private_key(…)`. An
 algorithm is named by a type, as a format is, and a key's type carries its
 algorithm:
 

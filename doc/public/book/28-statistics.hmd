@@ -8,9 +8,10 @@ statistic applies to a list written by hand and to a column a query reads.
 
 ## The module
 
-`stats` is not in the prelude: a program writes `import stats`. Without the
-import, a statistic is an unknown name, and the checker names the import it
-needs:
+`stats` is not in the prelude. A program writes `import stats` and calls
+`stats.mean(xs)`, or binds the statistics it calls, `from stats import mean`,
+and calls `mean(xs)`. Without an import, a statistic is an unknown name, and
+the checker names the import it needs:
 
 ```hql
 [1, 2, 3, 4] | mean
@@ -88,8 +89,8 @@ xs = [2, 4, 4, 4, 5, 5, 7, 9]
 ```
 
 The prelude declares a `variance` too: the population variance of `Int` and
-`Float` values. With `stats` imported, a bare `variance` over those is
-ambiguous, and the checker asks for the module's name:
+`Float` values. With `variance` imported from `stats`, a bare `variance` over
+those is ambiguous, and the checker asks for the module's name:
 
 ```hql
 from stats import variance

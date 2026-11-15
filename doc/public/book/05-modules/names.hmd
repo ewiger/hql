@@ -1,8 +1,8 @@
 # How names resolve
 
 When a program writes `lower("ABC")`, the checker must find the one
-declaration `lower` refers to. It may be the program's own function, a
-function of an imported module, or a prelude function. The rules are fixed,
+declaration `lower` refers to. It may be the program's own function, or a
+function a `from` statement bound, the prelude's included. The rules are fixed,
 so a name always resolves to the same declaration, whatever order things are
 written in.
 
@@ -16,7 +16,7 @@ direction: down
 
 name: "a name in a unit\nlower(\"ABC\")" {shape: page}
 own: "declared by this unit?" {shape: diamond}
-imported: "how many imports declare it?" {shape: diamond}
+imported: "how many imports bind it?" {shape: diamond}
 
 unit: "the unit's own declaration" {style.fill: "#eef6ee"}
 one: "the imported declaration" {style.fill: "#eef6ee"}
@@ -75,10 +75,13 @@ which declarations are written does not matter either.
 
 ## Two imports, one name
 
-When two imported modules declare the same name and the unit declares none,
-the name is **ambiguous**, and a call that uses it is a check error. Write
-the module name to choose one: `titles.initials(s)` or
-`string.split(s, ",")`. The order of the imports never decides.
+When two imports bind the same name to two declarations and the unit
+declares none, the name is **ambiguous**, and a call that uses it is a check
+error. Write the module name to choose one, `titles.initials(s)` or
+`string.split(s, ",")`, or bind one of them under another name with `as`.
+Where the two declarations take inputs of different types, the input's type
+chooses, and the call is not ambiguous. The order of the imports never
+decides.
 
 ## A module is a closure
 

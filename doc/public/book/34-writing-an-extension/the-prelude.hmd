@@ -87,8 +87,8 @@ stays out of a program that does not import it.
 
 ## What a prelude may hold
 
-- Each statement MUST be an `import`. A declaration, a binding or an
-  expression refuses the package.
+- Each statement MUST be an `import` or a `from` statement. A declaration,
+  a binding or an expression refuses the package.
 - An import MUST NOT be written with `as`: a prelude imports a module
   under its own name, its last segment.
 - Each module named MUST exist: a module of the package, or of a builtin

@@ -1,0 +1,314 @@
+# Calling a module's functions
+
+An import statement decides how a program writes the calls to a module's
+functions. There are two statements, and they bind different names:
+
+| Statement | Binds | A call is written |
+| --- | --- | --- |
+| `import club.reading` | the module's name, `reading` | `reading.days(412, 40)` |
+| `from club.reading import days` | the function's name, `days` | `days(412, 40)` |
+| `import club.titles` | the module's name, and its receivers | `"Dune".initials()` |
+
+The rules are the same for every module: one of the program's own, one of
+the standard library, or one of an installed package.
+
+```d2
+direction: down
+
+module: "module club.reading\nfn days(pages, per_day)" {style.fill: "#eef6ee"}
+qualified: "import club.reading" {shape: page}
+unqualified: "from club.reading import days" {shape: page}
+q_call: "reading.days(412, 40)\n412 | reading.days(40)" {style.fill: "#eef6ee"}
+u_call: "days(412, 40)\n412 | days(40)" {style.fill: "#eef6ee"}
+
+module -> qualified
+module -> unqualified
+qualified -> q_call: "binds reading"
+unqualified -> u_call: "binds days"
+```
+
+## `import` binds the module's name
+
+`import club.reading` binds the name `reading`, and every public function of
+the module is called through it, as a call or as a pipeline step:
+
+```hql
+import club.reading
+
+[reading.days(412, 40), 412 | reading.days(40)]
+```
+
+```text
+[11, 11]
+```
+
+The function's own name is not bound. A call written without the module's
+name is a check error, and the error names both ways to write it:
+
+```hql
+import club.reading
+
+days(412, 40)
+```
+
+```text
+check error[unknown-name]: `days` is declared in the module `club.reading`, which is imported qualified: write `reading.days(…)`, or `from club.reading import days`
+ --> <expression>:3:1
+  |
+3 | days(412, 40)
+  | ^^^^^^^^^^^^^
+```
+
+## `from` binds the names it lists
+
+`from club.reading import days, days_for_all` binds `days` and
+`days_for_all`, and nothing else:
+
+```hql
+from club.reading import days, days_for_all
+
+[days(412, 40), 412 | days(40), days_for_all([412, 280], 40)]
+```
+
+```text
+[11, 11, 18]
+```
+
+`from` does not bind the module's name. A program that wants both forms
+writes both statements:
+
+```hql
+from club.reading import days
+
+reading.days(412, 40)
+```
+
+```text
+check error[unknown-name]: `reading` is not bound
+ --> <expression>:3:1
+  |
+3 | reading.days(412, 40)
+  | ^^^^^^^
+```
+
+`as` binds a function under another name, and only under that name:
+
+```hql
+from stats import mean as average_pages
+
+average_pages([412, 280, 310])
+```
+
+```text
+334.0
+```
+
+A name the module does not declare, or declares `private`, is a check error
+at the import, where it is written:
+
+```hql
+from club.reading import dayz
+
+1
+```
+
+```text
+check error[unknown-name]: the module `club.reading` declares no public `dayz`
+ --> <expression>:1:26
+  |
+1 | from club.reading import dayz
+  |                          ^^^^
+```
+
+## Groups and exceptions
+
+`*` binds every public function of a module. `except` leaves names out, one
+or several in parentheses:
+
+```hql
+from stats import * except (variance, stdev)
+
+pages = [412, 280, 310]
+[mean(pages), median(pages), pages | variance]
+```
+
+```text
+[334.0, 310.0, 3192.0]
+```
+
+The `variance` here is the prelude's, the population variance; the one of
+`stats` was left out.
+
+## Receiver calls
+
+A function whose first parameter is `self` is a **receiver**, called as
+`value.f()` ([[receiver-modules|Receiver modules]]). `import` reaches every
+receiver of the module:
+
+```hql
+import club.titles
+
+["The Hobbit".initials(), titles.initials("Mrs Dalloway")]
+```
+
+```text
+["TH", "MD"]
+```
+
+`from` reaches the receivers it selects, and no others. A name it lists is
+both a function and a receiver:
+
+```hql
+from club.titles import initials
+
+["The Hobbit".initials(), initials("Mrs Dalloway")]
+```
+
+```text
+["TH", "MD"]
+```
+
+## Receivers selected by type
+
+A **type selector** selects receivers by the type of their `self`.
+`String.*` selects every receiver over `String`, and `String.initials` one of
+them. `Collection.*` selects every function of `stats` whose `self` is a
+`Collection`:
+
+```hql
+from stats import Collection.*
+
+[412, 280, 310].median()
+```
+
+```text
+310.0
+```
+
+The match is exact. A selector selects functions declared over its type,
+and none declared over a supertype or a subtype of it: `List.*` selects
+nothing from `stats`, whose functions are declared over `Collection`.
+
+A group selected by type is renamed by a **pattern**, a name with one `*`
+that stands for each function's own name. A pattern with the type keeps the
+functions receivers:
+
+```hql
+from club.titles import String.* as String.club_*
+
+["The Hobbit".club_initials(), "Dune".club_shelf_mark(1965)]
+```
+
+```text
+["TH", "D-1965"]
+```
+
+The new name is the same function under another name: no new function is
+made. A pattern or a name without the type binds a function that is not a
+receiver:
+
+```hql
+from club.titles import String.initials as initials_of
+
+"Dune".initials_of()
+```
+
+```text
+check error[unknown-name]: String has no function `initials_of`
+ --> <expression>:3:1
+  |
+3 | "Dune".initials_of()
+  | ^^^^^^^^^^^^^^^^^^^^
+```
+
+A receiver keeps its type, so an alias may not name another one:
+
+```hql
+from club.titles import String.initials as Int.initials
+
+1
+```
+
+```text
+check error[invalid-import]: `String.initials as Int.initials` changes the receiver type from `String` to `Int`; a receiver alias keeps its type: write `String.initials as String.initials`
+ --> <expression>:1:25
+  |
+1 | from club.titles import String.initials as Int.initials
+  |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+## Types and constructors
+
+Type names need no import statement to bind them: a type of an imported
+module is written by its name. A **constructor** is written with its type's
+name, so `import` binds the constructors of the module's types:
+`import logging` and then `Logger(…)` ([[09-io/logging|Logging]]).
+
+A `from` statement may name a type, `from encoding import Hex`. That checks
+the name against the module and binds nothing else, not even the module's
+receivers:
+
+```hql
+from encoding import Hex
+
+"hé".encode(Hex)
+```
+
+```text
+check error[unknown-name]: `encode` is declared in the module `encoding`: write `import encoding`
+ --> <expression>:3:1
+  |
+3 | "hé".encode(Hex)
+  | ^^^^^^^^^^^^^^^^
+```
+
+## Two imports, one name
+
+Two statements that bind one name to two different functions make the name
+**ambiguous**. The error is reported where the name is used, not at the
+imports:
+
+```hql
+from stats import median
+from club.reading import days as median
+
+median([1, 2, 3])
+```
+
+```text
+check error[unknown-name]: `median` is imported from `club.reading.days` and `stats.median`, so it is ambiguous; import one of them under another name with `as`, or call it qualified
+ --> <expression>:4:1
+  |
+4 | median([1, 2, 3])
+  | ^^^^^^
+```
+
+`as` resolves it, by binding one of them under another name. Binding the one
+function twice, through two statements, is not an error.
+[[names|How names resolve]] has the rules in full.
+
+## The prelude
+
+The **prelude** is the list of import statements every unit starts with,
+`lib/std/prelude.hql`. For each of its modules it holds both statements:
+
+```text
+import string
+from string import *
+import seq
+from seq import *
+```
+
+So a program writes `"Dune".upper()`, `upper("Dune")` and
+`string.upper("Dune")` with no import line. `core` and `collections` are in
+the list like the rest. A project that sets `prelude = false` under
+`[modules]` in `.hql/config.toml` starts every unit with no imports at all.
+
+A project may add import statements to every unit with `[modules] import`.
+An entry that names a module is `import m`; an entry may also be a whole
+`from` statement:
+
+```toml
+[modules]
+import = ["club.reading", "from stats import mean, median"]
+```

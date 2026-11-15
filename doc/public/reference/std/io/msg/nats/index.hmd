@@ -11,8 +11,8 @@ keeps nothing: a read is given what is published while it is
 subscribed, and a message published while no one is subscribed reaches
 no one. A stream that keeps a subject's messages is
 `io.msg.nats_jetstream`. The `nats` kind of a configured endpoint is
-this transport under an id. A program imports the module:
-`import io.msg.nats`.
+this transport under an id. A program binds the constructor,
+`from io.msg.nats import nats`.
 
 - [`Nats`](types/Nats.hmd) — One core NATS subject on a server.
 - [`nats`](nats.hmd) — The subject `subject`, as a `Nats` transport; its parameters are the keys of the `nats` kind.

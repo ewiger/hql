@@ -11,7 +11,8 @@
 /// are indistinguishable. Arguments are the `--arg name=value` pairs of the
 /// invocation, always granted. Each operation reads a value fixed for the
 /// whole evaluation. A program imports the module, `import io.env`, and
-/// reaches it as `env`.
+/// reaches it as `env`, `env.var(…)`, or binds what it calls,
+/// `from io.env import var`.
 module io.env
 
 import core

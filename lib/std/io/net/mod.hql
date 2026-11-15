@@ -7,7 +7,8 @@
 /// one sends nothing: the request a program describes happens when a
 /// source, tap, target or sink uses it, and only if the host grants the
 /// network to that program. A document reaches no network. A program
-/// imports the module: `import net`.
+/// imports the module, `import net` for `net.http(…)`, or binds what it
+/// calls, `from net import http`.
 module io.net
 
 import core

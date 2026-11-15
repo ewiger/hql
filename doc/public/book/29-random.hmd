@@ -7,7 +7,9 @@ random output repeatable.
 
 ## The module
 
-`random` is not in the prelude: a program writes `import random`. Each draw
+`random` is not in the prelude: a program binds what it calls,
+`from random import sample`, or writes `import random` and calls
+`random.sample(…)`. Each draw
 has two forms. With a `seed` argument it is **pure**: its result is a
 function of the seed, its input and its call site, the same on every run.
 Without one it is **effectful** and draws from the **evaluation seed**, fixed

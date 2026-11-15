@@ -1,7 +1,8 @@
 # Logging
 
 A program reports on itself through a **logger**, apart from its result.
-`import logging` provides one. `Logger(endpoint, Format, name = …)` names a
+`import logging` provides one: it binds the module and the constructor of
+its type. `Logger(endpoint, Format, name = …)` names a
 producer and the destination it writes to:
 
 <!-- run: skip -->

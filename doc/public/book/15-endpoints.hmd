@@ -291,9 +291,9 @@ io                     file, stdin, stdout, stderr, source, tap, target, sink
 └── store              s3, azure_blob, gcs, sftp, hdfs
 ```
 
-`import io.db.postgres` brings `postgres(...)` into scope, as
-`import io.db.sqlite` brings `sqlite(...)` and `import io.msg.nats` brings
-`nats(...)` today. A configured id needs no
+`from io.db.postgres import postgres` brings `postgres(...)` into scope, as
+`from io.db.sqlite import sqlite` brings `sqlite(...)` and
+`from io.msg.nats import nats` brings `nats(...)`. A configured id needs no
 import: the configuration names the kind, and the kind names its module.
 A program that constructs a network transport names its module in its
 first lines, so what a program may reach is visible before reading it.

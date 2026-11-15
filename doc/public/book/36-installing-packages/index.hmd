@@ -241,8 +241,10 @@ import = ["hello"]
 ```
 
 Every program of the project then starts with the package's modules
-imported, and `greet("Ada")` needs no `import` line. The setting names a
-standard module or a package; it is the one place a package is named.
+imported, and `hello.greet("Ada")` needs no `import` line. The setting names a
+standard module or a package; it is the one place a package is named. An
+entry may also be a `from` statement, `"from hello import greet"`, and then
+`greet("Ada")` is written without the module's name.
 
 ## Where a module comes from
 

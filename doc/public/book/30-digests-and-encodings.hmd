@@ -10,8 +10,9 @@ reads them back. This chapter covers the two modules that provide them,
 ## The digest module
 
 `crypto.digest` is not in the prelude. A program writes
-`import crypto.digest` and reaches the module as `digest`; without the
-import, the name is a check error:
+`import crypto.digest` and reaches the module as `digest`, and its
+receivers, `"abc".digest(Sha256)`; without the import, the name is a check
+error:
 
 ```hql
 "abc".digest(Sha256)
@@ -106,7 +107,8 @@ language reproduces it with any RFC 8785 implementation and SHA-256.
 
 ## The encoding module
 
-`encoding` is not in the prelude either: a program writes `import encoding`.
+`encoding` is not in the prelude either: a program writes `import encoding`,
+which reaches its receivers, `"hé".encode(Hex)`.
 An encoding is named by a type:
 
 | Encoding | Writes octets as |

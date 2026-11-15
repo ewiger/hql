@@ -2,7 +2,8 @@
 
 A `file(p)` endpoint names one file by a path written in the program. The
 `io.fs` module lists what a folder holds, so a program finds its files first
-and then reads them. A program imports it, `import io.fs`, and reaches it as `fs`.
+and then reads them. A program imports it, `import io.fs`, and reaches it as
+`fs`, or binds what it calls, `from io.fs import folder`.
 
 The programs on this page list a small tree in the
 [file-system examples](https://github.com/ewiger/hql/tree/main/examples/fs):

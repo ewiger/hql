@@ -8,7 +8,8 @@ module time
 Time: zones, the units a value truncates to, and the operations over the
 time scalars of `core`: conversion from text, parts, arithmetic,
 truncation, rendering, and the evaluation clock. Not in the prelude: a
-program writes `import time`.
+program writes `import time` for `time.now()`, or `from time import now`
+for `now()`.
 
 - [`Zone`](types/Zone.hmd) — A time zone: an IANA name the time-zone database holds, `"Europe/Berlin"`, `"UTC"`, or a fixed offset `"+02:00"`.
 - [`TimeUnit`](types/TimeUnit.hmd) — The units a time value truncates to.

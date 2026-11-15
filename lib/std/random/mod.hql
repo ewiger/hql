@@ -8,7 +8,8 @@
 /// draws from the evaluation seed, fixed once per evaluation from the host's
 /// entropy or `--seed`. The generator is ChaCha12 and is not fit for keys,
 /// tokens or any other secret: a seeded draw is predictable by design. Not
-/// in the prelude: a program writes `import random`.
+/// in the prelude: a program writes `import random` for
+/// `random.shuffle(…)`, or `from random import shuffle` for `shuffle(…)`.
 module random
 
 import core
