@@ -11,7 +11,7 @@
 /// `Int` statistic is computed exactly and rounded to a `Float` once. A
 /// statistic that is undefined over its input, the mean of nothing or the
 /// sample variance of one value, is `none`. Not in the prelude: a program
-/// writes `import stats` for `stats.mean(…)`, or `from stats import mean`
+/// writes `import stats` for `stats.mean(…)`, or `from stats import *`
 /// for `mean(…)`. The prelude's `variance` is the population variance of
 /// `Int` and `Float` values; `stats.variance` is the sample variance.
 module stats

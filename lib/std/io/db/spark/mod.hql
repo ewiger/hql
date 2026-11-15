@@ -8,7 +8,7 @@
 /// `tap` and written by `target` like any other endpoint (module `io`). The
 /// `spark` kind of a configured endpoint is this transport under an id,
 /// with a schema boundary. A program binds the constructor,
-/// `from io.db.spark import spark`.
+/// `from io.db.spark import *`.
 module io.db.spark
 
 import core

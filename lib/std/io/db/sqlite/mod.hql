@@ -6,7 +6,7 @@
 /// and `tap` and written by `target` like any other endpoint (module `io`).
 /// The `sqlite` kind of a configured endpoint is this transport under an
 /// id, with a schema boundary. A program binds the constructor,
-/// `from io.db.sqlite import sqlite`.
+/// `from io.db.sqlite import *`.
 module io.db.sqlite
 
 import core

@@ -5,7 +5,7 @@
 // expected-type: List<Bool>
 // expected: [true, false, true]
 
-from crypto import hash_password, verify_password
+from crypto import *
 
 stored = "correct horse battery staple" | hash_password
 ["correct horse battery staple".verify_password(stored),

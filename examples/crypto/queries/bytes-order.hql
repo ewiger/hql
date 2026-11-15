@@ -5,7 +5,7 @@
 // expected-type: List<String>
 // expected-json: ["0x00", "0x0000", "0x01", "0xff"]
 
-from encoding import Bytes
+from encoding import *
 
 [Bytes("ff", Hex), Bytes("0000", Hex), Bytes("01", Hex), Bytes("00", Hex)]
 | sort

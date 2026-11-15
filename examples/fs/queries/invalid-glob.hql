@@ -7,6 +7,6 @@
 // severity: failure
 // expected-type: Glob
 
-from io.fs import Glob
+from io.fs import *
 
 Glob("data/a**.csv")

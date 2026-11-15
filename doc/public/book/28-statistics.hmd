@@ -9,7 +9,7 @@ statistic applies to a list written by hand and to a column a query reads.
 ## The module
 
 `stats` is not in the prelude. A program writes `import stats` and calls
-`stats.mean(xs)`, or binds the statistics it calls, `from stats import mean`,
+`stats.mean(xs)`, or binds them all, `from stats import *`,
 and calls `mean(xs)`. Without an import, a statistic is an unknown name, and
 the checker names the import it needs:
 
@@ -32,7 +32,7 @@ sorted values, and the mean of the two middle values where the count is
 even, and `mode` the most frequent value:
 
 ```hql
-from stats import mean, median, mode
+from stats import *
 xs = [2, 4, 4, 4, 5, 5, 7, 9]
 {mean: xs | mean, median: xs | median, mode: xs | mode}
 ```
@@ -49,7 +49,7 @@ terminate, which is rounded half to even to 100 significant digits as
 ([`Decimal`](02-data-types/decimal.hmd)), so a list of prices keeps its cents:
 
 ```hql
-from stats import mean, median
+from stats import *
 prices = [1.10, 2.20, 3.30, 4.45, 5.05]
 [prices | mean, prices | median]
 ```
@@ -62,7 +62,7 @@ prices = [1.10, 2.20, 3.30, 4.45, 5.05]
 frequent values, the mode is the least by the type's order:
 
 ```hql
-from stats import mode
+from stats import *
 [[3, 1, 3, 1, 2] | mode, ["novel", "essay", "novel", "poetry"] | mode]
 ```
 
@@ -79,7 +79,7 @@ root:
 
 ```hql
 import stats
-from stats import stdev, pvariance, pstdev
+from stats import *
 xs = [2, 4, 4, 4, 5, 5, 7, 9]
 [xs | stats.variance, xs | stdev, xs | pvariance, xs | pstdev]
 ```
@@ -93,7 +93,7 @@ The prelude declares a `variance` too: the population variance of `Int` and
 those is ambiguous, and the checker asks for the module's name:
 
 ```hql
-from stats import variance
+from stats import *
 [1, 2, 3, 4] | variance
 ```
 
@@ -118,7 +118,7 @@ the sorted values into `n` groups of equal probability, so `quantiles(4)` is
 the three quartiles and `quantiles(100)` the percentiles:
 
 ```hql
-from stats import quantile, quantiles
+from stats import *
 xs = [2, 4, 4, 4, 5, 5, 7, 9]
 {p90: xs | quantile(0.9), quartiles: xs | quantiles(4)}
 ```
@@ -131,7 +131,7 @@ xs = [2, 4, 4, 4, 5, 5, 7, 9]
 computed exactly, so the 95th percentile of the prices is a `Decimal`:
 
 ```hql
-from stats import quantile
+from stats import *
 [1.10, 2.20, 3.30, 4.45, 5.05] | quantile(0.95)
 ```
 
@@ -142,7 +142,7 @@ from stats import quantile
 A `q` outside `0.0` to `1.0`, or an `n` below `2`, is an evaluation error:
 
 ```hql
-from stats import quantile
+from stats import *
 [1, 2, 3] | quantile(1.5)
 ```
 
@@ -163,7 +163,7 @@ Pearson's coefficient, the covariance divided by the product of the two
 standard deviations, from `-1.0` to `1.0`:
 
 ```hql
-from stats import covariance, correlation
+from stats import *
 pairs = zip([1, 2, 3, 4, 5, 6], [2, 1, 4, 3, 7, 5])
 [pairs | covariance, pairs | correlation]
 ```
@@ -179,7 +179,7 @@ do. The books of the reading-club vault ([[21-a-vault|chapter 21]]) carry
 their pages in the header, and a typed view reads them as numbers:
 
 ```hql
-from stats import mean, median, stdev, quantiles
+from stats import *
 fn pages(c: Card) : Int = match c.metadata.pages { some(Int n) => n, _ => 0 }
 books = cards | filter(c => c.metadata.category == "book")
 lengths = books | map(pages)
@@ -194,7 +194,7 @@ A statistic per group is a `map` over the groups, as each aggregate of
 [[06-sql-like-queries|chapter 6]] was:
 
 ```hql
-from stats import mean
+from stats import *
 fn pages(c: Card) : Int = match c.metadata.pages { some(Int n) => n, _ => 0 }
 cards
 | filter(c => c.metadata.category == "book")
@@ -210,7 +210,7 @@ Two columns of one query are a column of pairs. Whether longer books are
 the later ones is the correlation of the year and the pages:
 
 ```hql
-from stats import correlation
+from stats import *
 fn pages(c: Card) : Int = match c.metadata.pages { some(Int n) => n, _ => 0 }
 fn year(c: Card) : Int = match c.metadata.year { some(Int n) => n, _ => 0 }
 cards
@@ -232,7 +232,7 @@ one value they are `none`, while the population variance of one value is
 `0.0`. The correlation is `none` also where one side has no variance:
 
 ```hql
-from stats import mean, median, stdev, pvariance, correlation
+from stats import *
 nothing = [1, 2, 3] | filter(n => n > 5)
 [nothing | mean, nothing | median, [4] | stdev, [4] | pvariance, zip([1, 2, 3], [5, 5, 5]) | correlation]
 ```
@@ -246,7 +246,7 @@ whatever the input, `unwrap_or` gives a default
 ([`Option`](02-data-types/option.hmd)); `0.0f` is a `Float` literal:
 
 ```hql
-from stats import mean
+from stats import *
 nothing = [1, 2, 3] | filter(n => n > 5)
 nothing | mean | unwrap_or(0.0f)
 ```

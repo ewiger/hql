@@ -5,7 +5,7 @@
 // expected-type: List<Bool>
 // expected: [true, true, true]
 
-from crypto import generate_secret_key, encrypt, decrypt
+from crypto import *
 
 key = generate_secret_key(ChaCha20Poly1305)
 sealed = "meet at the north gate" | encrypt(key)

@@ -6,7 +6,7 @@
 // expected-type: Result<Seq<Int>, TransactionFailure>
 // expected: ok([150, 45])
 
-from io.db.sqlite import sqlite
+from io.db.sqlite import *
 
 type Account { id : Int, owner : String, balance : Int }
 type Transfer { id : Int, from_id : Int, to_id : Int, amount : Int }

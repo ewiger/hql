@@ -8,7 +8,7 @@ module regex
 Text matched against a regular expression. A pattern is a `String`; one
 that does not parse is an evaluation error at the call. The module is
 imported where it is used, `import regex` for `regex.is_match(…)`, or
-`from regex import is_match` for `is_match(…)`.
+`from regex import *` for `is_match(…)`.
 
 - [`is_match`](is_match.hmd) — Whether `pattern` matches somewhere in `text`: `"a1b22c" | regex.is_match("[0-9]+")` is `true`.
 - [`find`](find.hmd) — The first match of `pattern` in `text`, or `none`: `"a1b22c" | regex.find("[0-9]+")` is `"1"`.

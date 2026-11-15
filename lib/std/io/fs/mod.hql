@@ -9,8 +9,8 @@
 /// written, and give a `Seq<Entry>` in the order of a sorted walk, never
 /// the file system's. A listing is granted exactly where reading a file at
 /// the same path is. A program imports the module, `import io.fs`, and
-/// reaches it as `fs`, `fs.folder(…)`, or binds what it calls,
-/// `from io.fs import folder`.
+/// reaches it as `fs`, `fs.folder(…)`, or binds its functions,
+/// `from io.fs import *`.
 module io.fs
 
 import core

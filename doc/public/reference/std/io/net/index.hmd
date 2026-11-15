@@ -10,8 +10,8 @@ Network endpoints: transports, read and written by `source`, `tap`,
 one sends nothing: the request a program describes happens when a
 source, tap, target or sink uses it, and only if the host grants the
 network to that program. A document reaches no network. A program
-imports the module, `import net` for `net.http(…)`, or binds what it
-calls, `from net import http`.
+imports the module, `import net` for `net.http(…)`, or binds its
+functions, `from net import *`.
 
 - [`Http`](types/Http.hmd) — An HTTP resource at `url`.
 - [`WebSocket`](types/WebSocket.hmd) — A WebSocket connection to `url`: each message is a document, read as it arrives and written as it is sent.

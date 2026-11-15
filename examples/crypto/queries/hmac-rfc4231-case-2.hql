@@ -5,8 +5,8 @@
 // expected-type: String
 // expected-json: "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
 
-from crypto import SecretKey, mac
-from encoding import Bytes, encode
+from crypto import *
+from encoding import *
 
 key = SecretKey(Bytes("Jefe"), HmacSha256)
 "what do ya want for nothing?" | mac(key) | encode(Hex)

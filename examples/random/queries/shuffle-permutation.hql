@@ -5,6 +5,6 @@
 // expected-type: List<Int>
 // expected: [1, 2, 3, 4, 5]
 
-from random import shuffle
+from random import *
 
 [3, 1, 4, 5, 2] | shuffle(seed = 42) | sort

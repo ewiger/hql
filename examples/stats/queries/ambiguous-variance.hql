@@ -6,6 +6,6 @@
 // kind: unknown-name
 // severity: error
 
-from stats import variance
+from stats import *
 
 [1, 2, 3, 4] | variance

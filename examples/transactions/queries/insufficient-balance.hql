@@ -6,7 +6,7 @@
 // expected-type: Data
 // expected: {balances: [50, 40], outcome: "rolled_back: insufficient balance", recorded: 1}
 
-from io.db.sqlite import sqlite
+from io.db.sqlite import *
 
 type Account { id : Int, owner : String, balance : Int }
 type Transfer { id : Int, from_id : Int, to_id : Int, amount : Int }

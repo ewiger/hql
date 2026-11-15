@@ -9,7 +9,7 @@
 /// entropy or `--seed`. The generator is ChaCha12 and is not fit for keys,
 /// tokens or any other secret: a seeded draw is predictable by design. Not
 /// in the prelude: a program writes `import random` for
-/// `random.shuffle(…)`, or `from random import shuffle` for `shuffle(…)`.
+/// `random.shuffle(…)`, or `from random import *` for `shuffle(…)`.
 module random
 
 import core

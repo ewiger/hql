@@ -5,7 +5,7 @@
 // expected-type: List<Option<Float>>
 // expected: [3.2, 0.7917946548886297]
 
-from stats import covariance, correlation
+from stats import *
 
 pairs = zip([1, 2, 3, 4, 5, 6], [2, 1, 4, 3, 7, 5])
 [pairs | covariance, pairs | correlation]

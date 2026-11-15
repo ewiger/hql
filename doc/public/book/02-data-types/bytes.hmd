@@ -35,7 +35,7 @@ the prelude, so a program imports what it calls, `from encoding import
 Bytes`:
 
 ```hql
-from encoding import Bytes
+from encoding import *
 [Bytes("68c3a9", Hex), Bytes("aMOp", Base64)]
 ```
 
@@ -47,7 +47,7 @@ Text that is not valid in the encoding fails when the program runs. The
 error names the encoding and the first invalid position, counted from 0:
 
 ```hql
-from encoding import Bytes
+from encoding import *
 Bytes("68g3", Hex)
 ```
 
@@ -107,7 +107,7 @@ module: `b.size()`, `bytes.size(b)` and `b | size` call one function.
 valid UTF-8. `encode` writes them in an encoding, which every octet has:
 
 ```hql
-from encoding import Bytes
+from encoding import *
 [Bytes("hé").to_text(), Bytes("ff", Hex).to_text()]
 ```
 
@@ -116,7 +116,7 @@ from encoding import Bytes
 ```
 
 ```hql
-from encoding import Bytes, encode
+from encoding import *
 b = Bytes("hé")
 [b.encode(Hex), b.encode(Base64)]
 ```
@@ -134,7 +134,7 @@ For every value `b` and every encoding `E`, `b.encode(E).to_bytes(E)` is
 numbers, and a value that is a prefix of another comes first:
 
 ```hql
-from encoding import Bytes
+from encoding import *
 [Bytes("ff", Hex), Bytes("0000", Hex), Bytes("01", Hex), Bytes("00", Hex)] | sort
 ```
 
@@ -146,7 +146,7 @@ Two values are equal when they hold the same octets, however each was
 built:
 
 ```hql
-from encoding import Bytes
+from encoding import *
 Bytes("hé") == Bytes("68c3a9", Hex)
 ```
 
@@ -161,7 +161,7 @@ its base64 text, padded, in the standard alphabet:
 
 <!-- run: --to json -->
 ```hql
-from encoding import Bytes
+from encoding import *
 {name: "key", body: Bytes("ff00", Hex)}
 ```
 

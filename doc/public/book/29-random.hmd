@@ -7,8 +7,8 @@ random output repeatable.
 
 ## The module
 
-`random` is not in the prelude: a program binds what it calls,
-`from random import sample`, or writes `import random` and calls
+`random` is not in the prelude: a program binds its functions,
+`from random import *`, or writes `import random` and calls
 `random.sample(…)`. Each draw
 has two forms. With a `seed` argument it is **pure**: its result is a
 function of the seed, its input and its call site, the same on every run.
@@ -24,25 +24,25 @@ of `random` is fit for a key, a token or any other secret.
 in the input:
 
 ```hql
-from random import sample
+from random import *
 range(1, 21) | sample(5, seed = 7)
 ```
 
 ```text
-[4, 6, 13, 16, 17]
+[1, 5, 8, 11, 12]
 ```
 
 `shuffle` is every element in a uniformly random order, and `choice` one
 element drawn uniformly:
 
 ```hql
-from random import shuffle, choice
+from random import *
 titles = cards | filter(c => c.metadata.category == "book") | map(c => c.title)
 {shuffled: titles | shuffle(seed = 7), picked: titles | choice(seed = 7)}
 ```
 
 ```text
-{picked: "Frankenstein", shuffled: ["The Common Reader", "Leaves of Grass", "Mrs Dalloway", "The Hobbit", "Dune", "A Room of One's Own", "Frankenstein"]}
+{picked: "The Common Reader", shuffled: ["Leaves of Grass", "Frankenstein", "The Common Reader", "A Room of One's Own", "The Hobbit", "Mrs Dalloway", "Dune"]}
 ```
 
 `choice` is an `Option`: over an empty input it is `none`. `sample(n)` with
@@ -50,13 +50,13 @@ titles = cards | filter(c => c.metadata.category == "book") | map(c => c.title)
 evaluation error:
 
 ```hql
-from random import choice
+from random import *
 nothing = [1, 2, 3] | filter(n => n > 5)
 [nothing | choice(seed = 1), [1, 2, 3] | choice(seed = 1)]
 ```
 
 ```text
-[none, 1]
+[none, 3]
 ```
 
 A collection without an order, such as a `Set`, is sorted by its elements
@@ -69,13 +69,13 @@ text, as well as of its seed. Two calls with one seed at two places are two
 draws:
 
 ```hql
-from random import shuffle
+from random import *
 deck = ["a", "b", "c", "d", "e"]
 [deck | shuffle(seed = 1), deck | shuffle(seed = 1)]
 ```
 
 ```text
-[["b", "a", "e", "c", "d"], ["c", "a", "e", "d", "b"]]
+[["b", "d", "c", "e", "a"], ["b", "c", "a", "e", "d"]]
 ```
 
 One call site with one seed gives one result each time it is reached. A
@@ -83,13 +83,13 @@ seeded draw inside a `map` repeats; a seed that varies with the element
 varies the draw:
 
 ```hql
-from random import shuffle
+from random import *
 deck = ["a", "b", "c", "d"]
 {same: range(0, 3) | map(_ => deck | shuffle(seed = 1)), varied: range(0, 3) | map(i => deck | shuffle(seed = i))}
 ```
 
 ```text
-{same: [["b", "c", "d", "a"], ["b", "c", "d", "a"], ["b", "c", "d", "a"]], varied: [["d", "b", "c", "a"], ["a", "b", "c", "d"], ["d", "c", "a", "b"]]}
+{same: [["b", "a", "c", "d"], ["b", "a", "c", "d"], ["b", "a", "c", "d"]], varied: [["c", "b", "d", "a"], ["d", "a", "c", "b"], ["a", "c", "b", "d"]]}
 ```
 
 Moving a seeded call to another place in the program text changes its
@@ -105,13 +105,13 @@ one `--seed` writes the same values:
 
 <!-- run: --seed 7 -->
 ```hql
-from random import sample, shuffle, choice
+from random import *
 xs = range(1, 11)
 {sample: xs | sample(3), shuffled: xs | shuffle, picked: xs | choice}
 ```
 
 ```text
-{picked: 7, sample: [5, 6, 7], shuffled: [1, 10, 7, 3, 2, 4, 9, 8, 6, 5]}
+{picked: 5, sample: [4, 5, 7], shuffled: [6, 10, 7, 5, 8, 2, 3, 4, 9, 1]}
 ```
 
 An evaluation that takes its seed from the host reports it at `info`, with
@@ -133,7 +133,7 @@ every draw holds of each: a sample of `n` has `n` elements, and a shuffle
 holds every element once:
 
 ```hql
-from random import sample, shuffle
+from random import *
 [range(0, 1000) | sample(3) | size, (range(0, 29) | shuffle | sort) == range(0, 29)]
 ```
 
@@ -150,19 +150,19 @@ makes them repeatable:
 
 <!-- run: --seed 7 -->
 ```hql
-from random import random_int, random_float
+from random import *
 {dice: range(0, 5) | map(_ => random_int(1, 6)), fraction: random_float()}
 ```
 
 ```text
-{dice: [1, 1, 6, 1, 4], fraction: 0.13923385323560944}
+{dice: [1, 2, 3, 1, 6], fraction: 0.5633124818544215}
 ```
 
 `high` below `low` is an evaluation error:
 
 <!-- run: --seed 7 -->
 ```hql
-from random import random_int
+from random import *
 random_int(6, 1)
 ```
 
@@ -182,7 +182,7 @@ draw. The namespace is a UUID's text, or one of the standard namespaces
 `"dns"`, `"url"`, `"oid"` and `"x500"`:
 
 ```hql
-from random import uuid
+from random import *
 uuid("www.example.com", "dns")
 ```
 
@@ -195,7 +195,7 @@ Unix milliseconds and the next 42 a counter, so the UUIDs of one evaluation
 are distinct and sort in the order they were drawn:
 
 ```hql
-from random import uuid
+from random import *
 ids = range(0, 20) | map(_ => uuid())
 [ids == sort(ids), size(Set(ids)) == 20]
 ```
@@ -210,12 +210,12 @@ and `--seed` the seed, and the two together make `uuid()` repeatable:
 
 <!-- run: --seed 7 --now 2026-10-24T07:30:00Z -->
 ```hql
-from random import uuid
+from random import *
 [uuid(), uuid()]
 ```
 
 ```text
-["01a16cd1-04c0-706c-9aa2-de2870e936e0", "01a16cd1-04c0-706c-9aa2-de29c18ee224"]
+["01a16cd1-04c0-706c-9aa2-de28c20754f4", "01a16cd1-04c0-706c-9aa2-de2983927b4e"]
 ```
 
 ## A stream

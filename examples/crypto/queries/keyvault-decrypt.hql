@@ -8,7 +8,7 @@
 // expected-json: "quarterly numbers"
 
 import crypto
-from crypto import encrypt_to, decrypt_with
+from crypto import *
 import crypto.keyvault
 
 backup = keyvault.key("team", "backup-2026", X25519)

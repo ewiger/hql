@@ -5,6 +5,6 @@
 // expected-type: List<String>
 // expected: ["c", "a", "b"]
 
-from random import sample
+from random import *
 
 ["c", "a", "b"] | sample(10)

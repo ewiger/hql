@@ -7,6 +7,6 @@
 // severity: failure
 // expected-type: Int
 
-from random import random_int
+from random import *
 
 random_int(6, 1)

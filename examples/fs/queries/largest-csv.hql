@@ -6,7 +6,7 @@
 // expected-type: Seq<String>
 // expected: ["birds.csv", "q1.csv"]
 
-from io.fs import folder, glob, Glob
+from io.fs import *
 
 // The CSV files under data/, largest first.
 folder("../tree/data")

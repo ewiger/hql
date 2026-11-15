@@ -194,7 +194,7 @@ are its kind's keys, so a program reaches a subject with no `.hql/config.toml`:
 
 <!-- run: skip -->
 ```hql
-from io.msg.nats_jetstream import nats_jetstream
+from io.msg.nats_jetstream import *
 
 orders = nats_jetstream("events.orders", stream = "EVENTS", url_env = "NATS_URL", idle_ms = 2000)
 
@@ -214,7 +214,7 @@ supertypes state:
 
 <!-- run: check -->
 ```hql
-from io.msg.nats import nats
+from io.msg.nats import *
 
 nats("orders.order_placed", url_env = "NATS_URL") | is(Network)
 ```
@@ -225,7 +225,7 @@ Bool
 
 A module is imported by its full path, and naming it in the program's first
 lines is how a program states that it reaches NATS:
-`from io.msg.nats import nats`. Each module declares only its own transport:
+`from io.msg.nats import *`. Each module declares only its own transport:
 `nats(...)` takes no `stream`, and `io.msg.nats` has no `nats_jetstream` to
 import. The address is
 still `url` or the variable `url_env` names: a constructor takes no secret,

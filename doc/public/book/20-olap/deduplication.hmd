@@ -142,7 +142,7 @@ and two trees equal under HQL equality have one fingerprint. It is the key
 the rows do not have:
 
 ```hql
-from crypto.digest import fingerprint
+from crypto.digest import *
 
 type Delivery {
     received : String

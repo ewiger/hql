@@ -70,8 +70,8 @@ collections (std 0.6.0, always available)
 
 A function of a module that the program has not imported is listed too, so
 the import it needs can be looked up. `import stats` binds the module's
-name, so its functions are called `stats.mean(…)`; `from stats import mean`
-binds `mean` itself ([[05-modules|chapter 5]]). The modules of
+name, so its functions are called `stats.mean(…)`; `from stats import *`
+binds `mean` and the rest by their own names ([[05-modules|chapter 5]]). The modules of
 `lib/std/prelude.hql`, `core`, `collections`, `string`, `seq`, `math`,
 `option`, `result`, `graph`, `format` and `io` among them, are imported both
 ways in every program unless the project's `.hql/config.toml` says

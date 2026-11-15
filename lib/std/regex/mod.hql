@@ -6,7 +6,7 @@
 /// Text matched against a regular expression. A pattern is a `String`; one
 /// that does not parse is an evaluation error at the call. The module is
 /// imported where it is used, `import regex` for `regex.is_match(…)`, or
-/// `from regex import is_match` for `is_match(…)`.
+/// `from regex import *` for `is_match(…)`.
 module regex
 
 import core

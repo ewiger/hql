@@ -5,6 +5,6 @@
 // expected-type: String
 // expected: 2ed6657d-e927-568b-95e1-2665a8aea6a2
 
-from random import uuid
+from random import *
 
 uuid("www.example.com", "dns")

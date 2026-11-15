@@ -5,6 +5,6 @@
 // expected-type: Option<Int>
 // expected: 1
 
-from stats import mode
+from stats import *
 
 [3, 1, 3, 1, 2] | mode

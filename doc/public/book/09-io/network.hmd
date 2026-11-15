@@ -1,7 +1,7 @@
 # The network
 
 `import net` adds endpoints that are transports, `net.http(…)`, and
-`from net import http` binds the constructor as `http(…)`. They are read and written by
+`from net import *` binds the constructors without it, `http(…)`. They are read and written by
 `source`, `tap`, `target` and `sink` like any other endpoint, and
 constructing one sends nothing. Naming the module in the program's first
 lines is how a program states that it may reach the network.
@@ -11,7 +11,7 @@ decodes the response body, so `source` gives a `Seq`:
 
 <!-- run: check -->
 ```hql
-from net import http
+from net import *
 source(http("https://api.example.com/birds"), Json)
 ```
 
@@ -24,7 +24,7 @@ so reading it gives a `Stream`:
 
 <!-- run: check -->
 ```hql
-from net import websocket
+from net import *
 tap(websocket("wss://events.example.com"), Json)
 ```
 
@@ -39,7 +39,7 @@ failure naming the URL:
 
 <!-- run: check -->
 ```hql
-from net import http
+from net import *
 source(file("examples/io/sightings.jsonl"))
 | target(http("https://api.example.com/report", method = "POST"), Json)
 ```
@@ -63,7 +63,7 @@ bound of one `http` endpoint, in milliseconds above 0:
 
 <!-- run: check -->
 ```hql
-from net import http
+from net import *
 source(http("https://api.example.com/birds", timeout_ms = 5000), Json)
 ```
 

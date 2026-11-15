@@ -5,7 +5,7 @@
 // expected-type: Option<String>
 // expected-json: "J45.909"
 
-from crypto import generate_key_pair, encrypt_to, decrypt_with
+from crypto import *
 
 type Patient {
     patient   : String

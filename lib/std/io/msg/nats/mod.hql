@@ -10,7 +10,7 @@
 /// no one. A stream that keeps a subject's messages is
 /// `io.msg.nats_jetstream`. The `nats` kind of a configured endpoint is
 /// this transport under an id. A program binds the constructor,
-/// `from io.msg.nats import nats`.
+/// `from io.msg.nats import *`.
 module io.msg.nats
 
 import core

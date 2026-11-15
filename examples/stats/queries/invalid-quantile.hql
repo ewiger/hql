@@ -7,6 +7,6 @@
 // severity: failure
 // expected-type: Option<Float>
 
-from stats import quantile
+from stats import *
 
 [1, 2, 3] | quantile(1.5)

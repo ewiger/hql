@@ -6,7 +6,7 @@
 // expected-type: Seq<Option<Data>>
 // expected-json: [1, 2]
 
-from crypto import read_private_key, decrypted_with
+from crypto import *
 
 identity = read_private_key(file("../keys/x25519-identity.txt"), Age, X25519)
 source(decrypted_with(file("../orders.jsonl.age"), identity)) | map(o => o.id)

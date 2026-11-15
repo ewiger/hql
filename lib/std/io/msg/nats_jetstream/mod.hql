@@ -9,7 +9,7 @@
 /// starts where it says, and a message is written once the stream
 /// acknowledges it. The `nats_jetstream` kind of a configured endpoint is
 /// this transport under an id. A program binds the constructor,
-/// `from io.msg.nats_jetstream import nats_jetstream`.
+/// `from io.msg.nats_jetstream import *`.
 module io.msg.nats_jetstream
 
 import core

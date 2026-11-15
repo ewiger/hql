@@ -7,7 +7,7 @@
 /// `tap` and written by `target` like any other endpoint (module `io`). The
 /// `postgres` kind of a configured endpoint is this transport under an id,
 /// with a schema boundary. A program binds the constructor,
-/// `from io.db.postgres import postgres`.
+/// `from io.db.postgres import *`.
 module io.db.postgres
 
 import core
