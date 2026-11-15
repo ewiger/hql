@@ -3479,11 +3479,15 @@ impl<'a> Checker<'a> {
         };
         let at_type = |ty: &str| functions.iter().any(|(_, held)| *held == Some(ty));
         let nothing_at = |ty: &str, at: &Range<usize>| {
+            let found = match &receiver_type {
+                Some(held) => format!("its receivers are over `{held}`"),
+                None => "it declares no receiver".to_owned(),
+            };
             Diagnostic::name(
                 at.clone(),
                 format!(
                     "`{ty}.*` selects nothing in the module `{name}`: no public function has the \
-                     receiver type `{ty}`"
+                     receiver type `{ty}`; {found}"
                 ),
             )
         };
@@ -3706,10 +3710,12 @@ impl<'a> Checker<'a> {
                         format!("{name}.{original}"),
                     ];
                     providers.dedup();
-                    self.ambiguous_imports
-                        .entry(bound.clone())
-                        .or_default()
-                        .extend(providers);
+                    let held = self.ambiguous_imports.entry(bound.clone()).or_default();
+                    for provider in providers {
+                        if !held.contains(&provider) {
+                            held.push(provider);
+                        }
+                    }
                     self.scope.remove(&bound);
                 }
                 continue;
@@ -4019,6 +4025,30 @@ impl<'a> Checker<'a> {
             ));
         }
         Ok(())
+    }
+
+    /// Why a name is bound to nothing here: two `from` statements bound it to
+    /// two declarations, which is an ambiguity reported where it is used
+    /// (HQL-0060), or nothing binds it.
+    fn unbound(&self, name: &str, span: Range<usize>) -> Diagnostic {
+        if let Some(providers) = self.ambiguous_imports.get(name) {
+            return Diagnostic::name(
+                span,
+                format!(
+                    "`{name}` is imported from {}, so it is ambiguous; import one of them under \
+                     another name with `as`, or call it qualified",
+                    providers
+                        .iter()
+                        .map(|held| format!("`{held}`"))
+                        .collect::<Vec<_>>()
+                        .join(" and ")
+                ),
+            );
+        }
+        helped(
+            Diagnostic::name(span, format!("`{name}` is not bound")),
+            builtins::hint(name),
+        )
     }
 
     /// Whether a name may be a step: one an extension declares, or one a
@@ -5875,10 +5905,7 @@ impl<'a> Checker<'a> {
                         ),
                     )
                 } else {
-                    helped(
-                        Diagnostic::name(span, format!("`{name}` is not bound")),
-                        builtins::hint(name),
-                    )
+                    self.unbound(name, span)
                 }
             }),
             Kind::Mutation {
@@ -6346,10 +6373,7 @@ impl<'a> Checker<'a> {
                     return self.step(step, &input, Some(written), arguments, span);
                 }
                 let _ = arguments;
-                Err(helped(
-                    Diagnostic::name(span, format!("`{name}` is not bound")),
-                    builtins::hint(name),
-                ))
+                Err(self.unbound(name, span))
             }
             Kind::Pipe(input, step) => {
                 let input_type = self.expression(input)?;

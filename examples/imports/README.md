@@ -18,6 +18,21 @@ workspace module is [`shelf`](lib/shelf/mod.hql), a module `for String`.
 | [collection receivers](queries/collection-receivers.hql) | `from stats import Collection.*` | `[2.5, 2.5]` |
 | [receiver prefix](queries/receiver-prefix.hql) | `String.* as String.bar_*` | `["DUNE!", "emma"]` |
 | [import a type](queries/import-a-type.hql) | `from encoding import Hex, String.decode` | `hé` |
+| [receiver alias](queries/receiver-alias.hql) | `String.shout as String.yell`: a receiver, and a function | `["DUNE!", "EMMA!"]` |
+
+## Refused
+
+| Case | What it shows | Result |
+| --- | --- | --- |
+| [qualified only](queries/invalid-qualified-only.hql) | a bare `mean` after `import stats` | a name error naming `stats.mean(…)` and `from stats import mean` |
+| [no module name](queries/invalid-from-binds-no-module.hql) | `stats.median` after `from stats import mean` | a name error |
+| [misspelt](queries/invalid-misspelt.hql) | `from stats import meen` | a name error at the import |
+| [private](queries/invalid-private.hql) | `from shelf import pad`, a private function | a name error at the import |
+| [selects nothing](queries/invalid-selects-nothing.hql) | `from stats import List.*`, whose receivers are over `Collection` | a name error at the import |
+| [receiver type changed](queries/invalid-receiver-type-changed.hql) | `String.shout as Text.shout` | an import error |
+| [group without a pattern](queries/invalid-group-without-pattern.hql) | `* as statistics` | an import error |
+| [ambiguous](queries/invalid-ambiguous.hql) | `per_day` from both `shelf` and [`ledger`](lib/ledger/mod.hql) | a name error where it is used |
+| [function alias](queries/invalid-function-alias-no-receiver.hql) | `String.shout as yell`, then `"Dune".yell()` | a name error: `yell` is a function only |
 
 From the repository root:
 

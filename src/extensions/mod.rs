@@ -1314,11 +1314,33 @@ impl Resolution {
             })
         };
         let nothing_at = |ty: &str, span: &Range<usize>| {
+            let mut over: Vec<&str> = Vec::new();
+            for name in environment.operation_names(module) {
+                if let Some(step) = public(name) {
+                    for (held, _) in environment.receiver_forms(step) {
+                        if !over.contains(&held) {
+                            over.push(held);
+                        }
+                    }
+                }
+            }
+            over.sort_unstable();
+            let found = match over.as_slice() {
+                [] => "it declares no receiver".to_owned(),
+                types => format!(
+                    "its receivers are over {}",
+                    types
+                        .iter()
+                        .map(|held| format!("`{held}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            };
             Diagnostic::name(
                 span.clone(),
                 format!(
                     "`{ty}.*` selects nothing in the module `{module_name}`: no public function \
-                     has the receiver type `{ty}`"
+                     has the receiver type `{ty}`; {found}"
                 ),
             )
         };
