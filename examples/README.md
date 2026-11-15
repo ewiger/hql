@@ -40,6 +40,11 @@ The [windows](windows/README.md) cases rank and compare rows within their
 partition with `over`, and order ties with `then`, from
 [HQL-0050](../doc/proposals/HQL-0050/index.hmd).
 
+The [imports](imports/README.md) cases bind a module's name with `import`,
+its functions unqualified with `from`, receivers by the type of their `self`,
+and other names with `as`, for a standard and a workspace module alike, from
+[HQL-0060](../doc/proposals/HQL-0060/index.hmd).
+
 The [packages](packages/README.md) project lists the crate of the `hello`
 package under `[packages] paths`, so a program there imports a module whose
 functions are loaded from a library. The book's part on extending HQL runs
