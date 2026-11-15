@@ -27,7 +27,7 @@ the date they start from.
 A constructor also takes named parts: `Date(year =, month =, day =)`,
 `DateTime(date, hour =, minute =)`, `Instant(unix_seconds =)` and
 `Duration(hours =, minutes =, ...)`. Text that does not parse, or a part out
-of range, is an evaluation error naming it:
+of range, fails when the program runs, and the error names it:
 
 ```hql
 Date(year = 2026, month = 2, day = 30)

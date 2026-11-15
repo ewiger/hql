@@ -42,8 +42,8 @@ import encoding
 [0x68c3a9, 0x68c3a9]
 ```
 
-Text that is not valid in the encoding is an evaluation error naming the
-encoding and the first invalid position, counted from 0:
+Text that is not valid in the encoding fails when the program runs. The
+error names the encoding and the first invalid position, counted from 0:
 
 ```hql
 import encoding

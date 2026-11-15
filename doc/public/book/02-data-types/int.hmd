@@ -1,7 +1,8 @@
 # Int
 
-An `Int` is a whole number: a signed 64-bit integer. Arithmetic on two `Int`
-operands gives an `Int`.
+An `Int` is a whole number: a signed 64-bit integer. Use it for counts,
+positions, page numbers and years. A number written without a decimal point
+is an `Int`, and arithmetic on two `Int` operands gives an `Int`.
 
 ```hql
 2 + 3 * 4
@@ -46,6 +47,7 @@ The `math` module adds what operators do not cover:
 [1024, 5, -1]
 ```
 
-An `Int` is `Orderable`, so `<`, `>`, `min`, `max` and `sort` work on it, and
-it compares only with another `Int`. `float` turns it into a
-[[float|Float]], and `str` into a [[string|String]].
+An `Int` is `Orderable`, so `<`, `>`, `min`, `max` and `sort` work on it. It
+compares with another `Int` or with a [[decimal|Decimal]], and with no other
+type. `float` converts it to a [[float|Float]], and `str` to a
+[[string|String]].

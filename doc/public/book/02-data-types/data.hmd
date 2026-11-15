@@ -1,8 +1,17 @@
 # Data: records and lists
 
-The values JSON and YAML are made of — records of named fields, lists, and
-scalar leaves — are one type in HQL, `Data`. This page does with `Data` what
-`jq` does with JSON: build it, read into it, reshape it, and write it back out.
+`Data` is the type of a JSON or YAML document: a tree of records, lists and
+scalar leaves. Its shape is not part of its type. A `Data` value can hold any
+document, and the program finds out what is in it by reading it. Data from
+outside the program arrives as `Data`, and a program works with it much as
+`jq` works with JSON: it builds trees, reads into them, reshapes them and
+writes them back out.
+
+Because the type says nothing about the shape, the checker cannot check much
+about a `Data` value. Reading a field may find nothing, and a leaf may be any
+scalar. A program that relies on a shape names it in a contract, and from
+that point works with typed values.
+[[02-data-types#Validating the data|Validating the data]] shows how.
 
 ## A tree of values
 
@@ -240,8 +249,6 @@ A program writes its data as literals, reads it from a vault's documents, as
 
 ## What is next
 
-How `Data` differs from a set and from a map, all three written in braces, is
-[[sets-data-and-maps|the next page]]. A `Data` list is one kind of
-collection. [[03-collections|Chapter 3]] meets
-the others — lists, sets and maps of typed values — and the steps that work on
-all of them.
+[[sets-data-and-maps|Sets, Data and maps]] tells apart the three kinds of
+value written in braces. [[03-collections|Chapter 3]] covers typed
+collections, and how a contract turns a `Data` list into one.

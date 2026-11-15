@@ -1,7 +1,7 @@
 # Sets, Data and maps
 
-Three kinds of value are written in braces, or hold keys and values, and they
-are easy to mix up. They are different types with different jobs:
+Three kinds of value use braces or hold keys and values, and they are easy to
+mix up. They are different types with different uses:
 
 | Type | What it is | Written |
 | --- | --- | --- |
@@ -11,9 +11,27 @@ are easy to mix up. They are different types with different jobs:
 
 ## The colon tells braces apart
 
-Braces holding values are a set; braces holding `key: value` entries are
-`Data`. The colon is the only thing that tells them apart, and the empty forms
-keep it: `{}` is the empty set and `{:}` the empty `Data`.
+Braces holding values are a set. Braces holding `key: value` entries are
+`Data`. The colon is the only difference, and the empty forms keep it: `{}`
+is the empty set and `{:}` is the empty `Data` record.
+
+```d2
+direction: down
+
+braces: "a literal in braces" {shape: diamond}
+colon: "has a colon?" {shape: diamond}
+empty: "{:} with a declared map type?" {shape: diamond}
+
+set: "Set<T>\n{3, 1, 2}  {}" {style.fill: "#eef6ee"}
+data: "Data\n{title: \"Dune\"}  {:}" {style.fill: "#f6efe6"}
+map: "Map<K, V>, OrderedMap, SortedMap\nm : Map<String, Int> = {:}" {style.fill: "#eef6ee"}
+
+braces -> colon
+colon -> set: "no"
+colon -> empty: "yes"
+empty -> data: "no"
+empty -> map: "yes"
+```
 
 ```hql
 {3, 1, 3, 2}
@@ -84,8 +102,8 @@ JSON or YAML document decodes to. A record's fields may hold different types,
 a number beside a text beside a list, and nesting goes as deep as the
 document does. It is not a hash map, and not a `Map<String, Any>`.
 
-A `Map<K, V>` is a typed mapping: every key is a `K` and every value a `V`.
-The constructor pairs a list of keys with a list of values:
+A `Map<K, V>` is typed: every key is a `K` and every value a `V`. The
+constructor pairs a list of keys with a list of values:
 
 ```hql
 Map(["dune", "emma"], [412, 474])
@@ -95,16 +113,9 @@ Map(["dune", "emma"], [412, 474])
 Map {"dune": 412, "emma": 474}
 ```
 
-```hql
-Map(["dune", "emma"], [412, 474]).get("dune")
-```
-
-```text
-412
-```
-
-So the three answer different needs: a set, *which values*; a map, *which
-value for each key*, all of one type; `Data`, *whatever structure arrived*.
+Use a set for a group of distinct values, a map to look up one value per
+key, and `Data` for a document whose shape the program does not control.
+[[03-collections/maps|Maps]] covers maps in full.
 
 ## `{:}` is Data, or a declared map
 
@@ -128,14 +139,11 @@ counts == Map<String, Int>([], [])
 true
 ```
 
-`Data` is the default, and a declared `Map`, `OrderedMap` or `SortedMap` turns
-it into that empty map. An empty literal carries no information of its own,
-so the type around it decides: HQL infers a type while the literal says
-enough, and asks for an explicit one where it does not.
+`{:}` is `Data` unless a map type is declared for it. An empty literal has
+no entries to infer a type from, so the declared type decides.
 
-This holds for the empty literal only. A non-empty keyed literal is always
-`Data`, and binding it to a declared map type is a
-type error:
+This applies to the empty literal only. A non-empty literal with keys is
+always `Data`, and binding it to a map type is a type error:
 
 ```hql
 m : Map<String, Int> = {a: 1}
@@ -154,5 +162,5 @@ A non-empty map is built with the constructor, `Map(["a"], [1])`.
 
 ## What is next
 
-[[03-collections|Chapter 3]] uses lists, sets and maps as collections, and
-the steps they share.
+[[03-collections|Chapter 3]] covers lists, sets and maps, and the steps they
+share.

@@ -11,8 +11,9 @@ combine them:
 true
 ```
 
-`and` and `or` are connectives of the language, so the right side is
-evaluated only when the left side does not decide the answer.
+`and` and `or` **short-circuit**: the right side is evaluated only when the
+left side does not already give the answer. `false and x` is `false` without
+evaluating `x`.
 
 A `Bool` is not a number, and compares only with another `Bool`:
 
@@ -40,4 +41,16 @@ pages = 412
 "long"
 ```
 
-A `Bool` is a `Scalar` but not `Orderable`: `true < false` means nothing.
+A `Bool` has no order, so `<` and `sort` reject it:
+
+```hql
+true < false
+```
+
+```text
+check error[type-mismatch]: `<` requires two values of the same Orderable type, not Bool and Bool
+ --> <expression>:1:1
+  |
+1 | true < false
+  | ^^^^^^^^^^^^
+```

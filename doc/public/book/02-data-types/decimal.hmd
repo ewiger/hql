@@ -1,9 +1,8 @@
 # Decimal
 
-A `Decimal` is an exact decimal number: an integer significand of up to 512
-bits, about 154 digits, and a scale, the number of digits after the point, from
-0 to 154. A number written with a decimal
-point is a `Decimal`, so arithmetic on it loses nothing to binary rounding:
+A `Decimal` is an exact decimal number. Use it for money, prices, rates and
+any amount that must add up to the cent. A number written with a decimal
+point is a `Decimal`, and arithmetic on it has no binary rounding error:
 
 ```hql
 0.1 + 0.2 == 0.3
@@ -13,6 +12,8 @@ point is a `Decimal`, so arithmetic on it loses nothing to binary rounding:
 true
 ```
 
+A `Decimal` is an integer **significand** of up to 512 bits, about 154
+digits, and a **scale**: the number of digits after the point, from 0 to 154.
 The scale is kept for display. A sum or a difference has the larger scale of
 its operands, and a product the sum of their scales. Equality and order are by
 value, so `1.50 == 1.5` is `true`:
@@ -38,8 +39,8 @@ A literal keeps every digit it is written with, however many there are:
 ## Division and rounding
 
 `/` is exact where the quotient terminates, and otherwise rounded half to even
-to 100 significant digits. Division by zero is an evaluation error, as it is
-for an `Int`. `round(x, places)` rounds half to even to `places` digits after
+to 100 significant digits. Division by zero is an `execute failure`, as it
+is for an `Int`. `round(x, places)` rounds half to even to `places` digits after
 the point, and `round(x)` to a whole number:
 
 ```hql
@@ -52,6 +53,23 @@ the point, and `round(x)` to a whole number:
 
 ## Int, Float and Decimal
 
+An `Int` and a `Decimal` combine directly. A `Float` combines with neither,
+and every conversion to or from it is written:
+
+```d2
+direction: down
+
+int: "Int\n412" {style.fill: "#eef6ee"}
+decimal: "Decimal\n12.50" {style.fill: "#eef6ee"}
+float: "Float\n2.5f" {style.fill: "#eef6ee"}
+
+int -> decimal: "12.50 * 3 is 37.50\narithmetic and comparison mix"
+decimal -> float: "float(d)" {style.stroke-dash: 3}
+float -> decimal: "decimal(x)" {style.stroke-dash: 3}
+int -> float: "float(n)" {style.stroke-dash: 3}
+float -> int: "int(x)" {style.stroke-dash: 3}
+```
+
 Arithmetic and comparison take an `Int` and a `Decimal` together. Arithmetic
 gives a `Decimal`, computed as if the `Int` were a `Decimal` of scale 0:
 
@@ -63,8 +81,8 @@ gives a `Decimal`, computed as if the `Int` were a `Decimal` of scale 0:
 [37.50, 6.75]
 ```
 
-A `Float` does not mix with a `Decimal`: a binary float carries no exact
-decimal value, so the program says which conversion it means. `decimal(x)`
+A `Float` does not mix with a `Decimal`. A binary float has no exact decimal
+value, so the program must choose the conversion. `decimal(x)`
 reads an `Int`, or a `Float` by its shortest digits, as a `Decimal`;
 `float(d)` gives the nearest `Float` and `int(d)` the integer part:
 

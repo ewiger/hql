@@ -168,6 +168,5 @@ where the first is `none`:
 card nobody has written are each an `Option` too, and each is handled the same
 way.
 
-A missing value is not a failure. A computation that can fail gives a
-`Result`, `ok` or `err`, and [[results|chapter 10]]
-meets it.
+A missing value is not a failure. A computation that can fail returns a
+`Result`, `ok` or `err`, which [[results|Results]] in chapter 10 covers.

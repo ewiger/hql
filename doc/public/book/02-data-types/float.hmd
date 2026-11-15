@@ -1,8 +1,10 @@
 # Float
 
-A `Float` is a 64-bit binary floating-point number, written with the suffix
-`f`: `0.5f`, `6.02e23f`, `2f`. A number with a decimal point and no suffix is
-a [[decimal|Decimal]]. Arithmetic on two `Float` operands gives a `Float`:
+A `Float` is a 64-bit binary floating-point number. Use it for measurements
+and scientific values, where a very small rounding error does not matter. A
+`Float` is written with the suffix `f`: `0.5f`, `6.02e23f`, `2f`. A number
+with a decimal point and no suffix is a [[decimal|Decimal]]. Arithmetic on
+two `Float` operands gives a `Float`:
 
 ```hql
 7.0f / 2.0f
@@ -23,11 +25,12 @@ a little off:
 0.30000000000000004
 ```
 
-That is why a `Float` is the wrong type for money; a `Decimal` holds an
+This is why a `Float` is the wrong type for money. A `Decimal` holds an
 amount exactly as it is written.
 
-An `Int` and a `Float` do not mix: `1 + 2.0f` is a type error, and so is a
-`Decimal` beside a `Float`. `float` and `int` convert, the second truncating:
+A `Float` does not mix with an `Int` or a `Decimal`: `1 + 2.0f` is a type
+error. `float` and `int` convert between `Int` and `Float`, and `int` drops
+the fraction:
 
 ```hql
 [1.float() + 2.0f, 3.9f.int().float()]
