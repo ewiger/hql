@@ -1,10 +1,151 @@
 # 2. Data types
 
-Every value in HQL has a type, and the type of every expression is inferred
-and checked before the program is evaluated. This chapter meets the types values are built from: the scalars `Int`,
-`Float`, `Decimal`, `String`, `Bool` and `Bytes`, the time types `Date`, `DateTime`,
-`Instant` and `Duration`, and `Data`, the tree JSON and YAML are made of.
-Each has a page of its own; this one tries them in the REPL first.
+HQL is a statically typed expression and query language. Its central idea is
+that a type is a contract. A type describes a value: the fields of a record,
+the type of each field, and any rules the values must follow. HQL checks
+values against their types at two points.
+
+The first is before the program runs. HQL has no compiler, but `hql`
+type-checks the whole program first, the way a compiler would. It infers the
+type of every expression and rejects the program if anything does not fit.
+This is what makes HQL statically typed.
+
+The second is when data comes in. When a program reads a file, an event or a
+row as some type, `hql` validates it against that type and rejects anything
+that does not match. Values are never converted implicitly. This is what
+makes HQL strongly typed.
+
+A query language needs both. Static checking finds mistakes in the program,
+but it cannot see the data, which does not exist yet. Validation finds bad
+data, but on its own it reports a mistake in the program only when some data
+happens to trigger it.
+
+## Types as data contracts
+
+On a data platform, a data contract is an agreement between the team that
+produces a table and the teams that consume it. It lists the columns, their
+types, and rules such as "an amount is never negative". It usually lives
+outside the code, in a schema registry or a validation job.
+
+In HQL, the contract is the type:
+
+```hql
+type BookData : DataContract = {
+    title: String
+    pages: Int
+
+    require pages > 0
+}
+```
+
+The checker uses `BookData` to check the query, and the same declaration
+validates the rows when the program runs.
+
+## Checking the program
+
+Here the program asks for `page`, but the field is called `pages`:
+
+```hql
+type BookData : DataContract = {
+    title: String
+    pages: Int
+}
+
+raw : List<Data> = [{title: "Dune", pages: 412}]
+raw | BookData | map(b => b.page / 2)
+```
+
+```text
+check error[unknown-field]: BookData has no field `page`
+ --> <expression>:7:27
+  |
+7 | raw | BookData | map(b => b.page / 2)
+  |                           ^^^^^^
+```
+
+This is a `check error`. The checker found it before anything ran, so it does
+not matter how many books there are.
+
+## Validating the data
+
+Data from outside arrives as `Data`, a tree of records, lists and scalars,
+like JSON or YAML. `Data` is a type, but it does not say which fields are
+there. Reading it as a contract does:
+
+```hql
+type BookData : DataContract = {
+    title: String
+    pages: Int
+
+    require pages > 0
+}
+
+raw : List<Data> = [{title: "Dune", pages: 412}, {title: "Emma", pages: "many"}]
+raw | BookData | map(b => b.pages)
+```
+
+```text
+execute error[contract-violation]: this does not read as BookData: field `pages`: "many" is not Int
+ --> <expression>:9:1
+  |
+9 | raw | BookData | map(b => b.pages)
+  | ^^^^^^^^^^^^^^
+  = expected: BookData
+```
+
+This time the program is fine and the data is wrong, so the error is an
+`execute error`. The bad record is rejected as it comes in, before any step
+uses it. Every value after that point is a valid `BookData`, as the checker
+assumed.
+
+## Open and closed types
+
+A closed type, declared as a `TypeContract`, describes the whole record. A
+record with any other field is rejected:
+
+```hql
+type Book : TypeContract = {
+    title: String
+    pages: Int
+}
+
+raw : List<Data> = [{title: "Dune", pages: 412, shelf: "sf"}]
+raw | Book
+```
+
+```text
+execute error[contract-violation]: this does not read as Book: field `shelf`: Book declares no such field
+ --> <expression>:7:1
+  |
+7 | raw | Book
+  | ^^^^^^^^^^
+  = expected: Book
+```
+
+An open contract, declared as a `DataContract`, lists only the fields the
+program needs. Other fields are allowed and kept:
+
+```hql
+type BookData : DataContract = {
+    title: String
+    pages: Int
+}
+
+raw : List<Data> = [{title: "Dune", pages: 412, shelf: "sf"}]
+raw | BookData | map(b => b.pages)
+```
+
+```text
+[412]
+```
+
+Use open contracts for data from other systems, which often adds fields you
+do not need. Use closed types for values your own program builds, where you
+decide the exact shape. [[11-advanced-data-typing/data-contracts|Data contracts]]
+covers rules, defaults and validation in detail.
+
+Contracts are built from simpler types: numbers, text, dates and times, and
+`Data`. The rest of this chapter covers those, starting in the REPL.
 
 ## Trying values in the REPL
 
