@@ -671,4 +671,5 @@ An HMD host may select an HQL project, but an HQL project never defines a HyperM
 - 2026-11-15: issue 0079 done: HQL depends on `hypermarkdown` 0.2 and reads a
   vault's cards from its namespace root, `--vault` names the vault root, and
   HyperMarkdown takes `.md` cards in as Markdown cards (its HMD-0029).
-  Resolving references through the crate is issue 0080
+  Every reference resolves through the crate's `Vault::resolve`, so HQL does
+  not reinterpret a vault

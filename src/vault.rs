@@ -33,6 +33,11 @@ pub struct Vault {
     pub warnings: Vec<crate::diagnostics::Diagnostic>,
     /// What the vault's `.hmd/config.toml` says about its embedding index.
     pub semantics: Semantics,
+    /// HyperMarkdown's resolver over the same cards: every reference resolves
+    /// through it, so HQL and HyperMarkdown name the same card.
+    resolver: Option<Arc<hypermarkdown::Vault>>,
+    /// A card's path, written with `/`, to its name.
+    by_path: BTreeMap<String, String>,
 }
 
 impl Vault {
@@ -49,10 +54,35 @@ impl Vault {
         self.namespace.join(&document.path)
     }
 
-    /// Resolve a document reference by name.
+    /// The card a name names.
     #[must_use]
     pub fn resolve(&self, name: &str) -> Option<Arc<Card>> {
         self.by_name.get(name).map(Arc::clone)
+    }
+
+    /// The card a reference written in a program names, `@[[owl]]`, resolved
+    /// as HyperMarkdown resolves a reference written at the namespace root.
+    ///
+    /// # Errors
+    /// The reference is ambiguous: its candidates, by path.
+    pub fn reference(&self, written: &str) -> Result<Option<Arc<Card>>, Vec<String>> {
+        match self.lookup("", written) {
+            Lookup::Card(name) => Ok(self.resolve(&name)),
+            Lookup::Ambiguous(candidates) => Err(candidates),
+            Lookup::None => Ok(None),
+        }
+    }
+
+    /// What a reference written in the card at `source` names.
+    fn lookup(&self, source: &str, written: &str) -> Lookup {
+        let Some(resolver) = &self.resolver else {
+            return if self.by_name.contains_key(written) {
+                Lookup::Card(written.to_owned())
+            } else {
+                Lookup::None
+            };
+        };
+        lookup(resolver, &self.by_path, source, written)
     }
 
     /// The edges leaving a node.
@@ -109,7 +139,58 @@ pub fn assemble(source: &dyn crate::sources::VaultSource) -> io::Result<Vault> {
     let snapshot = source.read()?;
     let root = snapshot.root.clone();
     let namespace = source.namespace().unwrap_or_else(|| root.clone());
-    let store = crate::document::DocumentStore::from_source(snapshot);
+    // HyperMarkdown's resolver over exactly the documents HQL reads. The
+    // vault's configuration steers it: autodiscovery and its mode.
+    let config = if is_root(&root) {
+        hypermarkdown::Config::read(&root)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))?
+    } else {
+        hypermarkdown::Config::default()
+    };
+    let host = hypermarkdown::MemoryHost::new(snapshot.documents.iter().filter_map(|document| {
+        let text = document.text.as_ref().ok()?;
+        Some((crate::document::posix(&document.path), text.clone()))
+    }));
+    let resolver = hypermarkdown::Vault::load(&host, config)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))?;
+    let mut store = crate::document::DocumentStore::from_source(snapshot);
+    let by_path: BTreeMap<String, String> = store
+        .documents
+        .iter()
+        .map(|document| {
+            (
+                crate::document::posix(&document.path),
+                document.name.clone(),
+            )
+        })
+        .collect();
+    // Every reference a card writes names the card HyperMarkdown resolves it
+    // to from that card. One that resolves to no card stays as written, a
+    // forward reference; an ambiguous one names none and is reported.
+    for document in &mut store.documents {
+        let source = crate::document::posix(&document.path);
+        for reference in &mut document.references {
+            match lookup(&resolver, &by_path, &source, &reference.target) {
+                Lookup::Card(name) => reference.target = name,
+                Lookup::Ambiguous(candidates) => {
+                    let mut warning = crate::diagnostics::Diagnostic::warning(
+                        crate::diagnostics::Phase::Load,
+                        crate::diagnostics::Kind::UnresolvedLink,
+                        0..0,
+                        format!(
+                            "[[{}]] matches {} cards; qualify it (candidates: {})",
+                            reference.target,
+                            candidates.len(),
+                            candidates.join(", ")
+                        ),
+                    );
+                    warning.origin = Some(source.clone());
+                    store.warnings.push(warning);
+                }
+                Lookup::None => {}
+            }
+        }
+    }
     let names = store
         .documents
         .iter()
@@ -135,9 +216,41 @@ pub fn assemble(source: &dyn crate::sources::VaultSource) -> io::Result<Vault> {
         semantics: source.semantics(),
         root,
         namespace,
+        resolver: Some(Arc::new(resolver)),
+        by_path,
         cards,
         by_name,
         edges,
         warnings,
     })
+}
+
+/// What a reference names.
+enum Lookup {
+    /// The card of this name.
+    Card(String),
+    /// More than one card, by path; HyperMarkdown chooses none.
+    Ambiguous(Vec<String>),
+    /// No card: a forward reference.
+    None,
+}
+
+/// Resolve `written`, the text between `[[` and `]]`, from the card at
+/// `source` as HyperMarkdown resolves it, and name the card it lands on.
+fn lookup(
+    resolver: &hypermarkdown::Vault,
+    by_path: &BTreeMap<String, String>,
+    source: &str,
+    written: &str,
+) -> Lookup {
+    let page = hypermarkdown::Reference::parse(written)
+        .map_or_else(|_| written.trim().to_owned(), |reference| reference.page);
+    match resolver.resolve(source, &page) {
+        hypermarkdown::Resolution::Resolved { path, .. } => by_path
+            .get(&path)
+            .cloned()
+            .map_or(Lookup::None, Lookup::Card),
+        hypermarkdown::Resolution::Ambiguous { candidates } => Lookup::Ambiguous(candidates),
+        _ => Lookup::None,
+    }
 }

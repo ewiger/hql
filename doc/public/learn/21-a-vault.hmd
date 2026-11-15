@@ -298,9 +298,10 @@ check error[unknown-name]: `cards` needs a vault: run inside one or pass --vault
 A card is a file with a place in a vault, and the place is what makes it
 addressable by name: `[[dune]]` names a card because there is one tree to
 resolve the name in. That tree is a **namespace**, rooted at the vault's
-directory, and a vault is exactly one namespace. `cards` holds what a
+namespace root, and a vault is exactly one namespace. `cards` holds what a
 wikilink can reach and nothing else, and a card's `path` is its place in the
-vault, relative to the root, so the cards of one folder are a filter on the path:
+vault, relative to the namespace root, so the cards of one folder are a filter
+on the path:
 
 ```hql
 cards | filter(c => c.path | starts_with("books/")) | size
@@ -309,6 +310,18 @@ cards | filter(c => c.path | starts_with("books/")) | size
 ```text
 7
 ```
+
+HQL resolves a reference exactly as HyperMarkdown does, through
+HyperMarkdown's own resolver, so `hql` and `hmd lint` always name the same
+card. A `[[name]]` in a card is looked up from that card: a path that opens
+with `/`, `./` or `../` is followed; otherwise a name the card imports, then
+the card's own folder and each folder above it, nearest first, then the
+folders it imports with `*`, and last a search of the whole vault. A search
+that finds two cards chooses neither, and the reference has to be
+qualified, `[[books/dune]]`. `@[[dune]]` in a program is resolved as though
+written at the namespace root. Where `dune.hmd` and `dune.md` sit side by
+side, `[[dune]]` is the `.hmd` card and `[[dune.md]]` the other, whose name
+keeps its extension.
 
 ## Other vaults
 

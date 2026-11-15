@@ -28,6 +28,25 @@ impl DocumentStore {
         for document in &snapshot.documents {
             *counts.entry(stem(&document.path)).or_insert(0) += 1;
         }
+        // Files of one directory whose names differ only in their card
+        // extension claim one name, as HyperMarkdown reads them (HMD-0029):
+        // the earliest of `.hmd`, `.md`, `.markdown` keeps it, and every other
+        // is named with its extension, `owl.md` beside `owl.hmd`.
+        let mut claims: std::collections::BTreeMap<PathBuf, Vec<PathBuf>> =
+            std::collections::BTreeMap::new();
+        for document in &snapshot.documents {
+            claims
+                .entry(document.path.with_extension(""))
+                .or_default()
+                .push(document.path.clone());
+        }
+        let shadowed: std::collections::BTreeSet<PathBuf> = claims
+            .into_values()
+            .flat_map(|mut paths| {
+                paths.sort_by_key(|path| card_rank(path));
+                paths.into_iter().skip(1)
+            })
+            .collect();
         let mut store = Self {
             documents: Vec::new(),
             warnings: Vec::new(),
@@ -46,7 +65,9 @@ impl DocumentStore {
                 }
             };
             let mut name = stem(&document.path);
-            if counts.get(&name).copied().unwrap_or_default() > 1 {
+            if shadowed.contains(&document.path) {
+                name = posix(&document.path);
+            } else if counts.get(&name).copied().unwrap_or_default() > 1 {
                 name = document
                     .path
                     .with_extension("")
@@ -64,6 +85,24 @@ impl DocumentStore {
         }
         store
     }
+}
+
+/// A card extension's priority: `.hmd`, then `.md`, then `.markdown`.
+fn card_rank(path: &Path) -> usize {
+    match path.extension().and_then(|extension| extension.to_str()) {
+        Some("hmd") => 0,
+        Some("md") => 1,
+        Some("markdown") => 2,
+        _ => 3,
+    }
+}
+
+/// A relative path written with `/` between its components.
+pub(crate) fn posix(path: &Path) -> String {
+    path.components()
+        .map(|part| part.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 /// The loader's diagnostic for a document it did not load.

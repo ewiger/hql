@@ -643,3 +643,72 @@ fn a_vault_whose_cards_location_is_missing_names_the_setting() {
         "{error}"
     );
 }
+
+/// A vault written out in a temporary directory, its cards at the root.
+fn written(files: &[(&str, &str)]) -> tempfile::TempDir {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(root.path().join(".hmd")).unwrap();
+    std::fs::write(root.path().join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    for (path, text) in files {
+        let path = root.path().join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    }
+    root
+}
+
+/// Where each reference of the card named `source` lands, by card name.
+fn targets(vault: &vault::Vault, source: &str) -> Vec<String> {
+    vault
+        .resolve(source)
+        .unwrap()
+        .document
+        .references
+        .iter()
+        .map(|reference| reference.target.clone())
+        .collect()
+}
+
+#[test]
+fn a_reference_resolves_as_hypermarkdown_resolves_it() {
+    // Issue 0079: HQL and HyperMarkdown name the same card for every
+    // reference. Each case below is one the stem rule answered differently.
+    let root = written(&[
+        // The spine: the nearer `tokens` wins, though two cards share the stem.
+        ("specs/login.hmd", "[[tokens]] [[tokens#Rotation]]"),
+        ("specs/tokens.hmd", "# Tokens\n\n## Rotation"),
+        ("shared/tokens.hmd", "# Shared tokens"),
+        // A named import binds a name the spine does not hold.
+        (
+            "specs/api.hmd",
+            "---\nimport: from /shared import tokens as shared-tokens\n---\n[[shared-tokens]]",
+        ),
+        // `.hmd` wins a name a `.md` file shares; `[[owl.md]]` reaches the other.
+        ("birds.hmd", "[[owl]] [[owl.md]] [[nobody]]"),
+        ("owl.hmd", "# Owl"),
+        ("owl.md", "# Owl, the old notes"),
+    ]);
+    let vault = vault::load_documents(root.path()).unwrap();
+
+    assert_eq!(targets(&vault, "login"), ["specs/tokens", "specs/tokens"]);
+    assert_eq!(targets(&vault, "api"), ["shared/tokens"]);
+    // The shadowed `.md` file keeps its extension in its name.
+    assert!(vault.resolve("owl.md").is_some());
+    assert_eq!(targets(&vault, "birds"), ["owl", "owl.md", "nobody"]);
+}
+
+#[test]
+fn a_reference_in_a_program_resolves_from_the_namespace_root() {
+    let root = written(&[
+        ("a/x.hmd", "# X in a"),
+        ("b/x.hmd", "# X in b"),
+        ("c/lone.md", "# Lone"),
+    ]);
+    let vault = vault::load_documents(root.path()).unwrap();
+
+    assert_eq!(vault.reference("lone").unwrap().unwrap().name(), "lone");
+    assert_eq!(vault.reference("a/x").unwrap().unwrap().name(), "a/x");
+    // Two cards end in `x`: HyperMarkdown chooses none, and neither does HQL.
+    assert_eq!(vault.reference("x").unwrap_err(), ["a/x.hmd", "b/x.hmd"]);
+    assert!(vault.reference("missing").unwrap().is_none());
+}
