@@ -4,16 +4,19 @@
 
 | Command | What it does |
 | --- | --- |
-| `hql eval <program>` | check and evaluate an argument |
-| `hql check <file>` | print the type without evaluating |
-| `hql run <file>` | check and evaluate a file |
-| `hql repl` | read, evaluate and print, keeping bindings |
-| `hql render <file>` | run the HQL cells in a document and build the Markdown document they yield |
+| `hql eval <program>` | check and evaluate a program given as an argument |
+| `hql run <file>` | check and evaluate a program from a file |
+| `hql check <file>` | check a program and print its type, without evaluating it |
+| `hql repl` | read, evaluate and print, one input at a time, keeping bindings |
+| `hql plan <file>` | print each pipeline's steps and the stage the planner gives each, without evaluating |
+| `hql boundary <file> <id>` | print a configured endpoint's boundary: each field, its external name and type, and where each setting came from |
+| `hql render <file>…` | run the HQL cells in a document and write each cell's output |
 | `hql help <name>` | the declarations of a function, type, trait or module, with their doc strings |
-| `hql builtins` | list the steps |
-| `hql config` | the reporting mode and shown level in force, and where each came from |
+| `hql builtins` | list the steps a pipeline can use |
+| `hql config` | the reporting settings in force and where each came from; list, show and select named contexts |
+| `hql context [file]` | the execution context: the mode, the project, the vault, and where each came from |
 | `hql doctor` | check the semantic-search chain and name the first missing part |
-| `hql ai` | list the model requests waiting under `--ai host`, and answer one (next release) |
+| `hql package <command>` | install, search, update, list, rebuild and remove packages; [chapter 36](../book/36-installing-packages/index.hmd) |
 
 `hql '<program>'` is `hql eval '<program>'`. `-` reads standard
 input wherever a file is taken. Success is exit `0`, a
