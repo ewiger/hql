@@ -1,0 +1,137 @@
+# Sets
+
+A set holds each value once. Braces around values write one, and a repeated
+value is dropped:
+
+```hql
+{"novel", "essay", "novel", "poetry"}
+```
+
+```text
+{"novel", "essay", "poetry"}
+```
+
+<!-- run: check -->
+```hql
+{"novel", "essay", "novel", "poetry"}
+```
+
+```text
+Set<String>
+```
+
+A set has no positions. It prints its elements in some order, but the order is
+not part of its value, and two sets with the same elements are equal:
+
+```hql
+{1, 2, 3} == {3, 2, 1}
+```
+
+```text
+true
+```
+
+`{}` is the empty set, a `Set<Never>`. A declared type gives it an element
+type: `seen : Set<String> = {}`. `{:}`, with a colon, is an empty `Data`
+record instead; [[02-data-types/sets-data-and-maps|Sets, Data and maps]] tells
+the brace forms apart.
+
+## Building a set
+
+`Set(xs)` builds a set from any collection, and `xs | Set` is the same call
+written as a step. This is the usual way to find the distinct values of a
+list:
+
+```hql
+genres = ["novel", "essay", "novel", "poetry", "novel"]
+genres | Set | size
+```
+
+```text
+3
+```
+
+## Membership
+
+`contains` asks whether a value is in a set. Here the set holds the books
+already read, and `filter` keeps the titles that are not in it:
+
+```hql
+read = {"Dune", "Emma"}
+["Dune", "Ubik", "Emma", "Solaris"] | filter(t => not read.contains(t))
+```
+
+```text
+["Ubik", "Solaris"]
+```
+
+## Union, intersection and difference
+
+`union` returns the values in either set, `intersection` the values in both,
+and `difference` the values in the first and not in the second:
+
+```hql
+ada = {"Dune", "Emma", "Ubik"}
+bob = {"Emma", "Solaris"}
+[union(ada, bob), intersection(ada, bob), difference(ada, bob)]
+```
+
+```text
+[{"Dune", "Emma", "Ubik", "Solaris"}, {"Emma"}, {"Dune", "Ubik"}]
+```
+
+Each also works as a step, `ada | union(bob)`. `union_all` returns the union
+of a whole collection of sets.
+
+## Steps over a set
+
+`map` and `filter` over a set return a set. Because a set holds each value
+once, `map` can return a smaller set than it was given:
+
+```hql
+{"Dune", "Emma", "Ubik"} | map(t => t.size())
+```
+
+```text
+{4}
+```
+
+The same `map` over a list keeps one result per element:
+
+```hql
+["Dune", "Emma", "Ubik"] | map(t => t.size())
+```
+
+```text
+[4, 4, 4]
+```
+
+## No positions
+
+A set has no positions, so it has no first element and no element at
+position `1`. The checker rejects a step that needs positions:
+
+```hql
+{3, 1, 2} | drop(1)
+```
+
+```text
+check error[type-mismatch]: `drop` needs values in a stable order, and Set<Int> has none; sort it first
+ --> <expression>:1:13
+  |
+1 | {3, 1, 2} | drop(1)
+  |             ^^^^^^^
+```
+
+`sort` gives the elements an order, and its result is a list:
+
+```hql
+{3, 1, 2} | sort | drop(1)
+```
+
+```text
+[2, 3]
+```
+
+`min`, `max`, `sum` and the other reductions do not depend on order, and work
+on a set directly.

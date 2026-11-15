@@ -1,0 +1,210 @@
+# 3. Collections
+
+A document read from JSON or YAML is `Data`: a tree of records, lists and
+scalars. `Data` accepts any shape, so the checker knows little about what is
+inside it. It cannot add up a `Data` list, because nothing says the elements
+are numbers:
+
+```hql
+doc : Data = [412, 280, 310]
+doc | sum
+```
+
+```text
+check error[type-mismatch]: `sum` needs Collection<Int> or Collection<Float> or Collection<Decimal>, not Data
+ --> <expression>:2:7
+  |
+2 | doc | sum
+  |       ^^^
+```
+
+The same numbers written as a list are a `List<Int>`, and `sum` accepts it:
+
+```hql
+[412, 280, 310] | sum
+```
+
+```text
+1002
+```
+
+A **collection** is a group of values of one type. Its type names the type of
+its elements, so every step over it is checked: `sum` needs numbers, `sort`
+needs values with an order, and `List<Int>` says the elements are `Int`.
+
+## Lists, sets and maps
+
+HQL has three kinds of collection. They differ in what they promise about
+repeated values, order, and how you find an element:
+
+| | `List<T>` | `Set<T>` | `Map<K, V>` |
+| --- | --- | --- | --- |
+| Written | `[412, 280, 280]` | `{"sf", "novel"}` | `Map(["Dune"], [412])` |
+| Repeated values | kept | removed | each key once |
+| Order | by position, `0` to `size - 1` | none | none |
+| Find an element | by position, `xs[0]` | by value, `contains` | by key, `get` |
+
+A promise is part of the type, so the checker relies on it. A list has
+positions, so `xs[0]` is allowed. A set has none, so a step that needs
+positions is rejected before the program runs. A map's keys are unique, so a
+lookup gives at most one value.
+
+## The collection types
+
+![The collection types: Iterable, Collection and Seq are abstract; List is a Seq, Set is a Collection, and Map, OrderedMap and SortedMap form a separate family](collection-types.svg)
+
+The types at the top are **abstract**. They have no values of their own and
+appear in the signatures of functions:
+
+- `Iterable<T>` is anything whose elements can be visited one by one.
+- `Collection<T>` is a finite group of elements in which a value may occur
+  more than once. `size`, `count` and `contains` take any `Collection`.
+- `Seq<T>` is a `Collection` in which every element has a position, from `0`
+  to `size - 1`.
+
+The types at the bottom are the ones you build. A `List<T>` is a `Seq<T>`. A
+`Set<T>` is a `Collection<T>` with no repeated values and no positions. A
+`Map<K, V>` is not a `Collection` at all: it associates keys with values, and
+`OrderedMap` and `SortedMap` add an order to its keys.
+
+A function that asks for a `Collection<Int>` accepts both a `List<Int>` and a
+`Set<Int>`. A function that asks for a `Seq<Int>` accepts only the list.
+
+## From Data to collections
+
+Data from outside arrives as `Data` with no promises. A contract states what
+the program expects of it, and a contract field can be a collection:
+
+<!-- define: book-data -->
+```hql
+type BookData : DataContract = {
+    title: String
+    tags: List<String>
+}
+```
+
+Reading a document as `BookData` checks every record, and every element of
+each `tags` list. After that, the tags are a `List<String>` and the usual
+steps apply to them:
+
+<!-- run: with book-data -->
+```hql
+raw : List<Data> = [
+    {title: "Dune", tags: ["desert", "spice"]},
+    {title: "Ubik", tags: ["sf", "desert"]},
+]
+raw | BookData | flat_map(b => b.tags) | Set
+```
+
+```text
+{"desert", "spice", "sf"}
+```
+
+`flat_map` collects the tags of every book into one list, and `Set` removes
+the repeated `"desert"`. A tag that is not a `String` is rejected when the
+document is read, and the error names the element by its path:
+
+<!-- run: with book-data -->
+```hql
+raw : List<Data> = [{title: "Dune", tags: ["desert", 7]}]
+raw | BookData | flat_map(b => b.tags) | Set
+```
+
+```text
+execute error[contract-violation]: this does not read as BookData: field `tags.1`: 7 is not String
+ --> <expression>:6:1
+  |
+6 | raw | BookData | flat_map(b => b.tags) | Set
+  | ^^^^^^^^^^^^^^
+  = expected: BookData
+```
+
+![A Data document is read through the BookData contract; a valid document becomes a List<BookData>, its tags a List<String> and then a Set<String>; an invalid one is a contract-violation error](refining-data.svg)
+
+This is how a program works with data whose shape it does not control. It
+leaves most of the document as `Data`, and names a contract for the part it
+uses. Each step after the contract works on typed collections, and the
+checker checks it.
+
+Contracts nest. A field can be a list of another contract, and validation
+follows the document all the way down:
+
+```hql
+type BookData : DataContract = {
+    title: String
+    pages: Int
+}
+type Shelf : DataContract = {
+    books: List<BookData>
+}
+
+doc : Data = {
+    owner: "ada",
+    books: [{title: "Dune", pages: 412}, {title: "Emma", pages: "many"}],
+}
+doc | Shelf
+```
+
+```text
+execute error[contract-violation]: this does not read as Shelf: field `books.1.pages`: "many" is not Int
+  --> <expression>:13:1
+   |
+13 | doc | Shelf
+   | ^^^^^^^^^^^
+   = expected: Shelf
+```
+
+A JSON or YAML document has lists, but no sets and no maps. A JSON object is
+a `Data` record, not a `Map`. A program builds sets and maps from the typed
+lists a contract gives it, as the pages on [[sets|sets]] and [[maps|maps]]
+show.
+
+## Conversions are written
+
+A value is never converted to another collection type implicitly. Binding a
+list to a name declared as a set is a type error:
+
+```hql
+seen : Set<Int> = [1, 2]
+seen
+```
+
+```text
+check error[type-mismatch]: `seen` is declared Set<Int> but its value is List<Int>; a binding never converts, so construct it: `Set(…)`
+ --> <expression>:1:19
+  |
+1 | seen : Set<Int> = [1, 2]
+  |                   ^^^^^^
+```
+
+Each collection type has a **constructor** of the same name: `List(xs)`,
+`Set(xs)` and `Map(keys, values)`. A constructor can also be written as a
+step, because `x | T` is `T(x)`:
+
+```hql
+["novel", "essay", "novel", "poetry"] | Set | size
+```
+
+```text
+3
+```
+
+[[steps|Steps on any collection]] shows every conversion between the three.
+
+## In this chapter
+
+| Page | What it covers |
+| --- | --- |
+| [[lists\|Lists]] | positions, indexing and slicing, joining, ordering, pairs |
+| [[sets\|Sets]] | distinct values, membership, union, intersection, difference |
+| [[maps\|Maps]] | lookup by key, keys and values, `OrderedMap` and `SortedMap` |
+| [[steps\|Steps on any collection]] | what a step returns, counting, reducing, converting |
+
+How braces write a set, a `Data` record or an empty map is in
+[[02-data-types/sets-data-and-maps|Sets, Data and maps]].
+
+## What is next
+
+Steps take functions, such as `b => b.tags` and `(a, n) => a + n`.
+[[04-functions|Chapter 4]] is about functions themselves: naming them,
+passing them, and making them generic.

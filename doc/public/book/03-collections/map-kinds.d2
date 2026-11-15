@@ -1,0 +1,25 @@
+# The three map types differ in the order of their keys.
+# Rendered to map-kinds.svg with `d2 --layout elk map-kinds.d2 map-kinds.svg`.
+
+direction: down
+
+map: "Map<String, Int>\nMap([\"Emma\", \"Dune\"], [474, 412])" {
+  style.fill: "#eef6ee"
+}
+ordered: "OrderedMap<String, Int>\nOrderedMap([\"Emma\", \"Dune\"], [474, 412])" {
+  style.fill: "#eef6ee"
+}
+sorted: "SortedMap<String, Int>\nSortedMap([\"Emma\", \"Dune\"], [474, 412])" {
+  style.fill: "#eef6ee"
+}
+
+mapkeys: ".keys : Set<String>\n{\"Emma\", \"Dune\"}\nno order" {shape: text}
+orderedkeys: ".keys : Seq<String>\n[\"Emma\", \"Dune\"]\nthe order given" {shape: text}
+sortedkeys: ".keys : Seq<String>\n[\"Dune\", \"Emma\"]\nthe order of String" {shape: text}
+
+map -> mapkeys
+ordered -> orderedkeys
+sorted -> sortedkeys
+
+map <- ordered: "is a" {style.stroke-dash: 3}
+ordered <- sorted: "is a" {style.stroke-dash: 3}

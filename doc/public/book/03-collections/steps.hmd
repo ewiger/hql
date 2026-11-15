@@ -1,0 +1,145 @@
+# Steps on any collection
+
+Most steps take any collection: `map`, `filter`, `size`, `contains`, `sum`,
+`min`, `reduce`. This page covers what they have in common, and how to move a
+value from one collection type to another.
+
+## A step returns the kind of collection it was given
+
+`map` and `filter` over a list return a list, and over a set return a set:
+
+```hql
+[412, 280, 310, 145] | filter(n => n > 300)
+```
+
+```text
+[412, 310]
+```
+
+```hql
+{412, 280, 310, 145} | filter(n => n > 300)
+```
+
+```text
+{412, 310}
+```
+
+The checker knows this too. The type of the result has the same constructor
+as the input, so after `filter` a list is still a `List` and a set is still a
+`Set`.
+
+A step that produces an order returns a list, whatever it was given. `sort`
+over a set returns a `List`, because the result has positions and a set
+cannot hold them.
+
+## Counting and asking
+
+`size` is the number of elements. `count(x)` is the number of elements equal
+to `x`, and `contains(x)` asks whether there is at least one:
+
+```hql
+genres = ["novel", "essay", "novel"]
+[genres | size, genres | count("novel")]
+```
+
+```text
+[3, 2]
+```
+
+```hql
+["novel", "essay", "novel"] | contains("poetry")
+```
+
+```text
+false
+```
+
+`count` without an argument is the same as `size`.
+
+## Reducing to one value
+
+`sum`, `product`, `average`, `min` and `max` reduce a collection of numbers
+to one value. `average`, `min` and `max` return an `Option`, because an empty
+collection has no average, least or greatest element:
+
+```hql
+[412, 280, 310] | average
+```
+
+```text
+334.0
+```
+
+`reduce` is the general form. It takes a starting value and a function that
+combines the result so far with the next element:
+
+```hql
+[412, 280, 310] | reduce(0, (total, n) => total + n)
+```
+
+```text
+1002
+```
+
+`sum` is `reduce(0, (a, b) => a + b)`, and `product` is
+`reduce(1, (a, b) => a * b)`.
+
+## Grouping
+
+`count_by` counts the elements with each key, and `group` collects them. Both
+take a function that returns the key of an element:
+
+```hql
+books = [
+    {title: "Dune", genre: "sf"},
+    {title: "Emma", genre: "novel"},
+    {title: "Ubik", genre: "sf"},
+]
+books | count_by(b => b.genre)
+```
+
+```text
+Map {"sf": 2, "novel": 1}
+```
+
+[[06-sql-like-queries|Chapter 6]] groups and joins collections the way SQL
+groups and joins tables.
+
+## Converting between collections
+
+Every conversion between collection types is written in the program.
+
+![Conversions between collection types: Set and sort move between List and Set, Map builds a map from two lists, zip pairs two lists, entries, keys and values take a map apart](conversions.svg)
+
+| From | To | Write | What happens |
+| --- | --- | --- | --- |
+| `List<T>` | `Set<T>` | `Set(xs)`, `xs \| Set` | repeated values are removed |
+| `Set<T>` | `List<T>` | `xs \| sort` | the elements are put in order |
+| `List<K>`, `List<V>` | `Map<K, V>` | `Map(keys, values)` | keys and values are paired by position |
+| `List<K>`, `List<V>` | `List<Pair<K, V>>` | `zip(keys, values)` | the same pairing, as a list |
+| `Map<K, V>` | `Set<K>` | `m.keys` | the keys |
+| `Map<K, V>` | `List<V>` | `m \| values` | the values |
+| `Map<K, V>` | `List<Pair<K, V>>` | `m \| entries` | each key with its value |
+
+There is no `List(s)` for a set `s`. A list needs an order for its elements,
+and a set does not have one, so the program must choose it:
+
+```hql
+{"sf", "novel"} | List
+```
+
+```text
+check error[type-mismatch]: a List keeps positions, and a Set<String> has none; `sort` it into one
+ --> <expression>:1:1
+  |
+1 | {"sf", "novel"} | List
+  | ^^^^^^^^^^^^^^^
+```
+
+```hql
+{"sf", "novel"} | sort
+```
+
+```text
+["novel", "sf"]
+```

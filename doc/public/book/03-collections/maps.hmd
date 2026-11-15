@@ -1,0 +1,238 @@
+# Maps
+
+A map associates keys with values. Each key appears once and has exactly one
+value. `Map(keys, values)` builds a map from two lists of the same length, the
+key at each position paired with the value at the same position:
+
+```hql
+Map(["Dune", "Emma"], [412, 474])
+```
+
+```text
+Map {"Dune": 412, "Emma": 474}
+```
+
+<!-- run: check -->
+```hql
+Map(["Dune", "Emma"], [412, 474])
+```
+
+```text
+Map<String, Int>
+```
+
+All the keys have one type, `K`, and all the values another, `V`. A map is
+not a `Data` record: a record's fields may each hold a different type, and
+the program does not know which fields there are.
+
+A repeated key is an error, and so are lists of different lengths. Both are
+found when the map is built:
+
+```hql
+Map(["Dune", "Dune"], [412, 474])
+```
+
+```text
+execute failure[invalid-argument]: duplicate map key Dune
+ --> <expression>:1:1
+  |
+1 | Map(["Dune", "Dune"], [412, 474])
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+A map is usually built from a list of records, one list for the keys and one
+for the values:
+
+```hql
+type BookData : DataContract = {
+    title: String
+    pages: Int
+}
+
+raw : List<Data> = [{title: "Dune", pages: 412}, {title: "Emma", pages: 474}]
+books = raw | BookData
+Map(books | map(b => b.title), books | map(b => b.pages))
+```
+
+```text
+Map {"Dune": 412, "Emma": 474}
+```
+
+Some steps return a map. `count_by` counts the elements with each key:
+
+```hql
+["sf", "novel", "sf", "essay", "sf"] | count_by(g => g)
+```
+
+```text
+Map {"sf": 3, "novel": 1, "essay": 1}
+```
+
+## Looking up a key
+
+`get` returns the value for a key. The key may be missing, so `get` returns an
+`Option<V>`:
+
+```hql
+pages = Map(["Dune", "Emma"], [412, 474])
+[pages.get("Dune"), pages.get("Ubik")]
+```
+
+```text
+[412, none]
+```
+
+`unwrap_or` supplies a value for a missing key:
+
+```hql
+pages = Map(["Dune", "Emma"], [412, 474])
+pages.get("Ubik").unwrap_or(0)
+```
+
+```text
+0
+```
+
+A map is not indexed with `[]`. `xs[i]` reads a position, and a map has keys,
+not positions.
+
+## Keys, values and entries
+
+`.keys` is the set of keys. `values` returns the values as a list, and
+`entries` returns the key and value of each entry as a `Pair`:
+
+```hql
+pages = Map(["Dune", "Emma"], [412, 474])
+pages.keys
+```
+
+```text
+{"Dune", "Emma"}
+```
+
+```hql
+pages = Map(["Dune", "Emma"], [412, 474])
+pages | values | sum
+```
+
+```text
+886
+```
+
+```hql
+pages = Map(["Dune", "Emma"], [412, 474])
+pages | entries | filter(e => e.second > 420) | map(e => e.first)
+```
+
+```text
+["Emma"]
+```
+
+A map is not a `Collection`, so `size`, `map` and `filter` do not take a map
+directly. Apply them to its keys, its values or its entries:
+
+```hql
+pages = Map(["Dune", "Emma"], [412, 474])
+pages.keys | size
+```
+
+```text
+2
+```
+
+## Merging
+
+`merge` combines two maps. A key in both takes the value from the second:
+
+```hql
+ratings = Map(["Dune", "Emma"], [4, 3])
+merge(ratings, Map(["Emma", "Ubik"], [5, 4]))
+```
+
+```text
+Map {"Dune": 4, "Emma": 5, "Ubik": 4}
+```
+
+`merge_all` merges a whole collection of maps in order.
+
+## Ordered and sorted maps
+
+A `Map` makes no promise about the order of its keys, so its keys are a
+`Set`. Two more map types add an order:
+
+- An `OrderedMap` keeps its keys in the order they were given.
+- A `SortedMap` keeps its keys in the order of the key type. Its keys must
+  be `Orderable`.
+
+![Map, OrderedMap and SortedMap built from the same keys; the keys of a Map are a Set with no order, the keys of an OrderedMap are a Seq in the order given, and the keys of a SortedMap are a Seq in the order of String](map-kinds.svg)
+
+```hql
+OrderedMap(["Emma", "Dune", "Ubik"], [474, 412, 202])
+```
+
+```text
+OrderedMap {"Emma": 474, "Dune": 412, "Ubik": 202}
+```
+
+```hql
+SortedMap(["Emma", "Dune", "Ubik"], [474, 412, 202])
+```
+
+```text
+SortedMap {"Dune": 412, "Emma": 474, "Ubik": 202}
+```
+
+The difference is visible in the type of `.keys`. For a `Map` it is a
+`Set<K>`; for the other two it is a `Seq<K>`, which has positions:
+
+<!-- run: check -->
+```hql
+SortedMap(["Emma", "Dune", "Ubik"], [474, 412, 202]).keys
+```
+
+```text
+Seq<String>
+```
+
+Order also changes equality. Two `Map`s with the same entries are equal
+whatever order their keys were given in; two `OrderedMap`s are equal only if
+their keys are in the same order:
+
+```hql
+[
+    Map(["b", "a"], [1, 2]) == Map(["a", "b"], [2, 1]),
+    OrderedMap(["b", "a"], [1, 2]) == OrderedMap(["a", "b"], [2, 1]),
+]
+```
+
+```text
+[true, false]
+```
+
+An `OrderedMap` and a `SortedMap` are both `Map`s, so they can be passed
+wherever a `Map` is expected. `histogram` returns a `SortedMap`, so its
+buckets come out in order:
+
+```hql
+[412, 280, 310, 145, 474] | histogram(100)
+```
+
+```text
+SortedMap {100: 1, 200: 1, 300: 1, 400: 2}
+```
+
+## The empty map
+
+`{:}` with a declared map type is an empty map of that type:
+
+```hql
+counts : Map<String, Int> = {:}
+counts
+```
+
+```text
+Map {}
+```
+
+Without a declared type, `{:}` is the empty `Data` record.
+[[02-data-types/sets-data-and-maps|Sets, Data and maps]] covers the rule.

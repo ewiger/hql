@@ -1,0 +1,244 @@
+# Lists
+
+A list holds its elements in order. Each element has a position, and the same
+value may appear more than once:
+
+```hql
+[412, 280, 310, 280]
+```
+
+```text
+[412, 280, 310, 280]
+```
+
+The type of a list names the type of its elements:
+
+<!-- run: check -->
+```hql
+[412, 280, 310, 280]
+```
+
+```text
+List<Int>
+```
+
+An empty list has no elements to take a type from, so `[]` is a
+`List<Never>`. A declared type gives it one: `pages : List<Int> = []`.
+
+A list whose elements have different types is a list of `Data`, the type that
+accepts any value:
+
+<!-- run: check -->
+```hql
+[412, "many"]
+```
+
+```text
+List<Data>
+```
+
+Such a list is valid, but the checker knows nothing about its elements. Keep
+lists to one type, and use `Data` only for data from outside the program.
+
+## Positions
+
+![The list [412, 280, 310, 145] with positions 0 to 3 counted from the front and -4 to -1 from the back](list-positions.svg)
+
+`xs[i]` reads the element at position `i`. Positions start at `0`:
+
+```hql
+pages = [412, 280, 310, 145]
+pages[0]
+```
+
+```text
+412
+```
+
+A negative position counts from the end, so `pages[-1]` is the last element.
+A position past the end gives `none`:
+
+```hql
+pages = [412, 280, 310, 145]
+[pages[-1], pages[9]]
+```
+
+```text
+[145, none]
+```
+
+`xs[i]` returns an `Option<T>`, because the list may be shorter than `i`. The
+program must say what a missing element means, for example with
+`unwrap_or`:
+
+```hql
+pages = [412, 280, 310, 145]
+pages[9].unwrap_or(0)
+```
+
+```text
+0
+```
+
+`xs[a:b]` is a **slice**: the elements from position `a` up to, but not
+including, position `b`. Either bound may be left out:
+
+```hql
+pages = [412, 280, 310, 145]
+[pages[1:3], pages[:2], pages[2:]]
+```
+
+```text
+[[280, 310], [412, 280], [310, 145]]
+```
+
+`first` and `last` read the two ends, and `take` and `drop` keep or skip the
+first `n` elements:
+
+```hql
+pages = [412, 280, 310, 145]
+[pages | take(2), pages | drop(2)]
+```
+
+```text
+[[412, 280], [310, 145]]
+```
+
+## Joining and splitting
+
+`concat` joins two lists. `+` does not: it adds numbers and joins strings, but
+it is not defined for lists.
+
+```hql
+[412, 280] | concat([310])
+```
+
+```text
+[412, 280, 310]
+```
+
+`collect(n)` splits a list into batches of `n` elements. The last batch may be
+shorter. `emit` joins a list of lists back into one:
+
+```hql
+[1, 2, 3, 4, 5] | collect(2)
+```
+
+```text
+[[1, 2], [3, 4], [5]]
+```
+
+```hql
+[[1, 2], [3, 4], [5]] | emit
+```
+
+```text
+[1, 2, 3, 4, 5]
+```
+
+## Ordering
+
+`sort` orders the elements by their own order: numbers by value, strings
+character by character, dates by time. `reverse` reverses a list:
+
+```hql
+[412, 280, 310] | sort
+```
+
+```text
+[280, 310, 412]
+```
+
+```hql
+[412, 280, 310] | sort | reverse
+```
+
+```text
+[412, 310, 280]
+```
+
+`sort` also takes a function. A function of one element gives the key to sort
+by; a function of two elements returns an `Ordering` and compares them
+directly:
+
+```hql
+["Frankenstein", "Emma", "Dune"] | sort(by = t => t.size())
+```
+
+```text
+["Emma", "Dune", "Frankenstein"]
+```
+
+`"Emma"` and `"Dune"` have the same length, so they keep the order they had.
+A sort with this property is called **stable**.
+
+```hql
+[412, 280, 310] | sort((a, b) => compare(b, a))
+```
+
+```text
+[412, 310, 280]
+```
+
+`top_k(n)` returns the `n` greatest elements, greatest first.
+
+`min` and `max` return the least and the greatest element. An empty list has
+neither, so both return an `Option`:
+
+```hql
+[412, 280, 310] | min
+```
+
+```text
+280
+```
+
+```hql
+[] | List<Int> | min
+```
+
+```text
+none
+```
+
+`[] | List<Int>` gives the empty list its element type: it is
+`List<Int>([])`, a constructor written as a step.
+
+## Pairs
+
+`zip` pairs the elements of two lists by position, and `enumerate` pairs each
+element with its position. Both return a list of `Pair`s, and a `Pair` has
+two fields, `first` and `second`:
+
+```hql
+zip(["Dune", "Emma"], [412, 474])
+```
+
+```text
+[Pair(first = "Dune", second = 412), Pair(first = "Emma", second = 474)]
+```
+
+```hql
+["Dune", "Emma", "Ubik"]
+| enumerate
+| map(p => fmt("{}. {}", p.first + 1, p.second))
+```
+
+```text
+["1. Dune", "2. Emma", "3. Ubik"]
+```
+
+## Equality
+
+Two lists are equal when they have the same elements at the same positions:
+
+```hql
+[[1, 2, 3] == [1, 2, 3], [1, 2, 3] == [3, 2, 1]]
+```
+
+```text
+[true, false]
+```
+
+For a group of values where the order does not matter, use a
+[[sets|set]].

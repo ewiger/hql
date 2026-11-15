@@ -1,0 +1,30 @@
+# The collection types and what each promises.
+# Rendered to collection-types.svg with `d2 --layout elk collection-types.d2 collection-types.svg`.
+
+direction: down
+
+abstract: "abstract: named in signatures, no values of their own" {
+  direction: down
+  style.fill: "#f4f4f4"
+  style.stroke-dash: 3
+  iterable: "Iterable<T>\nits elements can be visited"
+  collection: "Collection<T>\nfinite; a value may occur\nmore than once"
+  seq: "Seq<T>\nevery element has a position\n0 .. size - 1"
+  iterable -> collection
+  collection -> seq
+}
+
+values: "concrete: values you build" {
+  direction: right
+  style.fill: "#eef6ee"
+  list: "List<T>\n[412, 280, 280]\npositions, repeats kept"
+  set: "Set<T>\n{\"sf\", \"novel\"}\nno positions, no repeats"
+  map: "Map<K, V>\nMap([\"Dune\"], [412])\nunique keys, no order"
+  ordered: "OrderedMap<K, V>\nkeys in the order given"
+  sorted: "SortedMap<K, V>\nkeys in the order of K"
+  map -> ordered: "is a"
+  ordered -> sorted: "is a"
+}
+
+abstract.seq -> values.list: "is a"
+abstract.collection -> values.set: "is a"

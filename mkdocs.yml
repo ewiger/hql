@@ -112,7 +112,12 @@ nav:
                   - Data: book/02-data-types/data.md
                   - Option: book/02-data-types/option.md
                   - Sets, Data and maps: book/02-data-types/sets-data-and-maps.md
-              - 3. Collections: book/03-collections.md
+              - 3. Collections:
+                  - book/03-collections.md
+                  - Lists: book/03-collections/lists.md
+                  - Sets: book/03-collections/sets.md
+                  - Maps: book/03-collections/maps.md
+                  - Steps on any collection: book/03-collections/steps.md
               - 4. Functions:
                   - book/04-functions.md
                   - Declaring a function: book/04-functions/declaring.md
