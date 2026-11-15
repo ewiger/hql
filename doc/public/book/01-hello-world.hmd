@@ -1,8 +1,55 @@
 # 1. Hello world
 
-HQL is a strongly typed expression and query language. A program is an
-expression, or a few statements ending in one; `hql` checks its type, then
-evaluates it, and writes the value. This chapter is about that loop.
+HQL is a statically typed expression and query language. You use it to read
+data, transform it and write it out: records from a JSON file, rows of a
+table, events from a stream, the notes in a folder of Markdown documents.
+Where a shell pipeline would combine `jq`, `grep` and a script, an HQL program
+is one expression that `hql` checks and runs.
+
+Most of the data a query language handles was written by someone else, and
+its shape is not guaranteed. HQL deals with this through types. Every value
+has a type, and a type is a contract: it states what the value must look
+like. `hql` checks a program against these contracts before running it, and
+checks data against them when the data is read. A mistake in the program is
+reported before anything runs. A mistake in the data is reported where the
+data comes in, not three steps later.
+
+A program goes through the same stages every time:
+
+```d2
+direction: down
+
+program: "program\nfmt(\"Hello, {}!\", \"world\")" {
+  shape: page
+}
+check: "check\ninfer and check every type" {
+  style.fill: "#eef6ee"
+}
+evaluate: "evaluate\ncompute the value" {
+  style.fill: "#eef6ee"
+}
+value: "value\n\"Hello, world!\"" {
+  shape: page
+}
+check_error: "check error\nnothing runs" {
+  style.stroke: "#b23b3b"
+}
+execute_failure: "execute error or failure\nthe run stops" {
+  style.stroke: "#b23b3b"
+}
+
+program -> check
+check -> evaluate: "the program fits its types"
+evaluate -> value: "hql writes it"
+check -> check_error: "a type does not fit" {
+  style.stroke: "#b23b3b"
+  style.stroke-dash: 5
+}
+evaluate -> execute_failure: "bad data, division by zero" {
+  style.stroke: "#b23b3b"
+  style.stroke-dash: 5
+}
+```
 
 ## Hello, world
 
@@ -16,8 +63,9 @@ The smallest program that says hello is the text itself:
 "Hello, world!"
 ```
 
-A program is an expression, and its value is what `hql` writes. `fmt` writes
-values into a template, one `{}` each:
+A program is an **expression**, and `hql` writes its value. A string prints
+in quotes, the way it is written in a program. `fmt` builds a string from a
+template, filling each `{}` with the next argument:
 
 ```hql
 fmt("Hello, {}!", "world")
@@ -29,42 +77,112 @@ fmt("Hello, {}!", "world")
 
 ## Running a program
 
-`hql eval` takes a program as an argument:
+`hql eval` runs a program given on the command line:
 
 ```sh
-hql eval '"Hello, world!"'
+$ hql eval 'fmt("Hello, {}!", "world")'
+"Hello, world!"
 ```
 
-Every program in this book runs that way. Most of them run against the
-tutorial vault, a small reading club in [`examples/reading-club/`](https://github.com/ewiger/hql/tree/main/examples/reading-club),
-so the commands in later chapters start with `hql --vault examples/reading-club
-eval`. The book shows each program in an `hql` block and what `hql` writes in
-the block after it.
+`hql run` runs a program from a file. A file holds the same thing an
+argument does:
+
+```sh
+$ cat hello.hql
+title = "Dune"
+pages = 412
+fmt("{} has {} pages", title, pages)
+$ hql run hello.hql
+"Dune has 412 pages"
+```
+
+`hql repl` reads one program at a time and prints each value, which is
+useful for trying things out. [[02-data-types|Chapter 2]] starts there.
+
+This book shows each program in a block, followed by what `hql` writes for
+it. Most programs run against a small example vault, a reading club of books
+and authors in
+[`examples/reading-club/`](https://github.com/ewiger/hql/tree/main/examples/reading-club).
+To follow along, clone the repository and pass the vault to `hql`:
+
+```sh
+$ hql --vault examples/reading-club eval 'cards | size'
+15
+```
+
+## Values and pipelines
+
+Every value has a type. `412` is an `Int`, `"Dune"` is a `String`, and
+`[412, 280, 310]` is a `List<Int>`. Operators and functions combine values
+into new ones:
 
 ```hql
-1 + 2
+412 / 100
 ```
 
 ```text
-3
+4
 ```
 
-## Values and their types
+Both operands are `Int`, so `/` divides whole numbers and drops the
+remainder.
 
-Every value has a type: `1 + 2` is an `Int`, `"Hello"` a `String`.
-`hql check` writes a program's type without evaluating it:
+Most HQL programs are **pipelines**. `|` passes the value on its left to the
+step on its right, and each step returns a new value for the next one:
 
-```sh
-$ hql check - <<< '7 / 2'
-Int
+```hql
+[412, 280, 310] | filter(n => n > 300) | size
 ```
 
-[[02-data-types|Chapter 2]] meets the types one by one.
+```text
+2
+```
+
+`filter` keeps the elements for which a function returns `true`. Here the
+function is `n => n > 300`, a **lambda**: a function written in place, with
+its parameter before `=>` and its result after it. `size` counts what is
+left. [[03-collections|Chapter 3]] covers the steps, and
+[[04-functions|chapter 4]] covers functions.
+
+## Bindings
+
+`name = expression` binds a value to a name. The name can be used in the
+statements after it, and the value of the program is its last expression:
+
+```hql
+pages = 280
+chapters = 24
+pages / chapters
+```
+
+```text
+11
+```
+
+A binding can state its type. The checker then rejects a value of any other
+type:
+
+```hql
+rating : Int = "five"
+rating
+```
+
+```text
+check error[type-mismatch]: `rating` is declared Int but its value is String
+ --> <expression>:1:16
+  |
+1 | rating : Int = "five"
+  |                ^^^^^^
+```
+
+Without the declaration, the checker infers the type from the value. A
+declaration is useful where you want the program to state its intent, and
+for values whose type cannot be inferred, such as an empty list.
 
 ## Checked before it runs
 
-A program is checked as a whole before anything is evaluated. A type error
-names the expression it found and points at it:
+`hql` checks the whole program before it evaluates any of it. A **check
+error** names the problem and points at the expression:
 
 ```hql
 1 + "two"
@@ -78,8 +196,8 @@ check error[type-mismatch]: addition requires two Int, two Float or two Decimal 
   |     ^^^^^
 ```
 
-Nothing ran: there is no value, only the report, and the exit status is `1`.
-The same holds for a name nobody bound:
+Nothing was evaluated. There is no value, only the report, and `hql` exits
+with status `1`. A name that was never bound is a check error too:
 
 ```hql
 pages + 1
@@ -93,36 +211,42 @@ check error[unknown-name]: `pages` is not bound
   | ^^^^^
 ```
 
-## Bindings
+`hql check` runs only the checker. It prints the type of the program and
+evaluates nothing:
 
-`name = expression` binds a value to a name for the statements after it. The
-program's value is its last expression.
+```sh
+$ hql check - <<< '412 / 100'
+Int
+```
+
+## Errors while it runs
+
+Some problems depend on values, and the checker cannot see values. Dividing
+by zero passes the check and fails when the program runs:
 
 ```hql
-pages = 280
-chapters = 24
-pages / chapters
+pages = 412
+pages / 0
 ```
 
 ```text
-11
+execute failure[division-by-zero]: division by zero
+ --> <expression>:2:1
+  |
+2 | pages / 0
+  | ^^^^^^^^^
 ```
 
-A binding may state its type, and the checker holds the value to it:
-
-```hql
-rating : Int = 5
-rating
-```
-
-```text
-5
-```
+The report starts with the **phase** in which the problem was found: `check`
+before the program runs, `execute` while it runs. Data that does not match
+its type is also found in the execute phase, when the data is read.
+[[02-data-types|Chapter 2]] shows how, and [[12-errors|chapter 12]] covers
+errors in full.
 
 ## Choosing a value
 
-`a given condition otherwise b` is `a` when the condition holds, and `b`
-otherwise. It is an expression, so it has a type: both branches have one.
+`a given condition otherwise b` is `a` when the condition is true, and `b`
+when it is false:
 
 ```hql
 pages = 412
@@ -133,8 +257,11 @@ pages = 412
 "long"
 ```
 
-`match` compares one value against patterns, in order, and the first that fits
-gives the result:
+It is an expression, so it has a value and a type. Both branches must have
+the same type.
+
+`match` compares a value with a list of patterns in order. The first pattern
+that fits gives the result:
 
 ```hql
 status = "reading"
@@ -149,11 +276,23 @@ match status {
 "on the nightstand"
 ```
 
-The checker rejects a `match` that does not cover every case before it runs; `_` is the
-pattern that fits anything.
+`_` fits any value. A `match` must cover every possible value, and the
+checker rejects one that does not:
+
+```hql
+match 3 { 1 => "one", 2 => "two" }
+```
+
+```text
+check error[non-exhaustive-match]: this match does not cover every Int: add a `_` arm
+ --> <expression>:1:1
+  |
+1 | match 3 { 1 => "one", 2 => "two" }
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
 
 ## What is next
 
-[[02-data-types|Chapter 2]] meets the data types: `Int`, `Float`,
-`String` and `Bool`, tried in the REPL, and `Data`, the records and lists that
-JSON and YAML are made of.
+[[02-data-types|Chapter 2]] covers types as contracts, and the types values
+are built from: numbers, text, dates and times, and `Data`, the tree that
+JSON and YAML documents are read into.
