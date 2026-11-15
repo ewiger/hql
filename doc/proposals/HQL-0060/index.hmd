@@ -211,6 +211,21 @@ is bound.
   name.
 - An alias MUST bind only the new name. `from m import f as g` does not bind
   `f`.
+- An alias MUST be a second name for the same declaration, resolved when the
+  unit is checked. It MUST NOT create a wrapper function or a new
+  declaration: its type, its receiver type, its overloads and its
+  implementation are those of the declaration it names. Only the name a call
+  is written with changes. For a module `foo` declared `for String` with
+  `upper`, `lower` and `trim`:
+
+```hql
+from foo import String.* as String.bar_*
+["Dune".bar_upper(), " Emma ".bar_trim()]
+```
+
+  `String.upper`, `String.lower` and `String.trim` are bound as
+  `String.bar_upper`, `String.bar_lower` and `String.bar_trim`; the receiver
+  type stays `String`.
 
 ### 6. Names bound twice
 
