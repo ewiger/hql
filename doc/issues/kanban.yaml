@@ -67,9 +67,6 @@ board:
       - id: "0077"
         title: "The knowledge base is hyper-markdown"
         file: 0077-docs-to-hmd.hmd
-      - id: "0078"
-        title: "Packages: `hql-extensions`, `hql package`, and the `ml` extension"
-        file: 0078-packages-and-the-ml-extension.hmd
       - id: "0054"
         title: "The website is for HQL users: Learn, Guides, Reference"
         file: 0054-user-facing-website.hmd

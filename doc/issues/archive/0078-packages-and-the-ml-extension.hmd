@@ -1,6 +1,6 @@
 # 0078 — Packages: `hql-extensions`, `hql package`, and the `ml` extension
 
-Status: doing
+Status: done
 Related: [[HQL-0057]], [[HQL-0059]],
 [[09-packages-and-extensions|HQL-0024 part 9]],
 [[0049-one-extension-per-package|0049]]
@@ -45,8 +45,11 @@ on `feat/extensions-ml`.
     metadata and the README), the repository README,
     `scripts/check-examples.sh` and the CI workflow name `.hql/config.toml`
     and `--project` in place of `hql.toml` and `--workspace`.
-11. Release: `hql` 0.7.0 to crates.io, then `hql-ext-ml` 0.1.0, whose
-   `hql = "0.7"` dependency resolves there.
+11. Done: `hql` 0.7.0 on crates.io, then `hql-ext-ml` 0.1.0, whose
+    `hql = "0.7"` dependency resolves there, tagged `hql-ext-ml-v0.1.0` for
+    the registry. In a fresh project, `hql package install ml` with the
+    released 0.7.0 binary built and installed it, and the `linear` example
+    printed its expected value.
 
 ## Done when
 
