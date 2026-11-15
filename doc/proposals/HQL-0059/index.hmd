@@ -663,5 +663,8 @@ An HMD host may select an HQL project, but an HQL project never defines a HyperM
 - 2026-11-15: the index producer left `contrib/semantics/` for
   HyperMarkdown's `tools/hmd-semantics`, command `hmd-semantics`;
   HyperMarkdown's HMD-0028 specifies `[hql] project`, `[semantics]` and the
-  depth levels of the index, and its HMD-0027 is the Rust resolver crate,
-  not yet published
+  depth levels of the index, and its HMD-0027 is the Rust resolver crate
+- 2026-11-15: HyperMarkdown's resolver crate is `hypermarkdown` 0.1.0 on
+  crates.io; resolving through it, and reading a vault's namespace root, is
+  issue 0079. The renamed-name messages for `Unit`, `Socket`, `socket` and
+  `length` are removed

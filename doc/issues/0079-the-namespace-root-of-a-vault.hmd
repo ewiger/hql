@@ -48,8 +48,8 @@ shows the difference.
 
 ## Work
 
-1. Depend on HyperMarkdown's Rust crate `hypermarkdown` once it is on
-   crates.io, and load a vault through it: `Config::read` for `wiki`,
+1. Depend on HyperMarkdown's Rust crate `hypermarkdown`, on crates.io since
+   0.1.0, with `cargo add hypermarkdown`, and load a vault through it: `Config::read` for `wiki`,
    `Vault::open` for the pages, `Vault::resolve` for `@[[..]]`. That is the
    resolution HQL-0059 requires, and it brings the namespace root with it.
 2. `--vault <dir>` names the vault root. A directory given that holds no
