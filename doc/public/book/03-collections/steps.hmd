@@ -109,7 +109,23 @@ groups and joins tables.
 
 Every conversion between collection types is written in the program.
 
-![Conversions between collection types: Set and sort move between List and Set, Map builds a map from two lists, zip pairs two lists, entries, keys and values take a map apart](conversions.svg)
+```d2
+direction: right
+
+list: "List<T>" {style.fill: "#eef6ee"}
+set: "Set<T>" {style.fill: "#eef6ee"}
+map: "Map<K, V>" {style.fill: "#eef6ee"}
+pairs: "List<Pair<K, V>>" {style.fill: "#eef6ee"}
+lists: "List<K>, List<V>" {style.fill: "#eef6ee"}
+
+list -> set: "Set(xs), xs | Set\nrepeats removed"
+set -> list: "sort\nan order is chosen"
+lists -> map: "Map(keys, values)"
+lists -> pairs: "zip"
+map -> pairs: "entries"
+map -> set: ".keys"
+map -> list: "values"
+```
 
 | From | To | Write | What happens |
 | --- | --- | --- | --- |

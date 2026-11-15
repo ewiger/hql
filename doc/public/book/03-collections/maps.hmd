@@ -164,7 +164,30 @@ A `Map` makes no promise about the order of its keys, so its keys are a
 - A `SortedMap` keeps its keys in the order of the key type. Its keys must
   be `Orderable`.
 
-![Map, OrderedMap and SortedMap built from the same keys; the keys of a Map are a Set with no order, the keys of an OrderedMap are a Seq in the order given, and the keys of a SortedMap are a Seq in the order of String](map-kinds.svg)
+```d2
+direction: down
+
+map: "Map<String, Int>\nMap([\"Emma\", \"Dune\"], [474, 412])" {
+  style.fill: "#eef6ee"
+}
+ordered: "OrderedMap<String, Int>\nOrderedMap([\"Emma\", \"Dune\"], [474, 412])" {
+  style.fill: "#eef6ee"
+}
+sorted: "SortedMap<String, Int>\nSortedMap([\"Emma\", \"Dune\"], [474, 412])" {
+  style.fill: "#eef6ee"
+}
+
+mapkeys: ".keys : Set<String>\n{\"Emma\", \"Dune\"}\nno order" {shape: text}
+orderedkeys: ".keys : Seq<String>\n[\"Emma\", \"Dune\"]\nthe order given" {shape: text}
+sortedkeys: ".keys : Seq<String>\n[\"Dune\", \"Emma\"]\nthe order of String" {shape: text}
+
+map -> mapkeys
+ordered -> orderedkeys
+sorted -> sortedkeys
+
+map <- ordered: "is a" {style.stroke-dash: 3}
+ordered <- sorted: "is a" {style.stroke-dash: 3}
+```
 
 ```hql
 OrderedMap(["Emma", "Dune", "Ubik"], [474, 412, 202])

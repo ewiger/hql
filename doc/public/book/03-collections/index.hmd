@@ -51,7 +51,35 @@ lookup gives at most one value.
 
 ## The collection types
 
-![The collection types: Iterable, Collection and Seq are abstract; List is a Seq, Set is a Collection, and Map, OrderedMap and SortedMap form a separate family](collection-types.svg)
+```d2
+direction: down
+
+abstract: "abstract: named in signatures, no values of their own" {
+  direction: down
+  style.fill: "#f4f4f4"
+  style.stroke-dash: 3
+  iterable: "Iterable<T>\nits elements can be visited"
+  collection: "Collection<T>\nfinite; a value may occur\nmore than once"
+  seq: "Seq<T>\nevery element has a position\n0 .. size - 1"
+  iterable -> collection
+  collection -> seq
+}
+
+values: "concrete: values you build" {
+  direction: right
+  style.fill: "#eef6ee"
+  list: "List<T>\n[412, 280, 280]\npositions, repeats kept"
+  set: "Set<T>\n{\"sf\", \"novel\"}\nno positions, no repeats"
+  map: "Map<K, V>\nMap([\"Dune\"], [412])\nunique keys, no order"
+  ordered: "OrderedMap<K, V>\nkeys in the order given"
+  sorted: "SortedMap<K, V>\nkeys in the order of K"
+  map -> ordered: "is a"
+  ordered -> sorted: "is a"
+}
+
+abstract.seq -> values.list: "is a"
+abstract.collection -> values.set: "is a"
+```
 
 The types at the top are **abstract**. They have no values of their own and
 appear in the signatures of functions:
@@ -119,7 +147,40 @@ execute error[contract-violation]: this does not read as BookData: field `tags.1
   = expected: BookData
 ```
 
-![A Data document is read through the BookData contract; a valid document becomes a List<BookData>, its tags a List<String> and then a Set<String>; an invalid one is a contract-violation error](refining-data.svg)
+```d2
+direction: right
+
+doc: "List<Data>\n[{title: \"Dune\", tags: [...]}, ...]\nany shape" {
+  shape: page
+  style.fill: "#f6efe6"
+}
+
+contract: "type BookData : DataContract = {\n  title: String\n  tags: List<String>\n}" {
+  shape: hexagon
+}
+
+books: "List<BookData>\nevery record checked,\ntags included" {
+  style.fill: "#eef6ee"
+}
+
+tags: "List<String>\nevery tag, repeats kept" {
+  style.fill: "#eef6ee"
+}
+
+distinct: "Set<String>\nevery tag once" {
+  style.fill: "#eef6ee"
+}
+
+rejected: "execute error\ncontract-violation\nfield `tags.1`: 7 is not String" {
+  style.stroke: "#b23b3b"
+}
+
+doc -> contract: "| BookData"
+contract -> books: "valid"
+contract -> rejected: "invalid" {style.stroke: "#b23b3b"; style.stroke-dash: 5}
+books -> tags: "| flat_map(b => b.tags)"
+tags -> distinct: "| Set"
+```
 
 This is how a program works with data whose shape it does not control. It
 leaves most of the document as `Data`, and names a contract for the part it
