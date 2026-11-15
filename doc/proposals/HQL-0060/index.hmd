@@ -391,9 +391,6 @@ Not built yet:
 - A workspace module's receivers are its `for` clause's; `self: T` in a
   module without one is not a receiver there yet, so `Book.*` selects only
   from a module declared `for Book`.
-- A workspace function a `from` statement binds is not compared with an
-  extension's function of the same name: the workspace one is reached, and
-  no ambiguity is reported.
 
 ## Test Plan
 
@@ -452,3 +449,4 @@ cargo test --test book
 - 2026-11-15: error examples for each import error
 - 2026-11-15: `from` is allowed in a module as in a program
 - 2026-11-15: implemented in part: `import m` binds constructors with their types; the prelude imports each module both ways; the error messages as built
+- 2026-11-15: a workspace function and an extension's bound under one name are ambiguous at the use
