@@ -1,6 +1,6 @@
 # HQL-0060: One import mechanism for every module
 
-**Status**: drafted
+**Status**: implemented in part
 **Created**: 2026-11-15
 **Source**: design notes from the book rewrite of chapter 5, 2026-11-15
 **Target**: HQL v0.7.1
@@ -130,7 +130,7 @@ A **selector** names what an import binds:
 
 ### 2. `import m`
 
-`import m` binds the module and nothing in it.
+`import m` binds the module, and nothing in it but its types' constructors.
 
 - It MUST bind the module's last path segment as a local module name, or the
   alias given by `as`. `import m as a` MUST NOT also bind the segment.
@@ -138,6 +138,10 @@ A **selector** names what an import binds:
   `x | a.f(…)`.
 - It MUST NOT bind any function of `m` unqualified. `f(x)` and `x | f` MUST
   NOT resolve to `m.f` through this statement.
+- A constructor is written with its type's name, and type names stay
+  unqualified: `import m` MUST bind the constructor of each type `m`
+  declares, `import logging` then `Logger(…)`. A function that only shares a
+  module's name, `sqlite` of `io.db.sqlite`, is no constructor.
 - The receiver functions of `m` MUST be reachable as receiver calls, `x.f()`,
   exactly as today.
 - These rules MUST hold for every module, whether `std`, an installed
@@ -272,12 +276,11 @@ Name collisions follow the rules of today; no new precedence is introduced.
 
 The prelude is an ordinary list of import statements, run before each unit.
 
-- `lib/std/prelude.hql` MUST begin with `from core import *` and
-  `from collections import *`. The rule that makes `core` and `collections`
-  always available (`Availability::Core`) MUST be removed.
-- `lib/std/prelude.hql` MUST import each of its modules with
-  `from <module> import *`, so every prelude function stays reachable
-  unqualified and by receiver call.
+- `lib/std/prelude.hql` MUST begin with `core` and `collections`. The rule
+  that makes them always available (`Availability::Core`) MUST be removed.
+- `lib/std/prelude.hql` MUST import each of its modules with `import m` and
+  `from m import *`, so every prelude function stays reachable unqualified,
+  qualified, `string.lower(…)`, and by receiver call.
 - `lib/hmd/prelude.hql` MUST do the same for its modules.
 - The prelude MUST follow the rules for `import m`, `from m import …`, type
   selectors, aliases and names bound twice exactly. No module, package or
@@ -297,18 +300,22 @@ on the command line, MUST be read as an import statement added to each unit:
 
 Each error names what was written and how to fix it.
 
-A bare name that an imported module declares, with no `from` binding it:
+A bare name that an imported module declares, with no `from` binding it,
+names both fixes; a name no import reaches names the `from` statement, and a
+receiver call or a constructor the `import`:
 
 ```text
-check error[unknown-name]: `is_match` is declared in the module `regex`, which is imported qualified: write `regex.is_match(…)`, or `from regex import is_match`
+check error[unknown-name]: `mean` is declared in the module `stats`, which is imported qualified: write `stats.mean(…)`, or `from stats import mean`
+check error[unknown-name]: `stdev` is declared in the module `stats`: write `from stats import stdev`
+check error[unknown-name]: `digest` is declared in the module `crypto.digest`: write `import crypto.digest`
 ```
 
 A name the module does not declare, or declares `private`, reported at the
 import:
 
 ```text
-check error[unknown-name]: the module `regex` declares no public `is_mach`; did you mean `is_match`?
-check error[unknown-name]: `normalize` is private to the module `stats`, and cannot be imported
+check error[unknown-name]: the module `stats` declares no public `meen`
+check error[unknown-name]: `pad` is private to the module `shelf`, and cannot be imported
 ```
 
 A type selector that selects nothing:
@@ -317,12 +324,18 @@ A type selector that selects nothing:
 check error[unknown-name]: `List.*` selects nothing in the module `stats`: no public function has the receiver type `List`; its receivers are over `Collection`
 ```
 
-An alias that changes the receiver type, and a group renamed without a valid
-pattern:
+An alias that changes the receiver type, and a group renamed without a
+pattern, are of the kind `invalid-import`:
 
 ```text
-check error[invalid-import]: `String.upper as Text.up` changes the receiver type from `String` to `Text`; a receiver alias keeps its type: write `String.upper as String.up`
-check error[invalid-import]: `String.* as text` renames a group to one name; write a pattern with one `*`, such as `String.* as String.text_*`
+check error[invalid-import]: `String.shout as Text.shout` changes the receiver type from `String` to `Text`; a receiver alias keeps its type: write `String.shout as String.shout`
+check error[invalid-import]: `* as statistics` renames a group to one name; write a pattern with one `*`, such as `statistics_*`
+```
+
+Two `from` statements binding one name to two declarations, at the use:
+
+```text
+check error[unknown-name]: `per_day` is imported from `shelf.per_day` and `ledger.per_day`, so it is ambiguous; import one of them under another name with `as`, or call it qualified
 ```
 
 ## Backwards Compatibility
@@ -367,7 +380,20 @@ was not before.
 - `lib/std/prelude.hql`, `lib/hmd/prelude.hql`: rewritten as `from … import *`.
 - `src/extensions/mod.rs`: `Availability::Core` removed; `core` and
   `collections` reach a unit through the prelude only.
-- `src/library.rs`: the prelude loader accepts `from` statements.
+- `src/extensions/mod.rs`: a prelude and a configured import are lists of
+  import entries, `m` or a `from` statement's text, each bound by
+  `Resolution::entry`.
+
+Not built yet:
+
+- A type selector's `T` is matched by its name; resolving it through the
+  type resolver, so an alias matches its type, is not built.
+- A workspace module's receivers are its `for` clause's; `self: T` in a
+  module without one is not a receiver there yet, so `Book.*` selects only
+  from a module declared `for Book`.
+- A workspace function a `from` statement binds is not compared with an
+  extension's function of the same name: the workspace one is reached, and
+  no ambiguity is reported.
 
 ## Test Plan
 
@@ -425,3 +451,4 @@ cargo test --test book
 - 2026-11-15: a `from` statement may name a type or trait; `*` makes the module's types and traits visible
 - 2026-11-15: error examples for each import error
 - 2026-11-15: `from` is allowed in a module as in a program
+- 2026-11-15: implemented in part: `import m` binds constructors with their types; the prelude imports each module both ways; the error messages as built
