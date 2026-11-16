@@ -1539,6 +1539,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1599,6 +1603,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6965,7 +7025,8 @@
 <h1 id="files-and-folders">Files and folders<a class="headerlink" href="#files-and-folders" title="Permanent link">&para;</a></h1>
 <p>A <code>file(p)</code> endpoint names one file by a path written in the program. The
 <code>io.fs</code> module lists what a folder holds, so a program finds its files first
-and then reads them. A program imports it, <code>import io.fs</code>, and reaches it as <code>fs</code>.</p>
+and then reads them. A program imports it, <code>import io.fs</code>, and reaches it as
+<code>fs</code>, or binds its functions, <code>from io.fs import *</code>.</p>
 <p>The programs on this page list a small tree in the
 <a href="https://github.com/ewiger/hql/tree/main/examples/fs">file-system examples</a>:</p>
 <div class="highlight"><pre><span></span><code>examples/fs/tree/
@@ -7004,7 +7065,7 @@ is an endpoint that holds files and folders, as a database holds tables.
 Constructing one opens, stats and resolves nothing, and a relative path
 resolves as a file's does (<a href="../endpoints/#where-a-relative-path-resolves">where a relative path
 resolves</a>):</p>
-<div class="highlight"><pre><span></span><code>import io.fs
+<div class="highlight"><pre><span></span><code>from io.fs import *
 
 folder("examples/fs/tree")
 </code></pre></div>
@@ -7014,7 +7075,7 @@ folder("examples/fs/tree")
 name, reported before the program runs:</p>
 <div class="highlight"><pre><span></span><code>folder("examples/fs/tree")
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>check error[unknown-name]: `folder` is declared in the module `io.fs`: write `import io.fs`
+<div class="highlight"><pre><span></span><code>check error[unknown-name]: `folder` is declared in the module `io.fs`: write `from io.fs import folder`
  --&gt; &lt;expression&gt;:1:1
   |
 1 | folder("examples/fs/tree")
@@ -7024,7 +7085,7 @@ name, reported before the program runs:</p>
 the file system once, where it is written, and each giving a <code>Seq&lt;Entry&gt;</code>.
 <code>entries</code> gives what is directly in the folder, sorted by name, an entry
 whose name opens with <code>.</code> included:</p>
-<div class="highlight"><pre><span></span><code>import io.fs
+<div class="highlight"><pre><span></span><code>from io.fs import *
 
 folder("examples/fs/tree/data") | entries | map(e =&gt; [e.name, e.kind])
 </code></pre></div>
@@ -7033,7 +7094,7 @@ folder("examples/fs/tree/data") | entries | map(e =&gt; [e.name, e.kind])
 <p><code>walk</code> gives every entry below the folder, the folder itself excluded: depth
 first, each folder's entries sorted by name, and each folder followed at once
 by what it holds:</p>
-<div class="highlight"><pre><span></span><code>import io.fs
+<div class="highlight"><pre><span></span><code>from io.fs import *
 
 folder("examples/fs/tree") | walk | map(e =&gt; e.path.text.trim_prefix("examples/fs/tree/"))
 </code></pre></div>
@@ -7081,7 +7142,7 @@ them.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code>import io.fs
+<div class="highlight"><pre><span></span><code>from io.fs import *
 
 folder("examples/fs/tree")
 | walk
@@ -7094,7 +7155,7 @@ folder("examples/fs/tree")
 instant the program writes and sorts the entries by time. A listing reads it
 once, with the rest of the entry, so the files changed since a cut-off are a
 filter over it:</p>
-<div class="highlight"><pre><span></span><code>import io.fs
+<div class="highlight"><pre><span></span><code>from io.fs import *
 
 cutoff = Instant("2020-01-01T00:00:00Z")
 folder("examples/fs/tree/data")
@@ -7108,7 +7169,7 @@ folder("examples/fs/tree/data")
 of a tree to the next; a program that must give the same answer on every
 machine does not read them.</p>
 <p><code>size</code> is optional, so a sum over it states what a folder counts as:</p>
-<div class="highlight"><pre><span></span><code>import io.fs
+<div class="highlight"><pre><span></span><code>from io.fs import *
 
 folder("examples/fs/tree")
 | walk
@@ -7125,7 +7186,7 @@ folder it is applied to. <code>*</code> matches within one segment, <code>**</co
 whole segments, none included, <code>?</code> one character other than <code>/</code>, <code>[abc]</code> one
 character of the set and <code>[a-z]</code> one of the range. <code>matches</code> reads the text
 and never the file system:</p>
-<div class="highlight"><pre><span></span><code>import io.fs
+<div class="highlight"><pre><span></span><code>from io.fs import *
 
 [
     Glob("data/*.csv").matches(Path("data/birds.csv")),
@@ -7137,7 +7198,7 @@ and never the file system:</p>
 </code></pre></div>
 <p>The <code>glob</code> step gives the entries of <code>walk</code> whose path below the folder
 matches, in walk order:</p>
-<div class="highlight"><pre><span></span><code>import io.fs
+<div class="highlight"><pre><span></span><code>from io.fs import *
 
 folder("examples/fs/tree") | glob(Glob("**/*.csv")) | map(e =&gt; e.path.text)
 </code></pre></div>
@@ -7145,7 +7206,7 @@ folder("examples/fs/tree") | glob(Glob("**/*.csv")) | map(e =&gt; e.path.text)
 </code></pre></div>
 <p>A pattern that does not parse, an unclosed <code>[</code> or a <code>**</code> that is not a whole
 segment, is an evaluation error where <code>Glob</code> constructs it:</p>
-<div class="highlight"><pre><span></span><code>import io.fs
+<div class="highlight"><pre><span></span><code>from io.fs import *
 
 Glob("data/a**.csv")
 </code></pre></div>
@@ -7159,7 +7220,7 @@ Glob("data/a**.csv")
 <p>An entry's <code>path</code> is one <code>file</code> reads as written, so a listing feeds
 <code>source</code> (<a href="../source/">reading with <code>source</code></a>). Every row of every CSV file
 directly in <code>data/</code>:</p>
-<div class="highlight"><pre><span></span><code>import io.fs
+<div class="highlight"><pre><span></span><code>from io.fs import *
 
 folder("examples/fs/tree/data")
 | glob(Glob("*.csv"))
@@ -7170,7 +7231,7 @@ folder("examples/fs/tree/data")
 <h2 id="a-path-that-may-not-be-there">A path that may not be there<a class="headerlink" href="#a-path-that-may-not-be-there" title="Permanent link">&para;</a></h2>
 <p>Listing a folder that does not exist, or is not a folder, is an evaluation
 error naming its path:</p>
-<div class="highlight"><pre><span></span><code>import io.fs
+<div class="highlight"><pre><span></span><code>from io.fs import *
 
 folder("examples/fs/nowhere") | entries
 </code></pre></div>
@@ -7197,7 +7258,7 @@ nothing is there, and <code>entry</code> is <code>some(Entry)</code> or <code>no
 <p><code>entries</code>, <code>walk</code>, <code>glob</code>, <code>exists</code> and <code>entry</code> are effectful, and <code>hql
 check</code> reports a function that uses one:</p>
 <!-- run: check -->
-<div class="highlight"><pre><span></span><code>import io.fs
+<div class="highlight"><pre><span></span><code>from io.fs import *
 
 fn csv_files() : Seq&lt;Entry&gt; = folder("examples/fs/tree") | glob(Glob("**/*.csv"))
 csv_files() | size

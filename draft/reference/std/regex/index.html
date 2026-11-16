@@ -1527,6 +1527,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1587,6 +1591,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../book/05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../book/05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6768,7 +6828,8 @@
 </code></pre></div>
 <p>Text matched against a regular expression. A pattern is a <code>String</code>; one
 that does not parse is an evaluation error at the call. The module is
-imported where it is used: <code>import regex</code>.</p>
+imported where it is used, <code>import regex</code> for <code>regex.is_match(…)</code>, or
+<code>from regex import *</code> for <code>is_match(…)</code>.</p>
 <ul>
 <li><a href="is_match/"><code>is_match</code></a> — Whether <code>pattern</code> matches somewhere in <code>text</code>: <code>"a1b22c" | regex.is_match("[0-9]+")</code> is <code>true</code>.</li>
 <li><a href="find/"><code>find</code></a> — The first match of <code>pattern</code> in <code>text</code>, or <code>none</code>: <code>"a1b22c" | regex.find("[0-9]+")</code> is <code>"1"</code>.</li>

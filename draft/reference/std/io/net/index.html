@@ -1527,6 +1527,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1587,6 +1591,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../book/05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../book/05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6771,7 +6831,8 @@
 one sends nothing: the request a program describes happens when a
 source, tap, target or sink uses it, and only if the host grants the
 network to that program. A document reaches no network. A program
-imports the module: <code>import net</code>.</p>
+imports the module, <code>import net</code> for <code>net.http(…)</code>, or binds its
+functions, <code>from net import *</code>.</p>
 <ul>
 <li><a href="types/Http/"><code>Http</code></a> — An HTTP resource at <code>url</code>.</li>
 <li><a href="types/WebSocket/"><code>WebSocket</code></a> — A WebSocket connection to <code>url</code>: each message is a document, read as it arrives and written as it is sent.</li>

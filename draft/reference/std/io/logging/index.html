@@ -1527,6 +1527,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1587,6 +1591,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../book/05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../book/05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6770,8 +6830,8 @@
 result. A logger owns no writer: it names a producer and holds a
 destination, as <code>sink</code> would write it (module <code>io</code>): <code>stderr</code> or a file
 in a format, a network endpoint, or a <code>Channel&lt;LogEvent&gt;</code> that keeps the
-events as values for the host. A program imports the module:
-<code>import logging</code>.</p>
+events as values for the host. A program imports the module,
+<code>import logging</code>, which binds the constructor <code>Logger</code>.</p>
 <ul>
 <li><a href="types/LogLevel/"><code>LogLevel</code></a> — How severe an event is.</li>
 <li><a href="types/Trace/"><code>Trace</code></a> — The least severe <code>LogLevel</code>, below <code>Debug</code>.</li>

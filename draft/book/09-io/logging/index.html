@@ -1539,6 +1539,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1599,6 +1603,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6876,10 +6936,11 @@
 
 <h1 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h1>
 <p>A program reports on itself through a <strong>logger</strong>, apart from its result.
-<code>import logging</code> provides one. <code>Logger(endpoint, Format, name = …)</code> names a
+<code>import logging</code> provides one: it binds the module and the constructor of
+its type. <code>Logger(endpoint, Format, name = …)</code> names a
 producer and the destination it writes to:</p>
 <!-- run: skip -->
-<div class="highlight"><pre><span></span><code>import logging
+<div class="highlight"><pre><span></span><code>from logging import *
 
 log = Logger(stderr, Text, name = "club")
 unread = ["The Hobbit", "Leaves of Grass", "The Common Reader"]
@@ -6900,7 +6961,7 @@ becomes part of a result.</p>
 <p>A logger writes events at its threshold or above, <code>Info</code> unless <code>level</code> says
 otherwise, so the <code>debug</code> call above writes nothing. A level is a type, and
 the threshold is passed as one:</p>
-<div class="highlight"><pre><span></span><code>import logging
+<div class="highlight"><pre><span></span><code>from logging import *
 
 log = Logger(stdout, Text, name = "club", level = Warn)
 log | info("quiet")
@@ -6923,7 +6984,7 @@ DEBUG club now shown
 given. In <code>Text</code> an event is one line: the level in capitals, the logger's
 name, the message, then the data unless it is empty. In <code>Json</code> each event is
 one document with four keys:</p>
-<div class="highlight"><pre><span></span><code>import logging
+<div class="highlight"><pre><span></span><code>from logging import *
 
 log = Logger(stdout, Json, name = "club")
 log | warn("low stock", {title: "Dune"})
@@ -6939,7 +7000,7 @@ replaces the file with this run's events, by the rules of <code>sink</code>.</p>
 <p>A logger whose destination is a <code>Channel&lt;LogEvent&gt;</code> takes no format and keeps
 its events as values, which the rest of the program can query. A level is a
 type, so it is tested with <code>is</code>:</p>
-<div class="highlight"><pre><span></span><code>import logging
+<div class="highlight"><pre><span></span><code>from logging import *
 
 events = Channel&lt;LogEvent&gt;("events")
 log = Logger(events, name = "club", level = Debug)

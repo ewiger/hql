@@ -1527,6 +1527,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1587,6 +1591,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../book/05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../book/05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6772,8 +6832,9 @@ Constructing a <code>Folder</code> or a <code>Glob</code> opens, stats and resol
 the listing operations read the file system, each once, where it is
 written, and give a <code>Seq&lt;Entry&gt;</code> in the order of a sorted walk, never
 the file system's. A listing is granted exactly where reading a file at
-the same path is. A program imports the module: <code>import io.fs</code>, and
-reaches it as <code>fs</code>.</p>
+the same path is. A program imports the module, <code>import io.fs</code>, and
+reaches it as <code>fs</code>, <code>fs.folder(…)</code>, or binds its functions,
+<code>from io.fs import *</code>.</p>
 <ul>
 <li><a href="types/Folder/"><code>Folder</code></a> — A folder of the file system at <code>path</code>: an endpoint that holds files and folders, as a database holds tables.</li>
 <li><a href="types/Glob/"><code>Glob</code></a> — A pattern over paths, matched against a path relative to the folder it is applied to: <code>*</code> matches within one segment, <code>**</code> any number of whole segments, <code>?</code> one character other than <code>/</code>, and <code>[abc]</code> one character of the set, <code>[a-z]</code> one of the range.</li>

@@ -1539,6 +1539,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1599,6 +1603,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6900,7 +6960,9 @@
 <p>The <code>io.env</code> module reads the invocation that runs a program: its
 <strong>environment variables</strong> and its <strong>arguments</strong>, the <code>--arg name=value</code> pairs
 of the command line. A program imports it, <code>import io.env</code>, and reaches it as
-<code>env</code>. Each operation reads a value fixed for the whole evaluation, so a
+<code>env</code>: <code>env.arg(…)</code>. <code>from io.env import *</code> binds <code>arg</code> and the
+rest without the module's name. Each
+operation reads a value fixed for the whole evaluation, so a
 program that reads the same name twice reads the same value.</p>
 <h2 id="arguments">Arguments<a class="headerlink" href="#arguments" title="Permanent link">&para;</a></h2>
 <p><code>env.arg(name)</code> is the value of the invocation's <code>--arg name=value</code>, an
@@ -6977,7 +7039,7 @@ is not UTF-8 reads as <code>none</code> too, and is absent from <code>vars()</co
 reported before the program runs:</p>
 <div class="highlight"><pre><span></span><code>var("HOME")
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>check error[unknown-name]: `var` is declared in the module `io.env`: write `import io.env`
+<div class="highlight"><pre><span></span><code>check error[unknown-name]: `var` is declared in the module `io.env`: write `from io.env import var`
  --&gt; &lt;expression&gt;:1:1
   |
 1 | var("HOME")

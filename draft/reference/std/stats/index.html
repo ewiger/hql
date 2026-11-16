@@ -1527,6 +1527,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1587,6 +1591,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../book/05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../book/05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6775,9 +6835,9 @@ rounded half to even to 100 significant digits as <code>Decimal</code> <code>/</
 <code>Int</code> statistic is computed exactly and rounded to a <code>Float</code> once. A
 statistic that is undefined over its input, the mean of nothing or the
 sample variance of one value, is <code>none</code>. Not in the prelude: a program
-writes <code>import stats</code>. The prelude's <code>variance</code> is the population
-variance of <code>Int</code> and <code>Float</code> values, so a program importing <code>stats</code>
-writes <code>stats.variance</code> for the sample variance of those.</p>
+writes <code>import stats</code> for <code>stats.mean(…)</code>, or <code>from stats import *</code>
+for <code>mean(…)</code>. The prelude's <code>variance</code> is the population variance of
+<code>Int</code> and <code>Float</code> values; <code>stats.variance</code> is the sample variance.</p>
 <ul>
 <li><a href="mean/"><code>mean</code></a> — The arithmetic mean, the sum divided by the count, or <code>none</code> over an empty collection: <code>[1, 2, 3, 4] | mean</code> is <code>2.5</code>.</li>
 <li><a href="variance/"><code>variance</code></a> — The sample variance, the sum of squared deviations from the mean divided by <code>n - 1</code>, or <code>none</code> over fewer than two values: <code>[1, 2, 3, 4] | stats.variance</code> is <code>1.6666666666666667</code>.</li>

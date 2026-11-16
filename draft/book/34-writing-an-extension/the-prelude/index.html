@@ -1537,6 +1537,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1597,6 +1601,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -7021,8 +7081,8 @@ is bound too, and <code>Dataset</code> and <code>fit_linear</code> are in scope.
 stays out of a program that does not import it.</p>
 <h2 id="what-a-prelude-may-hold">What a prelude may hold<a class="headerlink" href="#what-a-prelude-may-hold" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Each statement MUST be an <code>import</code>. A declaration, a binding or an
-  expression refuses the package.</li>
+<li>Each statement MUST be an <code>import</code> or a <code>from</code> statement. A declaration,
+  a binding or an expression refuses the package.</li>
 <li>An import MUST NOT be written with <code>as</code>: a prelude imports a module
   under its own name, its last segment.</li>
 <li>Each module named MUST exist: a module of the package, or of a builtin

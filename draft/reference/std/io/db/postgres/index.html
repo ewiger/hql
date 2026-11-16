@@ -1527,6 +1527,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1587,6 +1591,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../book/05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../book/05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6769,8 +6829,8 @@
 <p>PostgreSQL: one table of a database, as a transport read by <code>source</code> and
 <code>tap</code> and written by <code>target</code> like any other endpoint (module <code>io</code>). The
 <code>postgres</code> kind of a configured endpoint is this transport under an id,
-with a schema boundary. A program imports the module:
-<code>import io.db.postgres</code>.</p>
+with a schema boundary. A program binds the constructor,
+<code>from io.db.postgres import *</code>.</p>
 <ul>
 <li><a href="types/Postgres/"><code>Postgres</code></a> — One table of a PostgreSQL database.</li>
 <li><a href="postgres/"><code>postgres</code></a> — The table <code>table</code> of the database whose connection string the environment variable <code>dsn_env</code> holds, as a <code>Postgres</code> transport; its parameters are the keys of the <code>postgres</code> kind, each written by name.</li>

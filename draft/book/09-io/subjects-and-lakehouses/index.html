@@ -1539,6 +1539,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1599,6 +1603,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -7146,7 +7206,7 @@ own: <code>Nats</code> and <code>nats(...)</code> in <code>io.msg.nats</code>, <
 <code>nats_jetstream(...)</code> in <code>io.msg.nats_jetstream</code>. A constructor's parameters
 are its kind's keys, so a program reaches a subject with no <code>.hql/config.toml</code>:</p>
 <!-- run: skip -->
-<div class="highlight"><pre><span></span><code>import io.msg.nats_jetstream
+<div class="highlight"><pre><span></span><code>from io.msg.nats_jetstream import *
 
 orders = nats_jetstream("events.orders", stream = "EVENTS", url_env = "NATS_URL", idle_ms = 2000)
 
@@ -7161,16 +7221,17 @@ tap(orders) | filter(e =&gt; e.kind == "order_placed") | map(e =&gt; e.id)
 Both are transports on the network that carry messages, which is what their
 supertypes state:</p>
 <!-- run: check -->
-<div class="highlight"><pre><span></span><code>import io.msg.nats
+<div class="highlight"><pre><span></span><code>from io.msg.nats import *
 
 nats("orders.order_placed", url_env = "NATS_URL") | is(Network)
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>Bool
 </code></pre></div>
 <p>A module is imported by its full path, and naming it in the program's first
-lines is how a program states that it reaches NATS. Each module declares only
-its own transport: <code>nats(...)</code> takes no <code>stream</code>, and <code>import io.msg.nats</code>
-does not bring <code>nats_jetstream</code> into scope. The address is
+lines is how a program states that it reaches NATS:
+<code>from io.msg.nats import *</code>. Each module declares only its own transport:
+<code>nats(...)</code> takes no <code>stream</code>, and <code>io.msg.nats</code> has no <code>nats_jetstream</code> to
+import. The address is
 still <code>url</code> or the variable <code>url_env</code> names: a constructor takes no secret,
 and a <code>url</code> that holds credentials is refused.</p>
 <p>A constructed transport has no schema boundary: <code>fields</code>, <code>mode</code> and

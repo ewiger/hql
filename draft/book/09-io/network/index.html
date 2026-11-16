@@ -1539,6 +1539,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1599,6 +1603,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6831,14 +6891,15 @@
 
 
 <h1 id="the-network">The network<a class="headerlink" href="#the-network" title="Permanent link">&para;</a></h1>
-<p><code>import net</code> adds endpoints that are transports. They are read and written by
+<p><code>import net</code> adds endpoints that are transports, <code>net.http(…)</code>, and
+<code>from net import *</code> binds the constructors without it, <code>http(…)</code>. They are read and written by
 <code>source</code>, <code>tap</code>, <code>target</code> and <code>sink</code> like any other endpoint, and
 constructing one sends nothing. Naming the module in the program's first
 lines is how a program states that it may reach the network.</p>
 <p><code>http(url)</code> is <code>Replayable</code>: reading it sends one <code>GET</code> per evaluation and
 decodes the response body, so <code>source</code> gives a <code>Seq</code>:</p>
 <!-- run: check -->
-<div class="highlight"><pre><span></span><code>import net
+<div class="highlight"><pre><span></span><code>from net import *
 source(http("https://api.example.com/birds"), Json)
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>Seq&lt;Data&gt;
@@ -6846,7 +6907,7 @@ source(http("https://api.example.com/birds"), Json)
 <p><code>websocket(url)</code> is live: each message is one document, read as it arrives,
 so reading it gives a <code>Stream</code>:</p>
 <!-- run: check -->
-<div class="highlight"><pre><span></span><code>import net
+<div class="highlight"><pre><span></span><code>from net import *
 tap(websocket("wss://events.example.com"), Json)
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>Stream&lt;Data&gt;
@@ -6856,7 +6917,7 @@ as its body, by the <code>method</code> given, <code>"GET"</code> unless written
 read only for its status, and a status that is not a success is an evaluation
 failure naming the URL:</p>
 <!-- run: check -->
-<div class="highlight"><pre><span></span><code>import net
+<div class="highlight"><pre><span></span><code>from net import *
 source(file("examples/io/sightings.jsonl"))
 | target(http("https://api.example.com/report", method = "POST"), Json)
 </code></pre></div>
@@ -6873,7 +6934,7 @@ evaluation failure naming the URL, and so is a <code>websocket</code> handshake 
 server answers nothing to for 30 seconds. <code>timeout_ms</code> sets the response
 bound of one <code>http</code> endpoint, in milliseconds above 0:</p>
 <!-- run: check -->
-<div class="highlight"><pre><span></span><code>import net
+<div class="highlight"><pre><span></span><code>from net import *
 source(http("https://api.example.com/birds", timeout_ms = 5000), Json)
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>Seq&lt;Data&gt;
@@ -6883,7 +6944,7 @@ document without limit, as any <code>Stream</code> does.</p>
 <p>Without the import the endpoint constructors are not in scope:</p>
 <div class="highlight"><pre><span></span><code>source(http("https://api.example.com/birds"), Json)
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>check error[unknown-name]: `http` is declared in the module `io.net`: write `import net`
+<div class="highlight"><pre><span></span><code>check error[unknown-name]: `http` is declared in the module `io.net`: write `from net import http`
  --&gt; &lt;expression&gt;:1:8
   |
 1 | source(http("https://api.example.com/birds"), Json)

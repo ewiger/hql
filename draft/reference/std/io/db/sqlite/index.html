@@ -1527,6 +1527,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1587,6 +1591,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../book/05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../book/05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6769,8 +6829,8 @@
 <p>SQLite: one table of a database file, as a transport read by <code>source</code>
 and <code>tap</code> and written by <code>target</code> like any other endpoint (module <code>io</code>).
 The <code>sqlite</code> kind of a configured endpoint is this transport under an
-id, with a schema boundary. A program imports the module:
-<code>import io.db.sqlite</code>.</p>
+id, with a schema boundary. A program binds the constructor,
+<code>from io.db.sqlite import *</code>.</p>
 <ul>
 <li><a href="types/Sqlite/"><code>Sqlite</code></a> — One table of an SQLite database file.</li>
 <li><a href="sqlite/"><code>sqlite</code></a> — The table <code>table</code> of the database file at <code>path</code>, as a <code>Sqlite</code> transport; its parameters are the keys of the <code>sqlite</code> kind.</li>

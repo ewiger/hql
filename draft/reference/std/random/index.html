@@ -1527,6 +1527,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1587,6 +1591,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../book/05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../book/05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6772,7 +6832,8 @@ the seed, its input and its call site. Without one it is effectful and
 draws from the evaluation seed, fixed once per evaluation from the host's
 entropy or <code>--seed</code>. The generator is ChaCha12 and is not fit for keys,
 tokens or any other secret: a seeded draw is predictable by design. Not
-in the prelude: a program writes <code>import random</code>.</p>
+in the prelude: a program writes <code>import random</code> for
+<code>random.shuffle(…)</code>, or <code>from random import *</code> for <code>shuffle(…)</code>.</p>
 <ul>
 <li><a href="sample/"><code>sample</code></a> — <code>n</code> elements of <code>self</code> drawn without replacement, in their order in <code>self</code>; all of <code>self</code> where <code>n</code> is not below its size.</li>
 <li><a href="shuffle/"><code>shuffle</code></a> — The elements of <code>self</code> in a uniformly random order (Fisher–Yates).</li>

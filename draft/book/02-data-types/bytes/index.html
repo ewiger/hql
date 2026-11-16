@@ -1643,6 +1643,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1703,6 +1707,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6939,15 +6999,16 @@ counts three where a <code>String</code>'s <code>size</code> counts two characte
 <h2 id="from-hex-and-base64">From hex and base64<a class="headerlink" href="#from-hex-and-base64" title="Permanent link">&para;</a></h2>
 <p><code>Bytes(text, Encoding)</code> reads octets written in an encoding of the module
 <code>encoding</code>: <code>Hex</code>, <code>Base64</code>, <code>Base64Url</code> or <code>Percent</code>. The module is not in
-the prelude, so a program writes <code>import encoding</code>:</p>
-<div class="highlight"><pre><span></span><code>import encoding
+the prelude, so a program imports what it calls, <code>from encoding import
+Bytes</code>:</p>
+<div class="highlight"><pre><span></span><code>from encoding import *
 [Bytes("68c3a9", Hex), Bytes("aMOp", Base64)]
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>[0x68c3a9, 0x68c3a9]
 </code></pre></div>
 <p>Text that is not valid in the encoding fails when the program runs. The
 error names the encoding and the first invalid position, counted from 0:</p>
-<div class="highlight"><pre><span></span><code>import encoding
+<div class="highlight"><pre><span></span><code>from encoding import *
 Bytes("68g3", Hex)
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>execute failure[invalid-argument]: the text is not valid Hex: the first invalid character is at position 2
@@ -6985,12 +7046,12 @@ module: <code>b.size()</code>, <code>bytes.size(b)</code> and <code>b | size</co
 <h2 id="back-to-text">Back to text<a class="headerlink" href="#back-to-text" title="Permanent link">&para;</a></h2>
 <p><code>to_text</code> reads the octets as UTF-8, and gives <code>none</code> where they are not
 valid UTF-8. <code>encode</code> writes them in an encoding, which every octet has:</p>
-<div class="highlight"><pre><span></span><code>import encoding
+<div class="highlight"><pre><span></span><code>from encoding import *
 [Bytes("hé").to_text(), Bytes("ff", Hex).to_text()]
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>["hé", none]
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>import encoding
+<div class="highlight"><pre><span></span><code>from encoding import *
 b = Bytes("hé")
 [b.encode(Hex), b.encode(Base64)]
 </code></pre></div>
@@ -7001,14 +7062,14 @@ b = Bytes("hé")
 <h2 id="order-and-equality">Order and equality<a class="headerlink" href="#order-and-equality" title="Permanent link">&para;</a></h2>
 <p><code>Bytes</code> is <code>Orderable</code>. Two values compare octet by octet as unsigned
 numbers, and a value that is a prefix of another comes first:</p>
-<div class="highlight"><pre><span></span><code>import encoding
+<div class="highlight"><pre><span></span><code>from encoding import *
 [Bytes("ff", Hex), Bytes("0000", Hex), Bytes("01", Hex), Bytes("00", Hex)] | sort
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>[0x00, 0x0000, 0x01, 0xff]
 </code></pre></div>
 <p>Two values are equal when they hold the same octets, however each was
 built:</p>
-<div class="highlight"><pre><span></span><code>import encoding
+<div class="highlight"><pre><span></span><code>from encoding import *
 Bytes("hé") == Bytes("68c3a9", Hex)
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>true
@@ -7017,7 +7078,7 @@ Bytes("hé") == Bytes("68c3a9", Hex)
 <p>Every text format, JSON, JSON Lines, YAML and CSV, writes a <code>Bytes</code> value as
 its base64 text, padded, in the standard alphabet:</p>
 <!-- run: --to json -->
-<div class="highlight"><pre><span></span><code>import encoding
+<div class="highlight"><pre><span></span><code>from encoding import *
 {name: "key", body: Bytes("ff00", Hex)}
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>{

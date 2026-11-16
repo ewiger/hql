@@ -1537,6 +1537,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1597,6 +1601,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6993,8 +7053,9 @@ reads them back. This chapter covers the two modules that provide them,
 <a href="../02-data-types/bytes/"><code>Bytes</code></a> value and a <code>Data</code> tree.</p>
 <h2 id="the-digest-module">The digest module<a class="headerlink" href="#the-digest-module" title="Permanent link">&para;</a></h2>
 <p><code>crypto.digest</code> is not in the prelude. A program writes
-<code>import crypto.digest</code> and reaches the module as <code>digest</code>; without the
-import, the name is a check error:</p>
+<code>import crypto.digest</code> and reaches the module as <code>digest</code>, and its
+receivers, <code>"abc".digest(Sha256)</code>; without the import, the name is a check
+error:</p>
 <div class="highlight"><pre><span></span><code>"abc".digest(Sha256)
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>check error[unknown-name]: `digest` is declared in the module `crypto.digest`: write `import crypto.digest`
@@ -7020,7 +7081,7 @@ wrote, not to protect anything new.</p>
 <p><code>b.digest(A)</code> takes a <code>Bytes</code> value, the form for octets that are not text.
 The two forms agree: the digest of <code>Bytes(s)</code> is the digest of <code>s</code>:</p>
 <div class="highlight"><pre><span></span><code>import crypto.digest
-import encoding
+from encoding import *
 Bytes("68656c6c6f", Hex).digest(Sha256) == "hello".digest(Sha256)
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>true
@@ -7030,7 +7091,7 @@ Bytes("68656c6c6f", Hex).digest(Sha256) == "hello".digest(Sha256)
 JSON</strong>, the text <code>canonical(x)</code> gives. Canonical JSON follows RFC 8785:
 keys sorted, no whitespace, a number as its digits without trailing zeros,
 a time value as its ISO 8601 text and a <code>Bytes</code> leaf as its base64 text:</p>
-<div class="highlight"><pre><span></span><code>import crypto.digest
+<div class="highlight"><pre><span></span><code>from crypto.digest import *
 canonical({title: "Dune", pages: 412, price: 9.50, on: Date("2026-10-24")})
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>"{\"on\":\"2026-10-24\",\"pages\":412,\"price\":9.5,\"title\":\"Dune\"}"
@@ -7038,7 +7099,7 @@ canonical({title: "Dune", pages: 412, price: 9.50, on: Date("2026-10-24")})
 <p>Two trees equal under HQL equality have one canonical text, so one
 fingerprint. Key order, whitespace and <code>1.10</code> against <code>1.1</code> in the source
 text change neither:</p>
-<div class="highlight"><pre><span></span><code>import crypto.digest
+<div class="highlight"><pre><span></span><code>from crypto.digest import *
 a = Data("{\"b\": 1, \"a\": [1.10, \"x\"]}", Json)
 b = Data("{ \"a\" : [1.1, \"x\"],\n  \"b\": 1.0 }", Json)
 [fingerprint(a), fingerprint(b)]
@@ -7047,7 +7108,7 @@ b = Data("{ \"a\" : [1.1, \"x\"],\n  \"b\": 1.0 }", Json)
 </code></pre></div>
 <p>A value's type does count: the number <code>9.50</code> and the text <code>"9.50"</code> are
 different leaves, with different fingerprints:</p>
-<div class="highlight"><pre><span></span><code>import crypto.digest
+<div class="highlight"><pre><span></span><code>from crypto.digest import *
 [fingerprint({price: 9.50}) == fingerprint({price: 9.5}), fingerprint({price: 9.50}) == fingerprint({price: "9.50"})]
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>[true, false]
@@ -7055,7 +7116,8 @@ different leaves, with different fingerprints:</p>
 <p><code>fingerprint(x)</code> is <code>canonical(x).digest(Sha256)</code>, so a program in another
 language reproduces it with any RFC 8785 implementation and SHA-256.</p>
 <h2 id="the-encoding-module">The encoding module<a class="headerlink" href="#the-encoding-module" title="Permanent link">&para;</a></h2>
-<p><code>encoding</code> is not in the prelude either: a program writes <code>import encoding</code>.
+<p><code>encoding</code> is not in the prelude either: a program writes <code>import encoding</code>,
+which reaches its receivers, <code>"hé".encode(Hex)</code>.
 An encoding is named by a type:</p>
 <table>
 <thead>
@@ -7109,7 +7171,7 @@ UTF-8, as <code>/w==</code> in base64 is the single octet <code>0xff</code>:</p>
 <code>Option&lt;Bytes&gt;</code>, with no UTF-8 requirement; <code>Bytes(s, E)</code> reads it as a
 value and fails on invalid text. The page <a href="../02-data-types/bytes/">Bytes</a>
 shows each:</p>
-<div class="highlight"><pre><span></span><code>import encoding
+<div class="highlight"><pre><span></span><code>from encoding import *
 b = Bytes("ff00", Hex)
 [b.encode(Hex), b.encode(Base64), b.encode(Base64Url)]
 </code></pre></div>
@@ -7127,7 +7189,7 @@ name, a cache. Records that arrive with their keys in another order, or as
 another program wrote them, still match the keys of an earlier load. Here
 <code>loaded</code> holds a 12-digit prefix of each fingerprint an earlier run stored,
 and only the new record passes:</p>
-<div class="highlight"><pre><span></span><code>import crypto.digest
+<div class="highlight"><pre><span></span><code>from crypto.digest import *
 loaded = {"106815777291"}
 incoming = [{to: "ada", id: 1}, {id: 2, to: "bo"}]
 incoming | filter(r =&gt; not loaded.contains(fingerprint(r)[0:12]))

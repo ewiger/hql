@@ -1527,6 +1527,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1587,6 +1591,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../book/05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../book/05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6770,8 +6830,8 @@
 warehouse or a Spark Thrift Server, as a transport read by <code>source</code> and
 <code>tap</code> and written by <code>target</code> like any other endpoint (module <code>io</code>). The
 <code>spark</code> kind of a configured endpoint is this transport under an id,
-with a schema boundary. A program imports the module:
-<code>import io.db.spark</code>.</p>
+with a schema boundary. A program binds the constructor,
+<code>from io.db.spark import *</code>.</p>
 <ul>
 <li><a href="types/Spark/"><code>Spark</code></a> — One table behind a Spark SQL endpoint.</li>
 <li><a href="spark/"><code>spark</code></a> — The table <code>table</code>, qualified by catalog and schema where it holds dots, behind the Spark SQL endpoint at <code>url</code> or at the address the environment variable <code>url_env</code> holds, one of the two, as a <code>Spark</code> transport; its parameters are the keys of the <code>spark</code> kind, each written by name.</li>

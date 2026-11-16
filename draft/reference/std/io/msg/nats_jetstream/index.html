@@ -1527,6 +1527,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1587,6 +1591,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../book/05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../../book/05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6771,8 +6831,8 @@ and written by <code>sink</code> and <code>target</code> like any other endpoint
 <code>io</code>). A stream keeps what is published to its subjects, so a read
 starts where it says, and a message is written once the stream
 acknowledges it. The <code>nats_jetstream</code> kind of a configured endpoint is
-this transport under an id. A program imports the module:
-<code>import io.msg.nats_jetstream</code>.</p>
+this transport under an id. A program binds the constructor,
+<code>from io.msg.nats_jetstream import *</code>.</p>
 <ul>
 <li><a href="types/NatsJetStream/"><code>NatsJetStream</code></a> — One subject of a JetStream stream on a NATS server.</li>
 <li><a href="nats_jetstream/"><code>nats_jetstream</code></a> — The subject <code>subject</code> of the stream <code>stream</code>, as a <code>NatsJetStream</code> transport; its parameters are the keys of the <code>nats_jetstream</code> kind.</li>

@@ -1537,6 +1537,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1597,6 +1601,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6975,7 +7035,7 @@ screen was switched on is not news.</p>
 subject is computed, so the program writes the transport itself, with the
 constructor of <code>io.msg.nats</code>:</p>
 <!-- run: check --project examples/pipelines/shop -->
-<div class="highlight"><pre><span></span><code>import io.msg.nats
+<div class="highlight"><pre><span></span><code>from io.msg.nats import *
 
 type Event {
     id       : Int

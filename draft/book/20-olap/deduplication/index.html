@@ -1537,6 +1537,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1597,6 +1601,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -7000,7 +7060,7 @@ webhook body carry the same fields, written in another key order or with
 The <strong>fingerprint</strong> of a <code>Data</code> tree is the SHA-256 of its canonical JSON,
 and two trees equal under HQL equality have one fingerprint. It is the key
 the rows do not have:</p>
-<div class="highlight"><pre><span></span><code>import crypto.digest
+<div class="highlight"><pre><span></span><code>from crypto.digest import *
 
 type Delivery {
     received : String

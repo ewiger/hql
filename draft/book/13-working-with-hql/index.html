@@ -1539,6 +1539,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1599,6 +1603,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -7131,12 +7191,13 @@ collections (std 0.6.0, always available)
   …
 </code></pre></div>
 <p>A function of a module that the program has not imported is listed too, so
-the import it needs can be looked up. <code>import stats</code> makes a module visible;
-<code>stats.mean(…)</code> names a function with its module, when two visible modules
-declare one name and the input does not tell them apart. The modules of
-<code>lib/std/prelude.hql</code>, <code>string</code>, <code>seq</code>, <code>math</code>, <code>option</code>, <code>result</code>, <code>graph</code>,
-<code>format</code> and <code>io</code> among them, are visible in every program unless the
-project's <code>.hql/config.toml</code> says <code>prelude = false</code> under <code>[modules]</code>.</p>
+the import it needs can be looked up. <code>import stats</code> binds the module's
+name, so its functions are called <code>stats.mean(…)</code>; <code>from stats import *</code>
+binds <code>mean</code> and the rest by their own names (<a href="../05-modules/">chapter 5</a>). The modules of
+<code>lib/std/prelude.hql</code>, <code>core</code>, <code>collections</code>, <code>string</code>, <code>seq</code>, <code>math</code>,
+<code>option</code>, <code>result</code>, <code>graph</code>, <code>format</code> and <code>io</code> among them, are imported both
+ways in every program unless the project's <code>.hql/config.toml</code> says
+<code>prelude = false</code> under <code>[modules]</code>.</p>
 <h2 id="diagnostics">Diagnostics<a class="headerlink" href="#diagnostics" title="Permanent link">&para;</a></h2>
 <p>A run produces a value <strong>and</strong> the diagnostics its phases wrote: warnings that
 change nothing, errors that make a result wrong, failures that make one

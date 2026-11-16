@@ -1537,6 +1537,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1597,6 +1601,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -7245,8 +7305,10 @@ under <code>[modules] import</code> in <code>.hql/config.toml</code>, by the pac
 <span class="n">import</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"hello"</span><span class="p">]</span>
 </code></pre></div>
 <p>Every program of the project then starts with the package's modules
-imported, and <code>greet("Ada")</code> needs no <code>import</code> line. The setting names a
-standard module or a package; it is the one place a package is named.</p>
+imported, and <code>hello.greet("Ada")</code> needs no <code>import</code> line. The setting names a
+standard module or a package; it is the one place a package is named. An
+entry may also be a <code>from</code> statement, <code>"from hello import greet"</code>, and then
+<code>greet("Ada")</code> is written without the module's name.</p>
 <h2 id="where-a-module-comes-from">Where a module comes from<a class="headerlink" href="#where-a-module-comes-from" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

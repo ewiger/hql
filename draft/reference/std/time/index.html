@@ -1527,6 +1527,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1587,6 +1591,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../book/05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../book/05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6769,7 +6829,8 @@
 <p>Time: zones, the units a value truncates to, and the operations over the
 time scalars of <code>core</code>: conversion from text, parts, arithmetic,
 truncation, rendering, and the evaluation clock. Not in the prelude: a
-program writes <code>import time</code>.</p>
+program writes <code>import time</code> for <code>time.now()</code>, or <code>from time import *</code>
+for <code>now()</code>.</p>
 <ul>
 <li><a href="types/Zone/"><code>Zone</code></a> — A time zone: an IANA name the time-zone database holds, <code>"Europe/Berlin"</code>, <code>"UTC"</code>, or a fixed offset <code>"+02:00"</code>.</li>
 <li><a href="types/TimeUnit/"><code>TimeUnit</code></a> — The units a time value truncates to.</li>

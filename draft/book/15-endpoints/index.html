@@ -1537,6 +1537,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1597,6 +1601,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -7173,7 +7233,7 @@ module of its own, imported by its full path, and its constructor takes the
 keys its kind takes, so a program reaches a subject without any
 configuration:</p>
 <!-- run: check --project examples/pipelines/shop -->
-<div class="highlight"><pre><span></span><code>import io.msg.nats_jetstream
+<div class="highlight"><pre><span></span><code>from io.msg.nats_jetstream import *
 
 tap(nats_jetstream("orders.raw", stream = "ORDERS", url_env = "NATS_URL", idle_ms = 2000))
 </code></pre></div>
@@ -7183,7 +7243,7 @@ tap(nats_jetstream("orders.raw", stream = "ORDERS", url_env = "NATS_URL", idle_m
 one is. A table is rows of named columns, so it takes no format at all, and
 naming one is a check error:</p>
 <!-- run: check --project examples/pipelines/shop -->
-<div class="highlight"><pre><span></span><code>import io.db.sqlite
+<div class="highlight"><pre><span></span><code>from io.db.sqlite import *
 
 source(sqlite("data/shop.db", table = "orders", order = ["id"]))
 </code></pre></div>
@@ -7254,9 +7314,9 @@ names (<a href="../09-io/hosts/">effects and what a host allows</a>).</p>
 ├── msg                kafka, nats, nats_jetstream, and further brokers
 └── store              s3, azure_blob, gcs, sftp, hdfs
 </code></pre></div>
-<p><code>import io.db.postgres</code> brings <code>postgres(...)</code> into scope, as
-<code>import io.db.sqlite</code> brings <code>sqlite(...)</code> and <code>import io.msg.nats</code> brings
-<code>nats(...)</code> today. A configured id needs no
+<p><code>from io.db.postgres import *</code> brings <code>postgres(...)</code> into scope, as
+<code>from io.db.sqlite import *</code> brings <code>sqlite(...)</code> and
+<code>from io.msg.nats import *</code> brings <code>nats(...)</code>. A configured id needs no
 import: the configuration names the kind, and the kind names its module.
 A program that constructs a network transport names its module in its
 first lines, so what a program may reach is visible before reading it.

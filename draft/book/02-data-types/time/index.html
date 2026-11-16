@@ -1671,6 +1671,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1731,6 +1735,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -7053,7 +7113,9 @@ times reads the same whichever is subtracted from which:</p>
 </code></pre></div>
 <h2 id="the-time-module">The time module<a class="headerlink" href="#the-time-module" title="Permanent link">&para;</a></h2>
 <p>Every operation over a time value is in the module <code>time</code>, which is not in
-the prelude: a program writes <code>import time</code>.</p>
+the prelude: a program writes <code>import time</code>. The operations below are
+receivers, <code>d.year()</code>, which <code>import time</code> reaches; a call written without
+the module's name, <code>now()</code>, needs <code>from time import *</code>.</p>
 <h3 id="parts-and-calendar-arithmetic">Parts and calendar arithmetic<a class="headerlink" href="#parts-and-calendar-arithmetic" title="Permanent link">&para;</a></h3>
 <p><code>year</code>, <code>month</code>, <code>day</code>, <code>weekday</code> (Monday is 1) and <code>iso_week</code> read a date's
 parts, and <code>hour</code>, <code>minute</code> and <code>second</code> a date-time's:</p>
@@ -7085,7 +7147,7 @@ Instant("2026-10-24T07:30:00Z").since(Instant("2026-10-23T22:00:00Z"))
 or a fixed offset <code>"+05:30"</code>. <code>reading.in_zone(zone)</code> gives the instant a
 wall-clock reading names there, and <code>instant.at(zone)</code> the reading an
 instant has there:</p>
-<div class="highlight"><pre><span></span><code>import time
+<div class="highlight"><pre><span></span><code>from time import *
 berlin = Zone("Europe/Berlin")
 meeting = DateTime("2026-11-02T10:00:00").in_zone(berlin)
 [str(meeting), str(meeting.at(Zone("America/New_York")))]
@@ -7096,7 +7158,7 @@ meeting = DateTime("2026-11-02T10:00:00").in_zone(berlin)
 the gap; when they move back, a reading that happens twice is the earlier
 instant. On 2026-03-29 Berlin skips 02:00 to 03:00, and on 2026-10-25 it
 repeats 02:00 to 03:00:</p>
-<div class="highlight"><pre><span></span><code>import time
+<div class="highlight"><pre><span></span><code>from time import *
 [DateTime("2026-03-29T02:30:00").in_zone(Zone("Europe/Berlin")), DateTime("2026-10-25T02:30:00").in_zone(Zone("Europe/Berlin"))]
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>[2026-03-29T01:30:00Z, 2026-10-25T00:30:00Z]
@@ -7141,7 +7203,7 @@ evaluation zone, and <code>local_zone()</code> that zone. Each is read once per
 evaluation, so two calls in one program agree. <code>--now</code> and <code>--zone</code> fix them,
 which makes a program that reads the clock repeatable:</p>
 <!-- run: --now 2026-10-24T23:30:00Z --zone Europe/Berlin -->
-<div class="highlight"><pre><span></span><code>import time
+<div class="highlight"><pre><span></span><code>from time import *
 [str(now()), str(today()), local_zone().name]
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>["2026-10-24T23:30:00Z", "2026-10-25", "Europe/Berlin"]

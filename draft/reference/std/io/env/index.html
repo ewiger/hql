@@ -1527,6 +1527,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1587,6 +1591,62 @@
     
   
     5. Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../book/05-modules/imports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calling a module's functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../book/05-modules/which-variance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Which variance?
   
 
     
@@ -6775,7 +6835,8 @@ the grant, or whose value is not UTF-8 reads as absent, and the three
 are indistinguishable. Arguments are the <code>--arg name=value</code> pairs of the
 invocation, always granted. Each operation reads a value fixed for the
 whole evaluation. A program imports the module, <code>import io.env</code>, and
-reaches it as <code>env</code>.</p>
+reaches it as <code>env</code>, <code>env.var(…)</code>, or binds its functions,
+<code>from io.env import *</code>.</p>
 <ul>
 <li><a href="var/"><code>var</code></a> — The value of the environment variable <code>name</code>, or <code>none</code> where it is unset, withheld by the grant, or not UTF-8: <code>env.var("API_TOKEN") | unwrap_or("")</code>.</li>
 <li><a href="vars/"><code>vars</code></a> — Every granted environment variable that is set and UTF-8, by name.</li>
