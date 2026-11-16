@@ -74,7 +74,7 @@ hql --project examples/packages builtins
 ```
 
 ```text
-math (std 0.7.0, prelude)
+math (std 0.7.1, prelude)
 …
 hello (hello 0.1.0, imported where it is used)
   greet

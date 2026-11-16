@@ -8,6 +8,8 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-11-16
+
 ### Changed
 
 - **One import mechanism for every module**
@@ -23,6 +25,8 @@ The language continues to be in active development.
   it like the rest, so `prelude = false` withholds them too.
 - An entry of `[modules] import` and `--import` is an import statement: a
   module's name is `import m`, and an entry may be a whole `from` statement.
+- The guide on the site is the HQL book, under `book/` in place of `learn/`,
+  with its worked examples in `examples/reading-club`.
 
 ### Added
 
@@ -1409,7 +1413,8 @@ graph traversal that records why each node is present.
   runnable collection queries, including intentional errors for duplicate keys
   and non-orderable sorted-map keys.
 
-[Unreleased]: https://github.com/ewiger/hql/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/ewiger/hql/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/ewiger/hql/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/ewiger/hql/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/ewiger/hql/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/ewiger/hql/compare/v0.5.1...v0.5.2
