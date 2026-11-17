@@ -1,37 +1,42 @@
 # HQL Book
 
-This is a book about HQL, read from the first page to the last. It starts with
-a number and ends with a web of vaults, and every chapter builds on the ones
-before it. Every program in it prints what the book shows. Chapter 18 and
-chapters 25 to 27 describe APIs and object stores, the `ai` module and the
-direction beyond one vault, which are design and not in the current
-release, as do the marked sections of chapters 14, 15, 19 and 37. Chapter 14's
-companion on planning separates the local backend from future execution
-strategies. The programs of chapters 16, 17, 19 and 20 that reach a
-server are checked in the book and run in the
-[hql-demo repository](https://github.com/ewiger/hql-demo).
+A small question can require a surprising amount of machinery. The orders
+are in a database, the corrections arrive as events, and the explanation
+for an exception is in somebody's notes. Before we can ask what happened,
+we write a query, a script, and a little program to reconcile their answers.
+The little program tends to become permanent.
 
-HQL is a strongly typed language for querying, transforming, connecting and
-computing over data, knowledge and AI workflows. A program is checked before it
-runs, and values flow through pipelines of typed steps: over records and lists,
-as `jq` works over JSON; over tables, as SQL does; over files, standard input
-and streams that do not end; over a vault of Markdown documents, their links
-and their meaning; and through the context, prompts and runs of a language
-model.
+HQL begins with this everyday inconvenience. It is a statically typed
+language for querying and transforming data in records, tables, files,
+streams, and vaults of linked Markdown documents. Its central device is a
+pipeline: each step receives a value and produces another, and the types
+describe how the steps fit together. The program is checked before it runs;
+data arriving from outside is checked at the boundary. These checks cannot
+tell us whether we asked a sensible question. They can save us from
+debugging an answer to a question the program could never ask correctly.
 
-The book is in five parts. **The language** is the steps, the values they
-pass and the types that join them, from the first expression to the type
-system and the boundary where data from outside becomes typed. **Data flows**
-is the pipeline those steps form: what `|` does, when a program is checked,
-where it runs, and the systems a pipeline connects. **Knowledge and AI** is
-a vault of documents as a namespace, its graph, retrieval by meaning,
-documents that compute themselves, agents whose runs are values, documents
-that run them, and the web they point at. **The standard library** is the
-modules a program imports for work that is neither a type nor I/O:
-statistics, random values, digests and encodings, and cryptography.
-**Extending HQL** is how that library is made and how to add to it: a
-function declared in HQL and implemented in Rust, the package that carries
-it, the library `hql` loads it from, and the registry that names packages.
+Documents deserve a place in this arrangement. A note has text, but it may
+also have a date, an author, links, and claims about other notes. We can
+query that structure, follow the links, and put the results back into a
+document. When a language model enters the picture, the same concern for
+explicit inputs and inspectable results remains. The later chapters explore
+a design in which context, prompts, and runs become values that programs
+can work with. Generating a program cheaply makes understanding what it
+does more valuable.
+
+This book develops these ideas through programs small enough to examine.
+Read it in order on a first visit: expressions lead to types, types to
+pipelines, and pipelines to systems whose parts need not live in the same
+place. Run the examples, change an input, and try to predict the result
+before asking the machine. A type error is a useful result of this exercise.
+
+The five parts follow that progression. **The language** introduces values,
+functions, queries, types, and errors. **Data flows** connects checked
+pipelines to files, tables, topics, and other systems. **Knowledge and AI**
+turns to documents, graphs, retrieval, and the design of agents and connected
+vaults. **The standard library** supplies statistical, random,
+encoding, and cryptographic operations. **Extending HQL** shows how
+functions implemented in Rust become libraries that HQL programs can import.
 
 ## Following along
 
@@ -57,6 +62,16 @@ Docker and `hql` on the `PATH`:
 git clone https://github.com/ewiger/hql-demo && cd hql-demo
 ./run-all.sh
 ```
+
+The book distinguishes the implemented language from its design direction.
+Chapter 18 and chapters 25 to 27 describe APIs and object stores, the `ai`
+module, and the direction beyond one vault; these are design, not features
+of the current release. The marked sections of chapters 14, 15, 19 and 37
+also describe design. Chapter 14's companion on planning separates the local
+backend from future execution strategies. Runnable examples show their
+expected output; the programs in chapters 16, 17, 19 and 20 that reach a
+server are checked in the book and executed in the
+[hql-demo repository](https://github.com/ewiger/hql-demo).
 
 ## Part I: The language
 
