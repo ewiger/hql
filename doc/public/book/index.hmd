@@ -66,7 +66,7 @@ git clone https://github.com/ewiger/hql-demo && cd hql-demo
 The book distinguishes the implemented language from its design direction.
 Chapter 18 and chapters 25 to 27 describe APIs and object stores, the `ai`
 module, and the direction beyond one vault; these are design, not features
-of the current release. The marked sections of chapters 0, 14, 15, 19 and 37
+of the current release. The marked sections of chapters 14, 15, 19 and 37
 also describe design. Chapter 14's companion on planning separates the local
 backend from future execution strategies. Runnable examples show their
 expected output; the programs in chapters 16, 17, 19 and 20 that reach a

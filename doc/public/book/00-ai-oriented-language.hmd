@@ -10,8 +10,8 @@ logical way.
 More programs are written by a language model every year. A person states
 what they want, an agent writes the program and runs it, and the person reads
 the result. An **AI-oriented language** is a language designed for this
-division of work: a model writes the program, a machine checks it, and a
-person can still read it.
+division of work: a model writes the program, a machine validates its types,
+and a person can still read it.
 
 A model makes mistakes of its own kind. It misspells a field, calls a function
 that does not exist, or edits a program until a test passes. It also corrects
@@ -24,7 +24,7 @@ HQL is built on three observations:
 1. Agents write SQL well. A language for them queries and transforms
    structured data the way SQL does, and reads that data from the systems
    where it lives.
-2. Agents need a checker. Static types, contracts on data and errors kept as
+2. Agents need type validation. Static types, contracts on data and errors kept as
    values turn a mistake into a report the agent can act on.
 3. Markdown is the format people and models already exchange. A document that
    holds text, queries and their results is a place where both can work.
@@ -42,7 +42,7 @@ person: "person\nstates the task, reads the result" {
 agent: "agent\nwrites the program" {
   shape: page
 }
-check: "check\nevery type, before anything runs" {
+check: "type validation\nevery type in the program" {
   style.fill: "#eef6ee"
 }
 run: "run\nvalidate data against its contract" {
@@ -69,16 +69,16 @@ values -> agent: "violations" {
 ```
 
 Nothing here requires an agent. A person who writes HQL by hand gets the same
-checks and the same reports. The rest of this chapter shows each observation
+type validation and the same reports. The rest of this chapter shows each observation
 as a small program, and names the chapter that covers it.
 
 | Property | What the writer gets | Covered in |
 | --- | --- | --- |
 | Query steps like SQL's | a familiar way to ask questions of data | [SQL-like Queries](06-sql-like-queries.hmd) |
-| Static types | a wrong program is rejected before it runs | [The type system](10-the-type-system/index.hmd) |
+| Static types | a misspelt field or a missing function is a check error | [The type system](10-the-type-system/index.hmd) |
 | Contracts on data | bad data is rejected where it is read | [Advanced data typing](11-advanced-data-typing/index.hmd) |
 | Errors as values | a failure can be queried and routed | [Errors](12-errors/index.hmd) |
-| Declarations with a Rust body | short programs over tested implementations | [Functions and declarations](32-functions-and-declarations/index.hmd) |
+| Declarations with a Rust body | a function declared in HQL and implemented in your own Rust package | [Functions and declarations](32-functions-and-declarations/index.hmd) |
 | Queries inside documents | text, program and result in one file | [Queries inside documents](24-documents.hmd) |
 
 ## Queries
@@ -114,8 +114,9 @@ code that joins their answers.
 
 ## A wrong program is rejected
 
-`hql` checks the whole program before it runs any of it. Here a field name is
-misspelt:
+HQL is statically and strongly typed. **Type validation** compares every
+expression of a program with the types it uses. It covers the whole program,
+and `hql` runs only a program that passes. Here a field name is misspelt:
 
 ```hql
 type Book = {title: String, pages: Int}
@@ -136,7 +137,7 @@ check error[unknown-field]: Book has no field `page`
 ```
 
 Nothing ran. The report names the type, the field and the position. In a
-language without this check the program would run and return a missing value
+language without type validation the program would run and return a missing value
 or a wrong total, and the agent would have to find the cause from the result.
 With the report, the correction is one word:
 
@@ -172,13 +173,12 @@ check error[unknown-name]: `median` is declared in the module `stats`: write `fr
 The report states the line to write. HQL has no implicit conversions and no
 undefined behaviour: a value is never converted without a written step, a
 `match` must cover every case, and a division by zero stops the run with a
-report. [[01-hello-world|Chapter 1]] introduces the check, and
-[[10-the-type-system|chapter 10]] covers the type system.
+report. [[10-the-type-system|Chapter 10]] covers the type system.
 
 ## Bad data is a value
 
-The checker reads the program. It cannot read data that arrives while the
-program runs. A **contract** covers that side. It is a type that states the
+Type validation reads the program. It cannot read data that arrives while
+the program runs. A **contract** covers that side. It is a type that states the
 fields of a record, their types and the rules their values follow:
 
 ```hql
@@ -220,86 +220,115 @@ data it can query, where an exception would give it a message to read.
 [[11-advanced-data-typing|Chapter 11]] covers contracts and validation, and
 [[12-errors|chapter 12]] covers errors.
 
-## Rust underneath
+## Declared in HQL, implemented in Rust
 
-A model writes a short program more reliably than a long one. HQL keeps
-programs short by giving the agent functions that are already written and
-tested:
+You can declare a function in HQL and write its body in Rust. The
+declaration is the header only: a name, the parameters and the result type.
+This one is from the module `hello`:
 
+<!-- run: skip -->
 ```hql
-from stats import median
+/// The text greeting a name: `greet("Ada")` is `Hello, Ada!`.
+fn greet(name: String) : String
+```
 
-[280, 412, 145] | median
+The line has no `=` and no body. The body is a Rust function in a package
+that you write:
+
+```rust
+/// `fn greet(name: String) : String`
+fn greet(
+    _cx: &mut dyn EvalCx,
+    input: Value,
+    _arguments: &[TypedArg],
+    span: Span,
+) -> Result<Value, Diagnostic> {
+    Ok(Value::Str(hello(&text(&input, &span)?, "!").into()))
+}
+```
+
+A **package** is a Rust crate with two parts: the HQL module files that hold
+the declarations, and the Rust library that implements them. A program
+imports the module and calls the function:
+
+<!-- run: --project examples/packages -->
+```hql
+import hello
+
+hello.greet("Ada")
 ```
 
 ```text
-280.0
+"Hello, Ada!"
 ```
 
-`median` has no body in HQL. It is a **declaration**: a name and a signature
-whose result comes from a function written in Rust. The checker types a call
-from the signature alone, so a declaration is called and checked like any
-other function. The standard library is built this way, and a package can add
-declarations of its own.
+The declaration says that `greet` takes a `String` and returns a `String`.
+That is all type validation needs for a call. It does not read the Rust
+body. `hello.greet("Ada")` is accepted, and `hello.greet(1)` is a check error.
 
-Rust suits this role for the reasons this chapter gives for HQL. It is
-statically typed, it handles errors as values, and safe Rust has no undefined
-behaviour. The agent writes the high-level program in HQL, and the heavy
-operations run in Rust that was tested once.
+This gives a program two levels. HQL is the high level: short, typed
+pipelines over data. Rust is the low level: anything a Rust crate can do,
+from a numeric library to a client for another system. The declaration is the
+boundary between them, and it is a typed one. An agent can write both sides.
+Rust is statically typed, handles errors as values, and has no undefined
+behaviour in safe code, so the guarantees this chapter describes for HQL hold
+below the boundary as well.
 [[book#part-v-extending-hql|Part V]] covers declarations, extensions and
-packages.
+packages, and [[34-writing-an-extension|chapter 34]] writes the `hello`
+package from an empty directory.
 
-## Markdown as the medium
+## Markdown as a computational medium
 
-People write notes, specifications and instructions for agents in Markdown,
-and models answer in it. In HQL a fenced `hql` block in a Markdown document is
-a **cell**, a program that `hql render` runs:
+Queries, types and contracts cover one side of an agent's work: SQL, big
+data, OLAP and structured data processing. The other side is knowledge
+written in natural language.
 
-````markdown
-## Still to read
+Markdown has effectively become a common medium for exchanging knowledge
+between humans and AI agents. What if we could combine that with the
+computational capabilities of the language itself?
 
-```hql
-cards
-| filter(c => c.metadata.status == "todo")
-| map(c => c.title)
-```
-````
+So basically, how far can one push the mix of natural and formal language? No
+idea, but maybe we can evolve or push Markdown a bit more. Stay with me on
+this one.
 
-`hql render` writes the document with the cell's result in it. The text, the
-query and the result are in one file. The file is plain Markdown: it opens in
-any editor, and a diff shows what changed. [[24-documents|Chapter 24]] covers
-cells, and [[21-a-vault|chapter 21]] covers the vault of documents they query.
+Think of how useful Jupyter notebooks have been for data science in Python.
+I've been experimenting with something similar for Markdown, where fenced HQL
+expressions become executable cells. The results of their evaluation are
+written back into the document, alongside the queries.
 
-## A person in the loop
+This is what I call HyperMarkDown. There is already a VS Code extension that
+comes with the HQL binary, so one can experiment with this directly in the
+editor. Ordinary Markdown documents become computational notebooks, without
+introducing another document format.
 
-!!! warning "Design only"
+## Human in the loop and recursive evaluation
 
-    The `ai` module is not in the current release.
-    [[25-agents-and-runs|Chapters 25]] to [[27-the-hyper-web|27]] describe
-    its design.
+This is perhaps the most interesting and the most speculative direction. Once
+Markdown documents contain executable cells and can reference and transclude
+other documents, we no longer need to think of an agent's context as a single
+static prompt, but rather as many versions of its parts.
 
-A chat session keeps its context in one growing prompt. A person cannot easily
-see what the model was given, or change one part of it and run it again.
+This is data composition together with dynamic REPL behavior. Instead of a
+static prompt, we can construct a tree or graph of Markdown cards, each
+containing natural language knowledge, queries, intermediate results, or even
+instructions for another agent. A larger prompt can emerge from the
+evaluation of these interconnected cards.
 
-In a vault the context is a set of documents. A card links to other cards and
-embeds parts of them. A cell selects the cards a question needs. The prompt is
-the result of evaluating these cards, and each part of it is a file. An agent
-is a card too: its body is its instructions, and its header lists its model
-and its tools. A run is a value that a later program can read.
+An agent can modify a query, generate a new card, or update an existing one.
+The resulting changes can then propagate through a cascade of dependent
+evaluations. A human can inspect any individual card, modify its instructions
+or data, and re-evaluate a particular part of the graph.
 
-This gives the person three things:
+This opens up interesting questions about dependency management, versioning,
+stale results, context drift and recursive evaluation. Unlike a conventional
+chat session, the evolving context is explicit, inspectable and versionable.
 
-- **The context is explicit.** Every piece of text the model received is in a
-  card or is the output of a cell.
-- **Every part can be inspected and changed.** A person opens a card, edits
-  its instructions or its query, and renders that part again.
-- **Changes are versioned.** The cards are files, so the history of a prompt
-  is the history of the files.
+The next milestone is to make agents themselves definable as HyperMarkDown
+cards. The broader experiment is whether we can bring together natural
+language, strongly typed computation and agentic reasoning in a way that
+preserves meaningful human control over the entire process.
 
-An agent can edit a query or write a new card, and the cells that depend on
-it are evaluated again. The person checks the change in the same files.
 
 ## What is next
 
-[[01-hello-world|Chapter 1]] starts with the smallest program and the check
-that runs before it.
+[[01-hello-world|Chapter 1]] starts with the smallest program in HQL
