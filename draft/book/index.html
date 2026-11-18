@@ -7094,11 +7094,10 @@ server are checked in the book and executed in the
    language, with both structured and unstructured data. As well as evidence
    of what is true and false, and how to reason about things in an almost
    precise logical way.</li>
-<li><a href="01-hello-world/">Hello world</a> — the first program, running it, and
-   the type check before a program runs.</li>
-<li><a href="02-data-types/">Data types</a> — <code>Int</code>, <code>Float</code>, <code>String</code> and
-   <code>Bool</code> in the REPL, <code>Bytes</code>, <code>Data</code> and its JSON-shaped trees, <code>Option</code>
-   for a value that may be missing, and how sets, <code>Data</code> and maps differ.</li>
+<li><a href="01-hello-world/">Hello world</a> — the first program, how to run it, and
+   type validation.</li>
+<li><a href="02-data-types/">Data types</a> — the basic types, <code>Data</code> for JSON-shaped
+   trees, and <code>Option</code> for a missing value.</li>
 <li><a href="03-collections/">Collections</a> — lists, sets and maps, and the steps they
    share.</li>
 <li><a href="04-functions/">Functions</a> — lambdas, declared functions, the
@@ -7111,22 +7110,18 @@ server are checked in the book and executed in the
    aggregates.</li>
 <li><a href="07-streams/">Streams that do not end</a> — generators, laziness, and
    batches.</li>
-<li><a href="08-output/">Writing results out</a> — presentation formats and who chooses
-   them.</li>
-<li><a href="09-io/">I/O</a> — sources and targets: endpoints, <code>source</code>, <code>tap</code>,
-   <code>target</code> and <code>sink</code>, finite or live, formats, endpoints by id and the schema
-   boundary, channels, logging, the network, files and folders, the
-   environment and arguments, and <code>hql</code> as a command-line data tool.</li>
+<li><a href="08-output/">Writing results out</a> — the <code>Format</code> type: an output format,
+   such as <code>Json</code> or <code>Markdown</code>, is a value.</li>
+<li><a href="09-io/">I/O</a> — endpoints, sources and sinks, formats, files, the
+   network, and <code>hql</code> as a command-line tool.</li>
 <li><a href="10-the-type-system/">The type system</a> — records, unions and
     match, results, subtypes and narrowing, generics, receiver calls,
     operators and traits.</li>
-<li><a href="11-advanced-data-typing/">Advanced data typing</a> — the type
-    boundary where loose data becomes typed, open and closed types,
-    <code>TypeContract</code> and <code>DataContract</code>, validators, validation as a value,
-    and what a contract states that a schema cannot.</li>
+<li><a href="11-advanced-data-typing/">Advanced data typing</a> — turning loose data
+    into typed data, <code>TypeContract</code> and <code>DataContract</code>, and validation.</li>
 <li><a href="12-errors/">Errors</a> — failures kept as data, diagnostics and the
     run's diagnostic channel, <code>strict</code> and <code>collect</code>.</li>
-<li><a href="13-working-with-hql/">Working with <code>hql</code></a> — the commands, the reports,
+<li><a href="13-working-with-hql/">Working with      </a> — the commands, the reports,
     and what to do when something is wrong.</li>
 </ol>
 <h2 id="part-ii-data-flows">Part II: Data flows<a class="headerlink" href="#part-ii-data-flows" title="Permanent link">&para;</a></h2>
