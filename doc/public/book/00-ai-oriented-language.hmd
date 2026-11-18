@@ -296,10 +296,9 @@ I've been experimenting with something similar for Markdown, where fenced HQL
 expressions become executable cells. The results of their evaluation are
 written back into the document, alongside the queries.
 
-This is what I call HyperMarkDown. There is already a VS Code extension that
-comes with the HQL binary, so one can experiment with this directly in the
-editor. Ordinary Markdown documents become computational notebooks, without
-introducing another document format.
+The [HyperMarkDown](https://hypermarkdown.org) project calls these *HQL cells*.
+The HQL binary is shipped with an existing [VS Code extension](https://marketplace.visualstudio.com/items?itemName=hypermarkdown.hmd), so you can try them directly in
+the editor. An ordinary Markdown document becomes a computational notebook with wiki-links and structured metadata.
 
 ## Human in the loop and recursive evaluation
 
