@@ -1,0 +1,305 @@
+# 0. An AI-oriented language
+
+It's an interesting BOTH quest AND question: what an
+AI-oriented programming language could look like? What properties it should
+have? And where one goes with it when it comes to mixing knowledges, natural
+language, with both structured and unstructured data. As well as evidence of
+what is true and false, and how to reason about things in an almost precise
+logical way.
+
+More programs are written by a language model every year. A person states
+what they want, an agent writes the program and runs it, and the person reads
+the result. An **AI-oriented language** is a language designed for this
+division of work: a model writes the program, a machine checks it, and a
+person can still read it.
+
+A model makes mistakes of its own kind. It misspells a field, calls a function
+that does not exist, or edits a program until a test passes. It also corrects
+a mistake well when a report says exactly what is wrong. A language for this
+writer rejects as many wrong programs as it can, and reports each rejection
+precisely.
+
+HQL is built on three observations:
+
+1. Agents write SQL well. A language for them queries and transforms
+   structured data the way SQL does, and reads that data from the systems
+   where it lives.
+2. Agents need a checker. Static types, contracts on data and errors kept as
+   values turn a mistake into a report the agent can act on.
+3. Markdown is the format people and models already exchange. A document that
+   holds text, queries and their results is a place where both can work.
+
+SQL is the language of structured data, and Markdown is the language of
+written knowledge. HQL joins the two: a typed query language whose programs
+also live inside Markdown documents.
+
+```d2
+direction: down
+
+person: "person\nstates the task, reads the result" {
+  shape: person
+}
+agent: "agent\nwrites the program" {
+  shape: page
+}
+check: "check\nevery type, before anything runs" {
+  style.fill: "#eef6ee"
+}
+run: "run\nvalidate data against its contract" {
+  style.fill: "#eef6ee"
+}
+values: "values\nresults and violations, both data" {
+  shape: page
+  style.fill: "#eef6ee"
+}
+
+person -> agent
+agent -> check
+check -> run: "the program fits its types"
+run -> values
+values -> person
+check -> agent: "check error" {
+  style.stroke: "#b23b3b"
+  style.stroke-dash: 5
+}
+values -> agent: "violations" {
+  style.stroke: "#b23b3b"
+  style.stroke-dash: 5
+}
+```
+
+Nothing here requires an agent. A person who writes HQL by hand gets the same
+checks and the same reports. The rest of this chapter shows each observation
+as a small program, and names the chapter that covers it.
+
+| Property | What the writer gets | Covered in |
+| --- | --- | --- |
+| Query steps like SQL's | a familiar way to ask questions of data | [SQL-like Queries](06-sql-like-queries.hmd) |
+| Static types | a wrong program is rejected before it runs | [The type system](10-the-type-system/index.hmd) |
+| Contracts on data | bad data is rejected where it is read | [Advanced data typing](11-advanced-data-typing/index.hmd) |
+| Errors as values | a failure can be queried and routed | [Errors](12-errors/index.hmd) |
+| Declarations with a Rust body | short programs over tested implementations | [Functions and declarations](32-functions-and-declarations/index.hmd) |
+| Queries inside documents | text, program and result in one file | [Queries inside documents](24-documents.hmd) |
+
+## Queries
+
+Models have read a great deal of SQL, and they write it well. HQL asks the
+same questions as SQL. Each question is a step in a pipeline:
+
+```hql
+shelf = [
+    {title: "Frankenstein", genre: "novel", pages: 280},
+    {title: "Dune", genre: "novel", pages: 412},
+    {title: "Leaves of Grass", genre: "poetry", pages: 145},
+]
+shelf
+| filter(b => b.genre == "novel")
+| map(b => b.title)
+```
+
+```text
+["Frankenstein", "Dune"]
+```
+
+`filter` is `WHERE` and `map` is `SELECT`. A step takes one value and returns
+another, so a program is read from top to bottom, and a step can be added or
+removed without touching the others.
+
+Data for a question is seldom in one place. Orders are in a table, corrections
+arrive on a topic, and the reason for an exception is in a note. HQL reads
+files, tables, topics and Markdown documents with the same steps, so an agent
+writes one program where it would otherwise write a query, a script and the
+code that joins their answers.
+[[book#part-ii-data-flows|Part II]] covers these systems.
+
+## A wrong program is rejected
+
+`hql` checks the whole program before it runs any of it. Here a field name is
+misspelt:
+
+```hql
+type Book = {title: String, pages: Int}
+
+shelf = [
+    Book(title = "Frankenstein", pages = 280),
+    Book(title = "Dune", pages = 412),
+]
+shelf | map(b => b.page) | sum
+```
+
+```text
+check error[unknown-field]: Book has no field `page`
+ --> <expression>:7:18
+  |
+7 | shelf | map(b => b.page) | sum
+  |                  ^^^^^^
+```
+
+Nothing ran. The report names the type, the field and the position. In a
+language without this check the program would run and return a missing value
+or a wrong total, and the agent would have to find the cause from the result.
+With the report, the correction is one word:
+
+```hql
+type Book = {title: String, pages: Int}
+
+shelf = [
+    Book(title = "Frankenstein", pages = 280),
+    Book(title = "Dune", pages = 412),
+]
+shelf | map(b => b.pages) | sum
+```
+
+```text
+692
+```
+
+The same holds for a function that is not there. `median` is declared in the
+module `stats`, and this program does not import it:
+
+```hql
+[280, 412, 145] | median
+```
+
+```text
+check error[unknown-name]: `median` is declared in the module `stats`: write `from stats import median`
+ --> <expression>:1:19
+  |
+1 | [280, 412, 145] | median
+  |                   ^^^^^^
+```
+
+The report states the line to write. HQL has no implicit conversions and no
+undefined behaviour: a value is never converted without a written step, a
+`match` must cover every case, and a division by zero stops the run with a
+report. [[01-hello-world|Chapter 1]] introduces the check, and
+[[10-the-type-system|chapter 10]] covers the type system.
+
+## Bad data is a value
+
+The checker reads the program. It cannot read data that arrives while the
+program runs. A **contract** covers that side. It is a type that states the
+fields of a record, their types and the rules their values follow:
+
+```hql
+type BookData : DataContract = {
+    title  : String
+    pages  : Int
+    status : String
+
+    require pages > 0 as has_pages
+    require ["todo", "reading", "done"] | contains(status) as known_status
+}
+
+shelf : List<Data> = [
+    {title: "Dune", pages: 412, status: "reading"},
+    {title: "The Hobbit", pages: 0, status: "lost"},
+]
+
+shelf
+| validate(BookData)
+| fork {
+    clean    = oks()  | map(b => b.title),
+    rejected = errs() | map(e => {title: e.value.title, rules: e.violations | map(v => v.rule)}),
+}
+```
+
+```text
+{clean: ["Dune"], rejected: [{rules: ["BookData.has_pages", "BookData.known_status"], title: "The Hobbit"}]}
+```
+
+`validate` checks each record against the contract and returns a result for
+each: the typed record, or the record with its violations. It reports every
+rule a record breaks, not only the first. `fork` sends the results to two
+named branches. `oks()` keeps the accepted records and `errs()` keeps the
+rejected ones.
+
+The rejected side is a list of records like any other. A program can count
+it, group it by rule, or write it to a table. An agent gets the failure as
+data it can query, where an exception would give it a message to read.
+[[11-advanced-data-typing|Chapter 11]] covers contracts and validation, and
+[[12-errors|chapter 12]] covers errors.
+
+## Rust underneath
+
+A model writes a short program more reliably than a long one. HQL keeps
+programs short by giving the agent functions that are already written and
+tested:
+
+```hql
+from stats import median
+
+[280, 412, 145] | median
+```
+
+```text
+280.0
+```
+
+`median` has no body in HQL. It is a **declaration**: a name and a signature
+whose result comes from a function written in Rust. The checker types a call
+from the signature alone, so a declaration is called and checked like any
+other function. The standard library is built this way, and a package can add
+declarations of its own.
+
+Rust suits this role for the reasons this chapter gives for HQL. It is
+statically typed, it handles errors as values, and safe Rust has no undefined
+behaviour. The agent writes the high-level program in HQL, and the heavy
+operations run in Rust that was tested once.
+[[book#part-v-extending-hql|Part V]] covers declarations, extensions and
+packages.
+
+## Markdown as the medium
+
+People write notes, specifications and instructions for agents in Markdown,
+and models answer in it. In HQL a fenced `hql` block in a Markdown document is
+a **cell**, a program that `hql render` runs:
+
+````markdown
+## Still to read
+
+```hql
+cards
+| filter(c => c.metadata.status == "todo")
+| map(c => c.title)
+```
+````
+
+`hql render` writes the document with the cell's result in it. The text, the
+query and the result are in one file. The file is plain Markdown: it opens in
+any editor, and a diff shows what changed. [[24-documents|Chapter 24]] covers
+cells, and [[21-a-vault|chapter 21]] covers the vault of documents they query.
+
+## A person in the loop
+
+!!! warning "Design only"
+
+    The `ai` module is not in the current release.
+    [[25-agents-and-runs|Chapters 25]] to [[27-the-hyper-web|27]] describe
+    its design.
+
+A chat session keeps its context in one growing prompt. A person cannot easily
+see what the model was given, or change one part of it and run it again.
+
+In a vault the context is a set of documents. A card links to other cards and
+embeds parts of them. A cell selects the cards a question needs. The prompt is
+the result of evaluating these cards, and each part of it is a file. An agent
+is a card too: its body is its instructions, and its header lists its model
+and its tools. A run is a value that a later program can read.
+
+This gives the person three things:
+
+- **The context is explicit.** Every piece of text the model received is in a
+  card or is the output of a cell.
+- **Every part can be inspected and changed.** A person opens a card, edits
+  its instructions or its query, and renders that part again.
+- **Changes are versioned.** The cards are files, so the history of a prompt
+  is the history of the files.
+
+An agent can edit a query or write a new card, and the cells that depend on
+it are evaluated again. The person checks the change in the same files.
+
+## What is next
+
+[[01-hello-world|Chapter 1]] starts with the smallest program and the check
+that runs before it.

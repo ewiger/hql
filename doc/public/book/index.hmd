@@ -66,7 +66,7 @@ git clone https://github.com/ewiger/hql-demo && cd hql-demo
 The book distinguishes the implemented language from its design direction.
 Chapter 18 and chapters 25 to 27 describe APIs and object stores, the `ai`
 module, and the direction beyond one vault; these are design, not features
-of the current release. The marked sections of chapters 14, 15, 19 and 37
+of the current release. The marked sections of chapters 0, 14, 15, 19 and 37
 also describe design. Chapter 14's companion on planning separates the local
 backend from future execution strategies. Runnable examples show their
 expected output; the programs in chapters 16, 17, 19 and 20 that reach a
@@ -75,8 +75,14 @@ server are checked in the book and executed in the
 
 ## Part I: The language
 
+0. [[00-ai-oriented-language|An AI-oriented language]] —  What an AI-oriented
+   programming language could look like? What properties it should have?
+   And where one goes with it when it comes to mixing knowledges, natural
+   language, with both structured and unstructured data. As well as evidence
+   of what is true and false, and how to reason about things in an almost
+   precise logical way.
 1. [[01-hello-world|Hello world]] — the first program, running it, and
-   the check before a program runs.
+   the type check before a program runs.
 2. [[02-data-types|Data types]] — `Int`, `Float`, `String` and
    `Bool` in the REPL, `Bytes`, `Data` and its JSON-shaped trees, `Option`
    for a value that may be missing, and how sets, `Data` and maps differ.

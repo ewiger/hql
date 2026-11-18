@@ -99,6 +99,7 @@ nav:
       - HQL Book:
           - book.md
           - "Part I: The language":
+              - 0. An AI-oriented language: book/00-ai-oriented-language.md
               - 1. Hello world: book/01-hello-world.md
               - 2. Data types:
                   - book/02-data-types.md
