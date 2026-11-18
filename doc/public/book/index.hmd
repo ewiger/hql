@@ -81,11 +81,10 @@ server are checked in the book and executed in the
    language, with both structured and unstructured data. As well as evidence
    of what is true and false, and how to reason about things in an almost
    precise logical way.
-1. [[01-hello-world|Hello world]] — the first program, running it, and
-   the type check before a program runs.
-2. [[02-data-types|Data types]] — `Int`, `Float`, `String` and
-   `Bool` in the REPL, `Bytes`, `Data` and its JSON-shaped trees, `Option`
-   for a value that may be missing, and how sets, `Data` and maps differ.
+1. [[01-hello-world|Hello world]] — the first program, how to run it, and
+   type validation.
+2. [[02-data-types|Data types]] — the basic types, `Data` for JSON-shaped
+   trees, and `Option` for a missing value.
 3. [[03-collections|Collections]] — lists, sets and maps, and the steps they
    share.
 4. [[04-functions|Functions]] — lambdas, declared functions, the
@@ -98,22 +97,18 @@ server are checked in the book and executed in the
    aggregates.
 7. [[07-streams|Streams that do not end]] — generators, laziness, and
    batches.
-8. [[08-output|Writing results out]] — presentation formats and who chooses
-   them.
-9. [[09-io|I/O]] — sources and targets: endpoints, `source`, `tap`,
-   `target` and `sink`, finite or live, formats, endpoints by id and the schema
-   boundary, channels, logging, the network, files and folders, the
-   environment and arguments, and `hql` as a command-line data tool.
+8. [[08-output|Writing results out]] — the `Format` type: an output format,
+   such as `Json` or `Markdown`, is a value.
+9. [[09-io|I/O]] — endpoints, sources and sinks, formats, files, the
+   network, and `hql` as a command-line tool.
 10. [[10-the-type-system|The type system]] — records, unions and
     match, results, subtypes and narrowing, generics, receiver calls,
     operators and traits.
-11. [[11-advanced-data-typing|Advanced data typing]] — the type
-    boundary where loose data becomes typed, open and closed types,
-    `TypeContract` and `DataContract`, validators, validation as a value,
-    and what a contract states that a schema cannot.
+11. [[11-advanced-data-typing|Advanced data typing]] — turning loose data
+    into typed data, `TypeContract` and `DataContract`, and validation.
 12. [[12-errors|Errors]] — failures kept as data, diagnostics and the
     run's diagnostic channel, `strict` and `collect`.
-13. [Working with `hql`](13-working-with-hql.hmd) — the commands, the reports,
+13. [[13-working-with-hql|Working with `hql`]] — the commands, the reports,
     and what to do when something is wrong.
 
 ## Part II: Data flows
