@@ -238,6 +238,11 @@ nav:
               - 38. The ml package: book/38-the-ml-package.md
       - Demo: https://github.com/ewiger/hql-demo
       - Examples: examples.md
+  # A post is a page under `blog/`, newest first; `blog.md` lists them and the
+  # home page shows the latest.
+  - Blog:
+      - blog.md
+      - "From Rust to English to Strange Loops": blog/ai-oriented-programming-language.md
   # A section per package, a page per module; a function, type or trait is
   # reached from its module's page. `cargo test` fails when this
   # differs from the library.

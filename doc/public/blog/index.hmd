@@ -1,0 +1,20 @@
+# Blog
+
+Notes on HQL's design, the questions behind it, and where it is going. The
+newest post is first.
+
+<div class="hql-posts" markdown>
+
+<article class="hql-post-card" markdown>
+<p class="hql-post-meta">20 November 2026</p>
+
+### [[/blog/ai-oriented-programming-language|From Rust to English to Strange Loops: What Is an AI-Oriented Programming Language?]]
+
+A Reddit question about AI-oriented languages drew answers from Rust and Lean
+to English and raw ASTs. Read together, they point past syntax to systems in
+which knowledge becomes code and code produces knowledge.
+
+<p class="hql-post-more" markdown>[[/blog/ai-oriented-programming-language|Read the post →]]</p>
+</article>
+
+</div>

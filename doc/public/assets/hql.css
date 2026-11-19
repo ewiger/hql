@@ -34,12 +34,6 @@
 
 /* The cover opts in to the hero treatment by tagging its own heading, so no
    chapter picks one up by accident. */
-.md-typeset h1.hql-hero {
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--md-default-fg-color);
-}
-
 .md-typeset h1.hql-hero + p {
   font-size: 1.15rem;
   line-height: 1.5;
@@ -52,6 +46,117 @@
    down the gutter, not a tint over the text. */
 .md-typeset pre > code {
   border-left: 3px solid var(--hql-amber);
+  border-radius: 0 0.4rem 0.4rem 0;
+}
+
+.md-typeset pre {
+  border-radius: 0.4rem;
+}
+
+/* The hero heading carries the accent as a gradient on its text. */
+.md-typeset h1.hql-hero {
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  background: linear-gradient(100deg, var(--md-default-fg-color) 30%, var(--hql-amber));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Header: a hairline of the accent under the black bar. */
+.md-header {
+  box-shadow: 0 1px 0 var(--hql-amber);
+}
+
+.md-tabs__link--active,
+.md-tabs__item--active .md-tabs__link {
+  color: var(--hql-amber);
+  opacity: 1;
+}
+
+/* Grid cards lift on hover and pick up the accent at the edge. */
+.md-typeset .grid.cards > ul > li,
+.hql-post-card {
+  border-radius: 0.6rem;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.md-typeset .grid.cards > ul > li:hover,
+.hql-post-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--hql-amber);
+  box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.12);
+}
+
+/* A section heading on the cover: small caps label with an accent rule. */
+.md-typeset h2.hql-section {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--hql-amber);
+  margin-top: 2.4rem;
+}
+
+/* Blog: a list of post cards, and a post's dateline. */
+.hql-posts {
+  display: grid;
+  gap: 1rem;
+}
+
+.hql-post-card {
+  display: block;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-left: 3px solid var(--hql-amber);
+}
+
+.md-typeset .hql-post-card h3 {
+  margin: 0.2rem 0 0.6rem;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.md-typeset .hql-post-card h3 a {
+  color: var(--md-default-fg-color);
+}
+
+.md-typeset .hql-post-card h3 a:hover {
+  color: var(--hql-amber);
+}
+
+.md-typeset .hql-post-card p {
+  margin: 0.4rem 0;
+}
+
+.md-typeset .hql-post-meta {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+  margin: 0;
+}
+
+.md-typeset .hql-post-more {
+  font-weight: 600;
+}
+
+.md-typeset .hql-post-more a {
+  color: var(--hql-amber);
+}
+
+.md-typeset h1.hql-post-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin-bottom: 0.4rem;
+}
+
+.md-typeset h1.hql-post-title + .hql-post-meta {
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--hql-amber);
+  margin-bottom: 1.6rem;
 }
 
 /* A tab with children opens a menu of them on hover or keyboard focus. The
