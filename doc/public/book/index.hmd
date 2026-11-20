@@ -40,7 +40,7 @@ functions implemented in Rust become libraries that HQL programs can import.
 
 ## Following along
 
-[Install `hql`](../install.md), clone the repository for the reading-club vault,
+[Install `hql`](/install/), clone the repository for the reading-club vault,
 and run each program with `hql eval`:
 
 ```sh

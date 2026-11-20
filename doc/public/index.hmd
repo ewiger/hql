@@ -19,7 +19,7 @@ contracts before it reads any data, and every read tests each record against
 them again. One language reads and writes files, PostgreSQL tables, Kafka
 topics, NATS subjects, lakehouse tables and HyperMarkDown documents.
 
-<p class="hql-actions" markdown>[[install|Install]]{ .md-button .md-button--primary } [[book|Read the book]]{ .md-button }</p>
+<p class="hql-actions" markdown>[[install|Install]]{ .md-button .md-button--primary } [Read the book](/latest/book/){ .md-button }</p>
 
 ```sh
 cargo install hql
@@ -205,15 +205,15 @@ An endpoint is named in `.hql/config.toml` and used by name in a program.
 
 <div class="hql-endpoints" markdown>
 
-- [[16-tables-and-topics|**SQLite**]] <span>table</span>
-- [[16-tables-and-topics|**PostgreSQL**]] <span>table</span>
-- [[16-tables-and-topics|**Kafka**]] <span>topic</span>
-- [[17-subjects-and-the-lakehouse|**NATS**]] <span>subject</span>
-- [[17-subjects-and-the-lakehouse|**JetStream**]] <span>stream</span>
-- [[17-subjects-and-the-lakehouse|**Delta / Spark**]] <span>lakehouse</span>
-- [[09-io|**Files**]] <span>JSON, CSV, text</span>
-- [[21-a-vault|**HMD vault**]] <span>documents</span>
-- [[18-apis-webhooks-and-stores|**REST, webhooks**]] <span class="hql-design">design</span>
+- [**SQLite**](/latest/book/16-tables-and-topics/) <span>table</span>
+- [**PostgreSQL**](/latest/book/16-tables-and-topics/) <span>table</span>
+- [**Kafka**](/latest/book/16-tables-and-topics/) <span>topic</span>
+- [**NATS**](/latest/book/17-subjects-and-the-lakehouse/) <span>subject</span>
+- [**JetStream**](/latest/book/17-subjects-and-the-lakehouse/) <span>stream</span>
+- [**Delta / Spark**](/latest/book/17-subjects-and-the-lakehouse/) <span>lakehouse</span>
+- [**Files**](/latest/book/09-io/) <span>JSON, CSV, text</span>
+- [**HMD vault**](/latest/book/21-a-vault/) <span>documents</span>
+- [**REST, webhooks**](/latest/book/18-apis-webhooks-and-stores/) <span class="hql-design">design</span>
 
 </div>
 </section>
@@ -236,7 +236,7 @@ An endpoint is named in `.hql/config.toml` and used by name in a program.
 </div>
 
 Why a language for this, and where it is going:
-[[00-ai-oriented-language|An AI-oriented language]].
+[An AI-oriented language](/latest/book/00-ai-oriented-language/).
 
 </section>
 
@@ -246,15 +246,15 @@ Why a language for this, and where it is going:
 
 <div class="hql-parts" markdown>
 
-- <span class="hql-part-no">I</span> [[book|**The language**]]
+- <span class="hql-part-no">I</span> [**The language**](/latest/book/)
   <span>Chapters 0–13 · types, collections, functions, modules, queries, streams, I/O, errors</span>
-- <span class="hql-part-no">II</span> [[14-etl-pipelines|**Data flows**]]
+- <span class="hql-part-no">II</span> [**Data flows**](/latest/book/14-etl-pipelines/)
   <span>Chapters 14–20 · pipelines, endpoints, tables and topics, OLTP, OLAP</span>
-- <span class="hql-part-no">III</span> [[21-a-vault|**Knowledge and AI**]]
+- <span class="hql-part-no">III</span> [**Knowledge and AI**](/latest/book/21-a-vault/)
   <span>Chapters 21–27 · vaults, graphs, retrieval, documents, agents</span>
-- <span class="hql-part-no">IV</span> [[28-statistics|**Standard library**]]
+- <span class="hql-part-no">IV</span> [**Standard library**](/latest/book/28-statistics/)
   <span>Chapters 28–31 · statistics, random, digests, cryptography</span>
-- <span class="hql-part-no">V</span> [[32-functions-and-declarations|**Extending HQL**]]
+- <span class="hql-part-no">V</span> [**Extending HQL**](/latest/book/32-functions-and-declarations/)
   <span>Chapters 32–38 · extensions, packages, the registry</span>
 
 </div>

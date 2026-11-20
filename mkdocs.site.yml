@@ -1,0 +1,35 @@
+# The website: Home, Install and the Blog. Built from `main` on every push and
+# published at the root of the site, beside mike's version folders, so it is
+# always current and never versioned. The Book, Examples and Reference are the
+# documentation, `mkdocs.yml`, published per version; this build reaches them
+# at `/latest/` by root-absolute links. What both builds share is in
+# `mkdocs.base.yml`.
+INHERIT: mkdocs.base.yml
+
+plugins:
+  - search
+  # Pages are hyper-markdown; see `mkdocs.yml`.
+  - hypermarkdown:
+      root: doc/public
+      build_nav: false
+
+# The same tabs as the documentation's, so a reader moving between the two
+# parts sees one site. A top-level tab with children opens as a menu of them;
+# see `contrib/mkdocs/overrides/partials/tabs-item.html`.
+nav:
+  - Home: index.md
+  - Learn:
+      - Install: install.md
+      - HQL Book: /latest/book/
+      - Demo: https://github.com/ewiger/hql-demo
+      - Examples: /latest/examples/
+  # A post is a page under `blog/`, newest first; `blog.md` lists them and the
+  # home page shows the latest.
+  - Blog:
+      - blog.md
+      - "From Rust to English to Strange Loops": blog/ai-oriented-programming-language.md
+  - Reference: /latest/reference/
+
+extra:
+  # Which pages this build keeps; see `contrib/mkdocs/split.py`.
+  site_part: website

@@ -1,0 +1,139 @@
+# What the two builds of hql-lang.org share. The site is two MkDocs builds from
+# one vault, `doc/public/`:
+#
+# - `mkdocs.site.yml`, the website: Home, Install and the Blog. Built from
+#   `main` on every push and served at the root, so it is always current.
+# - `mkdocs.yml`, the documentation: the Book, Examples and Reference. Each
+#   release is published by mike under its version, `/vX.Y.Z/`, with
+#   `/latest/` the newest and `/draft/` the docs of `main`.
+#
+# Each pulls this file in with `INHERIT`. Mappings merge, lists do not, so
+# `plugins`, `nav` and `hooks` are each given whole where they are set. Which
+# pages belong to which build is decided in `contrib/mkdocs/split.py`; see the
+# documentation-site section of `doc/stack.hmd`.
+
+site_name: HQL
+site_description: Hyper Query Language — a strongly typed language for querying, transforming, connecting and computing over data, knowledge and AI workflows.
+
+# Served from GitHub Pages under a custom domain. The build does not need this —
+# MkDocs emits relative links — but canonical URLs and `sitemap.xml` are wrong
+# without it. The domain itself is a DNS record plus the repository's Pages
+# setting; see the documentation-site section of `doc/stack.hmd`.
+site_url: https://hql-lang.org/
+
+repo_url: https://github.com/ewiger/hql
+repo_name: ewiger/hql
+edit_uri: edit/main/doc/public/
+
+# Everything in this repository is MIT, code and prose alike, so one string
+# states the whole claim and no footer template has to carry two.
+copyright: © 2026 Yauhen Yakimovich · <a href="https://github.com/ewiger/hql/blob/main/LICENSE">MIT</a>
+
+# The site is for people using HQL, and only `doc/public/` is published. The
+# design of the language — the wiki, the models, the proposals and the working
+# memory — stays in the repository.
+docs_dir: doc/public
+
+# A card and its folder note share one URL, so directory URLs are required.
+use_directory_urls: true
+
+theme:
+  name: material
+  # Template overrides; outside `docs_dir`, so nothing in it is published.
+  custom_dir: contrib/mkdocs/overrides
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
+
+  font:
+    text: Inter
+    code: JetBrains Mono
+
+  icon:
+    repo: fontawesome/brands/github
+
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.tracking
+    - navigation.tabs
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+
+  # The sibling site's chrome — near-black with an amber accent — so the two
+  # read as one family. HQL's own mark sets it apart rather than a new palette.
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+# Run after the plugins, in this order.
+#
+# `folder_notes.py`: a folder note `a/b/index.hmd` is the page `a/b.md`, and
+# this points its relative Markdown links at what they name from the folder
+# note's own directory. Removed once the plugin does this itself
+# (hypermarkdown issue 0010).
+#
+# `split.py`: keeps the pages of this build's part of the site, drops the
+# others, and fails the build on a relative link from one part into the other.
+hooks:
+  - contrib/mkdocs/folder_notes.py
+  - contrib/mkdocs/split.py
+
+# A `.hmd` source is not served: the plugin registers the page it becomes, and
+# without this MkDocs would also copy the source into the site as a static file.
+exclude_docs: |
+  *.hmd
+
+extra:
+  generator: false
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ewiger/hql
+      name: HQL on GitHub
+    - icon: fontawesome/brands/rust
+      link: https://crates.io/crates/hql
+      name: HQL on crates.io
+
+extra_css:
+  - assets/hql.css
+
+# A miss is reported rather than fatal; `doc/stack.hmd` asks public pages to
+# link to the repository by URL, so a miss is a page to fix. A link from one
+# part of the site to the other is root-absolute (`/latest/book/`,
+# `/install/`), which MkDocs cannot check either; `split.py` checks it.
+validation:
+  links:
+    not_found: info
+    anchors: info
+    absolute_links: info
+
+markdown_extensions:
+  - admonition
+  - md_in_html
+  - attr_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
