@@ -712,3 +712,132 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Playground (HQL-0061): Run buttons on the front page's programs, and the
+   editor of the playground page. */
+.md-typeset .hql-run {
+  padding: 0.25rem 0.9rem;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--hql-amber);
+  background: transparent;
+  border: 1px solid var(--hql-amber);
+  border-radius: 0.3rem;
+  cursor: pointer;
+}
+
+.md-typeset .hql-run:hover,
+.md-typeset .hql-run--primary {
+  color: #1a1400;
+  background: var(--hql-amber);
+}
+
+.md-typeset .hql-run:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.md-typeset .hql-term .hql-run {
+  display: block;
+  margin: 0 0 0 auto;
+}
+
+/* Output a run produced, as against the recorded one. */
+.md-typeset code.hql-live,
+.md-typeset .hql-output.hql-live {
+  color: var(--md-default-fg-color);
+}
+
+.md-typeset code.hql-failed,
+.md-typeset .hql-output.hql-failed {
+  border-left-color: #d6453d;
+}
+
+.md-typeset h1.hql-play-title {
+  margin: 0 0 0.6rem;
+  font-size: 2.4rem;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  color: var(--md-default-fg-color);
+}
+
+.md-typeset .hql-band--playground {
+  padding-top: 2rem;
+}
+
+.hql-playground {
+  margin: 1.6rem 0 2.4rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-top: 2px solid var(--hql-amber);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--md-code-bg-color);
+}
+
+.hql-play-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.7rem;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  background: var(--md-default-bg-color);
+}
+
+.hql-play-bar select {
+  max-width: 100%;
+  margin-left: 0.4rem;
+  padding: 0.25rem 0.4rem;
+  font: inherit;
+  color: var(--md-default-fg-color);
+  background: var(--md-default-bg-color);
+  border: 1px solid var(--md-default-fg-color--lighter);
+  border-radius: 0.3rem;
+}
+
+.hql-play-buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.hql-playground textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.9rem 1rem;
+  font-family: var(--md-code-font-family);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--md-code-fg-color);
+  background: transparent;
+  border: 0;
+  border-left: 3px solid var(--hql-amber);
+  resize: vertical;
+  outline: none;
+  tab-size: 4;
+}
+
+.md-typeset .hql-playground .hql-output {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  min-height: 3rem;
+  max-height: 22rem;
+  overflow: auto;
+  font-family: var(--md-code-font-family);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: pre;
+  color: var(--md-default-fg-color--light);
+  background: var(--md-default-bg-color);
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+  border-left: 3px solid var(--md-default-fg-color--lighter);
+  border-radius: 0;
+}
+
+.hql-playground textarea,
+.md-typeset .hql-playground .hql-output {
+  font-variant-ligatures: none;
+}

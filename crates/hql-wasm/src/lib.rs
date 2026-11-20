@@ -1,4 +1,4 @@
-//! HQL for a page (HQL-0061): `check`, `eval` and `version`, called from
+//! HQL for a page (HQL-0061): `check`, `run` and `version`, called from
 //! JavaScript. A program runs in the reading-club vault of the HQL book,
 //! held in memory; nothing is read from a file system or a network.
 
@@ -77,7 +77,9 @@ pub fn check(source: &str) -> Report {
 }
 
 /// Type-check and evaluate a program, as `hql eval` does.
-#[wasm_bindgen]
+///
+/// JavaScript sees it as `run`: a module cannot export the name `eval`.
+#[wasm_bindgen(js_name = run)]
 #[must_use]
 pub fn eval(source: &str) -> Report {
     playground::eval(source, environment()).into()

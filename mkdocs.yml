@@ -238,6 +238,8 @@ nav:
               - 38. The ml package: book/38-the-ml-package.md
       - Demo: https://github.com/ewiger/hql-demo
       - Examples: examples.md
+  # HQL in the page, compiled to WebAssembly (HQL-0061).
+  - Playground: playground.md
   # A post is a page under `blog/`, newest first; `blog.md` lists them and the
   # home page shows the latest.
   - Blog:
@@ -313,6 +315,11 @@ extra:
 
 extra_css:
   - assets/hql.css
+
+# The playground's script; it fetches the module that runs HQL on first use.
+extra_javascript:
+  - path: assets/hql-playground.js
+    type: module
 
 # A miss is reported rather than fatal; `doc/stack.hmd` asks public pages to
 # link to the repository by URL, so a miss is a page to fix.

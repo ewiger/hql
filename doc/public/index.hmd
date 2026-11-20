@@ -64,7 +64,7 @@ cargo install hql
 
     ```text
     check error[type-mismatch]: `year` of `Book` is Int, and this is String
-     --> books.hql:5:33
+     --> playground.hql:5:33
       |
     5 |     Book(title = "Emma", year = "1815", rating = 3),
       |                                 ^^^^^^

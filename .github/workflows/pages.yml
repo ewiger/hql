@@ -12,6 +12,9 @@ on:
       - "mkdocs.yml"
       - "pyproject.toml"
       - "uv.lock"
+      - "crates/hql-wasm/**"
+      - "contrib/playground/**"
+      - "src/playground.rs"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -49,6 +52,15 @@ jobs:
       - name: Install d2
         run: curl -fsSL https://d2lang.com/install.sh | sh -s -- --version v0.7.1
 
+      # The playground's module (HQL-0061), built before the site so that
+      # `mkdocs build` publishes it. Ubuntu's clang emits wasm for SQLite.
+      - name: Install the wasm toolchain
+        run: |
+          rustup target add wasm32-unknown-unknown
+          curl -fsSL https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+      - name: Build the playground module
+        run: contrib/playground/build.sh
+
       # Nothing is published that does not build clean.
       - name: Build
         run: uv run mkdocs build --strict
@@ -83,6 +95,14 @@ jobs:
       # without it a diagram degrades to its source.
       - name: Install d2
         run: curl -fsSL https://d2lang.com/install.sh | sh -s -- --version v0.7.1
+      # The playground's module (HQL-0061), built before the site so that
+      # `mkdocs build` publishes it. Ubuntu's clang emits wasm for SQLite.
+      - name: Install the wasm toolchain
+        run: |
+          rustup target add wasm32-unknown-unknown
+          curl -fsSL https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+      - name: Build the playground module
+        run: contrib/playground/build.sh
       - name: Publish main as draft
         run: |
           git config user.name "github-actions[bot]"
