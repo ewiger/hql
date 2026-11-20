@@ -1,0 +1,19 @@
+[package]
+name = "hql-wasm"
+version = "0.7.1"
+description = "HQL in a browser: check and eval for the playground of hql-lang.org"
+license = "MIT"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+hql = { path = "../..", default-features = false }
+include_dir = "0.7"
+wasm-bindgen = "0.2"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"

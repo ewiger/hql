@@ -18,6 +18,7 @@ exclude = [
     "/.github",
     "/.grem",
     "/contrib",
+    "/crates",
     "/doc",
     "/examples",
     "/tests",
@@ -27,6 +28,11 @@ exclude = [
     "pyproject.toml",
     "uv.lock",
 ]
+
+# `hql-wasm` is the browser build's bindings (HQL-0061); it is not published.
+[workspace]
+members = [".", "crates/hql-wasm"]
+default-members = ["."]
 
 [lib]
 name = "hql"
