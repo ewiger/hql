@@ -195,7 +195,6 @@ pub(crate) fn holds_postgres(dsn: &str) -> bool {
     with_postgres(dsn, |_| ()).is_some()
 }
 
-
 /// Begin an attempt: one connection to the system, a transaction begun on
 /// it at `isolation` where the system takes one, and the attempt's state
 /// cleared.

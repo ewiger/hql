@@ -39,8 +39,8 @@ mod net;
 #[cfg(not(feature = "native"))]
 use unavailable::net;
 pub mod package;
-pub mod playground;
 mod parser;
+pub mod playground;
 #[cfg(feature = "native")]
 mod postgres;
 #[cfg(not(feature = "native"))]

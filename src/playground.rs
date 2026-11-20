@@ -128,16 +128,14 @@ pub fn eval(source: &str, env: &RunEnvironment) -> Report {
             String::new()
         }
         Some(Value::Formatted(formatted)) => format!("{}\n", formatted.text),
-        Some(value) => {
-            match crate::extensions::format::render(value, HQL, 0, None, &env.formats) {
-                Ok(text) => format!("{text}\n"),
-                Err(message) => {
-                    ok = false;
-                    diagnostics.push_str(&format!("{message}\n"));
-                    String::new()
-                }
+        Some(value) => match crate::extensions::format::render(value, HQL, 0, None, &env.formats) {
+            Ok(text) => format!("{text}\n"),
+            Err(message) => {
+                ok = false;
+                diagnostics.push_str(&format!("{message}\n"));
+                String::new()
             }
-        }
+        },
     };
     Report {
         ok,
@@ -228,7 +226,8 @@ books
             [
                 (
                     "dune.hmd".to_owned(),
-                    "---\ntitle: Dune\nmetadata:\n  category: book\n---\nBy [[frank-herbert]].\n".to_owned(),
+                    "---\ntitle: Dune\nmetadata:\n  category: book\n---\nBy [[frank-herbert]].\n"
+                        .to_owned(),
                 ),
                 (
                     "frank-herbert.hmd".to_owned(),
