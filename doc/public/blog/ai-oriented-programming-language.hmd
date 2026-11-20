@@ -2,6 +2,25 @@
 
 <p class="hql-post-meta">20 November 2026 · Yauhen Yakimovich</p>
 
+!!! abstract "TL;DR"
+
+    - **Python, JS, C++?** Just use whatever LLMs were trained on.
+    - **Rust, Lean, formal verification?** Let the compiler and type system do
+      the hard work. AI generates, compiler complains, AI fixes. Repeat.
+    - **Bend and Tauto?** Agent instructions backed by proofs and
+      machine-checkable correctness.
+    - **ASTs instead of source code?** Why generate text just to parse it back
+      into a tree? Maybe we're optimizing the wrong interface.
+    - **English?** Intentions aren't executable specifications.
+    - **Reducible vs irreducible problems?** A program solves a problem
+      reducible to the algorithm written in it. LLMs approach problems that
+      are not necessarily reducible in the same way. The two sets overlap
+      hugely.
+
+    So the actual big question is: **what is reducible with AI?** Maybe the
+    original question is not about which language is best for AI at all. And
+    somehow all this leads to Hofstadter's strange loops.
+
 I recently asked a seemingly simple question on Reddit: **What would an AI-oriented programming language look like?**
 
 I was expecting some discussion about language design, static typing, syntax, and maybe the relative advantages of Rust, Python, or SQL.
