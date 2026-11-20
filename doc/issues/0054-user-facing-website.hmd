@@ -91,3 +91,9 @@ HQL
 5. **Add Guides**, starting with the tasks listed above.
 6. **State the rule** in the documentation-site section of `doc/stack.hmd`.
    Done.
+7. **Split the website from the documentation.** Done: Home, Install and the
+   Blog are the website (`mkdocs.site.yml`), built from `main` and served at
+   the root, so they are always current. The Book, Examples and Reference
+   are the documentation (`mkdocs.yml`), versioned by mike under `/latest/`,
+   `/vX.Y.Z/` and `/draft/`. Versions published before the split keep their
+   own Home and Blog as they were.
