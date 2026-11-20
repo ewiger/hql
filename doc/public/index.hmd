@@ -297,3 +297,13 @@ git clone https://github.com/ewiger/hql-demo && cd hql-demo
 ```
 
 </section>
+
+<section class="hql-band" markdown>
+
+## Community { .hql-section }
+
+Ask questions, share programs and follow releases on
+[r/hqlang](https://www.reddit.com/r/hqlang/). Bugs and feature requests go to
+[GitHub issues](https://github.com/ewiger/hql/issues).
+
+</section>

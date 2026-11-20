@@ -31,6 +31,7 @@ nav:
       - blog.md
       - "From Rust to English to Strange Loops": blog/ai-oriented-programming-language.md
   - Reference: /draft/reference/
+  - Community: https://www.reddit.com/r/hqlang/
 
 extra:
   # Which pages this build keeps; see `contrib/mkdocs/split.py`.

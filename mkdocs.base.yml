@@ -108,6 +108,9 @@ extra:
     - icon: fontawesome/brands/rust
       link: https://crates.io/crates/hql
       name: HQL on crates.io
+    - icon: fontawesome/brands/reddit
+      link: https://www.reddit.com/r/hqlang/
+      name: r/hqlang on Reddit
 
 extra_css:
   - assets/hql.css

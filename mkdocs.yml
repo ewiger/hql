@@ -216,6 +216,7 @@ nav:
           - hmd/search: reference/hmd/search.md
           - hmd/search/lexical: reference/hmd/search/lexical.md
           - hmd/search/semantic: reference/hmd/search/semantic.md
+  - Community: https://www.reddit.com/r/hqlang/
 
 # A primitive's reference page is reached from its module's page, not from the
 # nav.
