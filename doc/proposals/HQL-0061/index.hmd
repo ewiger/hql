@@ -1,6 +1,6 @@
 # HQL-0061: A browser playground: `hql` compiled to WebAssembly
 
-**Status**: drafted
+**Status**: implemented in part
 **Created**: 2026-11-20
 **Source**: front page redesign of hql-lang.org, 2026-11-20
 
@@ -8,11 +8,10 @@
 
 The `hql` crate builds for `wasm32-unknown-unknown` with its native I/O
 behind a default cargo feature, `native`. Without that feature the crate
-keeps the lexer, parser, checker, evaluator and every standard module that
-needs no socket, process, dynamic library or host file system. A new
-workspace crate, `hql-wasm`, exposes `check` and `eval` to JavaScript
-through `wasm-bindgen`, over a virtual file system seeded with the
-`examples/reading-club` vault. The documentation site loads the module on
+keeps the lexer, parser, checker, evaluator, SQLite and every standard module
+that needs no socket, process, dynamic library or terminal. A new workspace
+crate, `hql-wasm`, exposes `check` and `run` to JavaScript through
+`wasm-bindgen`, with the `examples/reading-club` vault held in memory. The documentation site loads the module on
 demand: a `/playground/` page, and a Run button on each program of the front
 page's demo panel. The programs that reach a server stay static in the
 browser.
@@ -29,7 +28,7 @@ browser.
 
 ## Non-goals
 
-- Running Kafka, PostgreSQL, NATS, SQLite or Spark endpoints in the browser.
+- Running Kafka, PostgreSQL, NATS or Spark endpoints in the browser.
 - A WASI build or a server-side sandbox.
 - Loading extensions (`libloading`) or installing packages in the browser.
 - An editor beyond a text area with the site's code styling.
@@ -42,35 +41,42 @@ The crate's native dependencies become optional and are enabled together by
 one default feature.
 
 - `Cargo.toml` MUST declare `[features] default = ["native"]` and
-  `native = [...]` enabling `postgres`, `rusqlite`, `rskafka`, `async-nats`,
-  `tokio`, `libloading`, `rustyline` and `clap`. A plain `cargo build` and
-  `cargo install hql` are unchanged.
-- The modules that use them MUST compile only with `native`: `postgres.rs`,
-  `kafka.rs`, `nats.rs`, `spark.rs`, `net.rs`, `transaction.rs`,
-  `package/load.rs`, `package/build.rs`, `package/registry.rs`, `cli.rs`,
-  `main.rs`, and the `rusqlite` paths of `endpoints.rs`,
-  `extensions/io.rs` and `extensions/semantic.rs`.
-- Without `native`, an endpoint whose kind needs one of them MUST still
-  check. Evaluating a read or write on it MUST fail with the diagnostic
+  `native = [...]` enabling `postgres`, `rskafka`, `async-nats`, `tokio`,
+  `futures-util`, `tungstenite`, `ureq`, `libloading`, `rustyline` and
+  `clap`. A plain `cargo build` and `cargo install hql` are unchanged, and
+  the `hql` binary requires `native`.
+- Without `native`, `src/unavailable/` stands in for the modules
+  `postgres`, `kafka`, `nats` and `net`, each stand-in with the functions of
+  the module it replaces. The checker and the evaluator are the same code in
+  both builds. Spark's session, the registry download and library loading
+  fail in the same way; `cli.rs` is not compiled.
+- Without `native`, a program that names a server endpoint MUST still check.
+  Evaluating a read or write on it MUST fail with the diagnostic
   `endpoint-unavailable`, naming the kind and the build. A program's types do
   not depend on the build it runs in.
-- `getrandom` MUST select its JavaScript backend on `wasm32`. `jiff` keeps
+- SQLite stays in both builds: `rusqlite` compiles SQLite for `wasm32`, where
+  a database is held in the page's memory. The wasm build needs a clang that
+  emits wasm for SQLite's C source.
+- `getrandom` MUST select its JavaScript backend on `wasm32`, and `jiff` its
+  `js` feature, so the seed and the clock are the page's. `jiff` keeps
   `tzdb-bundle-always`, so time zones need no host database.
 
-### 2. The file system
+### 2. The vault and the file system
 
-Every file access goes through one trait, so the browser build reads from
-memory.
+The page has no file system; the vault is handed over as texts.
 
+- `hql::playground::MemoryVault` MUST implement `VaultSource` over paths and
+  texts in memory, with `hmd` imported for every program, as the
+  reading-club project's configuration does.
+- `hql-wasm` embeds `examples/reading-club/` at build time, hidden
+  directories left out as a walk of the vault leaves them, so `cards`,
+  `@[[dune]]` and the book's vault queries give what they give on disk.
 - A trait `Fs` (read, list, metadata, write) MUST replace the direct
-  `std::fs` calls in `io.rs`, `sources.rs`, `walk.rs`, `vault.rs`,
-  `context.rs`, `modules.rs`, `checker.rs` and `help.rs`. The native build
-  implements it over `std::fs`.
-- The wasm build implements it over an in-memory tree. Writes go to that
-  tree and are lost when the page is closed.
-- The playground seeds the tree with `examples/reading-club/` at `/vault/`
-  and runs with `--vault /vault`, so `cards`, `@[[dune]]` and the book's
-  vault programs work unchanged.
+  `std::fs` calls in `io.rs`, `walk.rs`, `context.rs`, `modules.rs`,
+  `checker.rs` and `help.rs`, implemented over `std::fs` natively and over
+  an in-memory tree in the page. Until it does, a `file(...)` read in the
+  page fails with the platform's `io-failure`, and the project modules under
+  `lib/` are not importable there.
 
 ### 3. `hql-wasm`
 
@@ -78,36 +84,43 @@ A thin crate in `crates/hql-wasm/` depends on `hql` with
 `default-features = false`.
 
 ```text
-check(source: string) -> { ok: bool, diagnostics: string }
-eval(source: string)  -> { ok: bool, output: string, diagnostics: string }
+check(source: string) -> { ok: bool, output: string, diagnostics: string }
+run(source: string)   -> { ok: bool, output: string, diagnostics: string }
 version()             -> string
 ```
 
 - `diagnostics` MUST be the text `hql check` prints, without colour, with
   the program's file named `playground.hql`.
-- `eval` MUST stop after `5 s` of evaluation and report `timeout`, so a
+- `run` evaluates; a module cannot export the name `eval`. Both call
+  `hql::playground`, which is compiled in every build and tested natively.
+- `output` MUST be what `hql eval` or `hql check` writes to standard output
+  for the same program.
+- `run` MUST refuse a stream that may not end, naming `take(n)`: a page
+  shows a whole value.
+- `run` MUST stop after `5 s` of evaluation and report `timeout`, so a
   runaway program does not freeze the tab. The evaluator checks a deadline
   between pipeline steps.
-- Output MUST be what `hql eval` prints for the same program.
 
 ### 4. The site
 
 The module is a build artifact of the site, not a committed file.
 
-- The `pages.yml` and `release.yml` workflows MUST build `hql-wasm` with
-  `wasm-pack build --target web --release` and copy `hql_wasm.js` and
-  `hql_wasm_bg.wasm` into `doc/public/assets/wasm/` before `mkdocs build`.
-  The folder is ignored by git.
+- `contrib/playground/build.sh` builds `hql-wasm` with
+  `wasm-pack build --target web --release` and copies `hql_wasm.js` and
+  `hql_wasm_bg.wasm` into `doc/public/assets/wasm/`. The `pages.yml` and
+  `release.yml` workflows MUST run it before `mkdocs build`. The folder is
+  ignored by git.
 - The gzip-compressed `.wasm` SHOULD stay under `4 MiB`
-  (`4194304` bytes). CI prints its size on every build.
+  (`4194304` bytes); it is `3238649` bytes at 0.7.1. The build script
+  prints the size and fails at more than `25 %` over the budget.
 - `assets/hql-playground.js` MUST load the module only when a reader presses
   Run or opens `/playground/`. A page that is never run downloads nothing.
 - On the front page, the Query, Contract and Documents tabs gain a Run
   button that replaces the shown output with the live one. The Kafka →
   Postgres tab keeps its static output and links to hql-demo.
 - `/playground/` is a page with a text area, Check and Run buttons, an
-  output pane, and a menu of the book's runnable examples. Without
-  JavaScript it shows the programs and their recorded output.
+  output pane, and a menu of programs. The programs are titled code blocks
+  of the page, so without JavaScript it shows them as they are.
 
 ## Backwards Compatibility
 
@@ -125,21 +138,27 @@ per run; memory is bounded by the tab.
 
 ## Deployment / Activation
 
-1. Add the `native` feature and gate the modules; `cargo build` and the test
-   suite unchanged.
-2. Introduce `Fs` with the `std::fs` implementation; tests unchanged.
-3. `cargo build --target wasm32-unknown-unknown --no-default-features`
-   passes in CI.
-4. Add `hql-wasm` and its tests.
-5. Add the CI build step and `/playground/` as a draft page.
-6. Add Run buttons to the front page; publish with the next release.
+1. Add the `native` feature and the stand-ins; `cargo build` and the test
+   suite unchanged. Built.
+2. `cargo check --target wasm32-unknown-unknown --no-default-features`
+   passes. Built.
+3. Add `hql::playground` and `hql-wasm` with their tests. Built.
+4. Add the build script, the CI steps, `/playground/` and the Run buttons of
+   the front page. Built; published with the next release.
+5. Add the `endpoint-unavailable` diagnostic kind. Remaining: the stand-ins
+   fail with a message that names the build.
+6. Add the `5 s` deadline. Remaining.
+7. Introduce `Fs` and the in-memory tree. Remaining.
 
 ## Reference Implementation
 
 - `Cargo.toml`: `[features]`, optional dependencies, workspace member.
 - `src/lib.rs`: `#[cfg(feature = "native")]` on the native modules.
-- `src/fs.rs`: the `Fs` trait, `StdFs`, `MemFs`.
-- `crates/hql-wasm/`: bindings and the seeded vault (`include_dir!`).
+- `src/unavailable/`: the stand-ins of the reduced build.
+- `src/playground.rs`: `check`, `eval`, `MemoryVault`.
+- `src/fs.rs`: the `Fs` trait, `StdFs`, `MemFs` (remaining).
+- `crates/hql-wasm/`: bindings and the embedded vault (`include_dir!`).
+- `contrib/playground/build.sh`: the module's build.
 - `doc/public/playground.hmd`, `doc/public/assets/hql-playground.js`.
 - `.github/workflows/pages.yml`, `release.yml`: the wasm build step.
 
@@ -149,11 +168,14 @@ per run; memory is bounded by the tab.
 - `cargo check --target wasm32-unknown-unknown --no-default-features`.
 - `wasm-pack test --node crates/hql-wasm`: each front-page program gives
   the output shown on the page; the Contract program gives
-  `type-mismatch`; a `postgres` endpoint read gives
-  `endpoint-unavailable`; an infinite `iterate` gives `timeout`.
+  `type-mismatch`; the clock and an unseeded random number work. With
+  the remaining steps: a `postgres` endpoint read gives
+  `endpoint-unavailable`, and an endless loop gives `timeout`.
 - The site build fails if the gzip-compressed `.wasm` exceeds the budget by
   more than `25 %`.
 
 ## Changelog
 
 - 2026-11-20: drafted
+- 2026-11-20: implemented in part: the `native` feature, `hql::playground`,
+  `hql-wasm`, the playground page and the front page's Run buttons

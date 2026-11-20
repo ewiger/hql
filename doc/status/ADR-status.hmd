@@ -104,5 +104,5 @@ cards
 | [[HQL-0057]] | Packages: the `hql-extensions` registry, `hql package`, and installed extensions                                         | implemented in part | partially   |
 | [[HQL-0059]] | HyperMarkdown vaults and HQL project resolution                                                                          | implemented in part | partially   |
 | [[HQL-0060]] | One import mechanism for every module                                                                                    | implemented in part | partially   |
-| [[HQL-0061]] | A browser playground: `hql` compiled to WebAssembly                                                                      | drafted             | no          |
+| [[HQL-0061]] | A browser playground: `hql` compiled to WebAssembly                                                                      | implemented in part | partially   |
 <!-- /hql:output -->
