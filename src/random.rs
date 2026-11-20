@@ -121,6 +121,18 @@ fn with_drawn<R>(use_draws: impl FnOnce(&mut Drawn) -> R) -> (R, Option<i64>) {
 
 /// A seed from the host's entropy: the operating system's keys of the
 /// standard library's hasher, mixed with the clock.
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+fn entropy() -> i64 {
+    // A page has no clock the standard library reads and no keyed hasher;
+    // its entropy is the browser's.
+    let mut bytes = [0_u8; 8];
+    let _ = getrandom::fill(&mut bytes);
+    i64::from_le_bytes(bytes)
+}
+
+/// A seed from the host's entropy: the operating system's keys of the
+/// standard library's hasher, mixed with the clock.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn entropy() -> i64 {
     use std::hash::{BuildHasher, Hasher};
     let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
