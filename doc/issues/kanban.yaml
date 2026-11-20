@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 80 # to be incremented when adding a new issue card
+  last_id: 81 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -29,6 +29,9 @@ board:
       - id: "0065"
         title: "Neo4j parity analysis: graph patterns, traversal and graph schema"
         file: 0065-neo4j-parity-analysis.hmd
+      - id: "0081"
+        title: "fquery parity analysis: object-domain graph queries over SQL"
+        file: 0081-fquery-parity-analysis.hmd
       - id: "0071"
         title: "Key vaults: `crypto.keyvault` and its backends"
         file: 0071-key-vaults.hmd

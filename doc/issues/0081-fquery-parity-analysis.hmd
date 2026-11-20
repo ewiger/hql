@@ -1,0 +1,57 @@
+# 0081 — fquery parity analysis: object-domain graph queries over SQL
+
+Status: backlog
+Related: [[0065-neo4j-parity-analysis|0065]],
+[[0016-sql-parity-analysis|0016]],
+[[0015-jq-parity-analysis|0015]],
+[[graph-type]]
+
+[fquery](https://github.com/adsharma/fquery) is a graph query engine written
+as a Python library. A program states a query over objects and their edges in
+Python, and fquery maps it to a relational database: its README names SQL and
+Malloy as the two mappings it supports. HQL covers the same ground from the
+other side: a typed language of its own, with `Graph<N, E>`, cards linked as
+uplinks and downlinks, and endpoints for tables. The front page of the site
+compares HQL with fquery in one row; this issue is the check behind that row.
+
+Parity is of **capability, not syntax**. Whatever an fquery query computes
+over objects and their edges, an HQL program computes over typed records, a
+`Graph` value or a vault, with its types checked before it runs.
+
+This issue is an **analysis**, not an implementation. Its outcome is a feature
+matrix and follow-up issues; no code under `src/` changes here.
+
+## Questions the analysis answers
+
+1. **The data model.** What an fquery node and edge are in Python, and what
+   each is in HQL: a record type, an `Edge<S, T>`, a card.
+2. **Query shape.** fquery's traversal and projection operations, each beside
+   the HQL pipeline that gives the same value.
+3. **Types.** What fquery checks about a query before it runs, and what it
+   leaves to the database. The same query in HQL, and what the checker
+   refuses.
+4. **Mapping to SQL.** Which fquery queries become one SQL statement. Which
+   HQL pipelines over a `postgres` or `sqlite` endpoint are pushed down, and
+   which are evaluated here ([[0073-computation-plans|0073]]).
+5. **Malloy.** What the Malloy mapping gives fquery that SQL does not, and
+   whether HQL needs an answer to it.
+6. **Async and batching.** How fquery batches the reads of a traversal, and
+   what HQL's evaluator does for the same traversal.
+7. **What HQL adds.** Streams, contracts enforced on every read, documents as
+   nodes.
+
+## Method
+
+- Read fquery's tutorial and tests, and sort every feature into *supported
+  now*, *supportable* (with the missing type or operation named) or *out of
+  scope* (with a reason).
+- For each supportable feature, write the fquery query and the HQL program it
+  would become as an example under `examples/` with `status: proposed`.
+- Correct the fquery row of the comparison table on the site's front page
+  (`doc/public/index.hmd`) from what the analysis finds.
+
+## Done when
+
+- A feature matrix (fquery feature, HQL status, missing piece) is written.
+- The examples above are committed with `status: proposed`.
+- The front page's fquery row states only what the matrix supports.
