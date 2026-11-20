@@ -231,6 +231,7 @@ An endpoint is named in `.hql/config.toml` and used by name in a program.
 | PRQL          | Pipelined query language that compiles to SQL       | Those of the target database                                           | No                    | The database the SQL runs in                                    |
 | dbt           | SQL models with Jinja templates, built in a warehouse | Model contracts checked at build; data tests run after               | No                    | One warehouse per target                                        |
 | Spark SQL     | SQL and DataFrames on a Spark cluster               | Schemas resolved when a query is analysed on the cluster               | Structured Streaming  | Many connectors                                                 |
+| fquery        | Graph query engine, a Python library                | Python objects of the host program                                     | Not documented        | Maps queries to SQL and Malloy                                  |
 | Bend          | General-purpose functional language                 | Not a data language                                                    | —                     | —                                                               |
 
 </div>
