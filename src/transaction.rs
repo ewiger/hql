@@ -54,6 +54,7 @@ enum Active {
         path: PathBuf,
         connection: rusqlite::Connection,
     },
+    #[cfg(feature = "native")]
     Postgres {
         dsn: String,
         client: postgres::Client,
@@ -136,6 +137,7 @@ pub(crate) fn sqlite_message(path: &Path, error: &rusqlite::Error) -> String {
 
 /// A PostgreSQL failure as the server's own sentence, its class noted for
 /// the scope it happened in. A connection string is never repeated.
+#[cfg(feature = "native")]
 pub(crate) fn postgres_message(error: &postgres::Error) -> String {
     use postgres::error::SqlState;
     match error.code() {
@@ -178,6 +180,7 @@ pub(crate) fn with_sqlite<T>(path: &Path, f: impl FnOnce(&rusqlite::Connection) 
 
 /// Run `f` on the attempt's client to the database `dsn` names, where one
 /// is open; `None` where no attempt holds that database.
+#[cfg(feature = "native")]
 pub(crate) fn with_postgres<T>(dsn: &str, f: impl FnOnce(&mut postgres::Client) -> T) -> Option<T> {
     ACTIVE.with(|active| match active.borrow_mut().as_mut() {
         Some(Active::Postgres { dsn: held, client }) if held == dsn => Some(f(client)),
@@ -187,9 +190,11 @@ pub(crate) fn with_postgres<T>(dsn: &str, f: impl FnOnce(&mut postgres::Client) 
 
 /// Whether an attempt holds the database `dsn` names, so a write runs on
 /// its transaction rather than one of its own.
+#[cfg(feature = "native")]
 pub(crate) fn holds_postgres(dsn: &str) -> bool {
     with_postgres(dsn, |_| ()).is_some()
 }
+
 
 /// Begin an attempt: one connection to the system, a transaction begun on
 /// it at `isolation` where the system takes one, and the attempt's state
@@ -223,6 +228,12 @@ pub(crate) fn begin(system: &System, isolation: Option<&str>) -> Result<(), Stri
                 connection,
             }
         }
+        #[cfg(not(feature = "native"))]
+        System::Postgres { .. } => {
+            let _ = isolation;
+            return Err(crate::unavailable::reason("a `postgres` endpoint"));
+        }
+        #[cfg(feature = "native")]
         System::Postgres { dsn } => {
             let mut client = postgres::Client::connect(dsn, postgres::NoTls).map_err(|error| {
                 format!(
@@ -261,6 +272,7 @@ pub(crate) fn commit() -> Result<(), (Option<Class>, String)> {
         Active::Sqlite { path, connection } => connection
             .execute_batch("COMMIT")
             .map_err(|error| sqlite_message_in(&path, &error)),
+        #[cfg(feature = "native")]
         Active::Postgres { mut client, .. } => client
             .batch_execute("COMMIT")
             .map_err(|error| postgres_message_in(&error)),
@@ -278,6 +290,7 @@ pub(crate) fn rollback() {
         Some(Active::Sqlite { connection, .. }) => {
             let _ = connection.execute_batch("ROLLBACK");
         }
+        #[cfg(feature = "native")]
         Some(Active::Postgres { mut client, .. }) => {
             let _ = client.batch_execute("ROLLBACK");
         }
@@ -301,6 +314,7 @@ fn sqlite_message_in(path: &Path, error: &rusqlite::Error) -> String {
     format!("{}: {error}", path.display())
 }
 
+#[cfg(feature = "native")]
 fn postgres_message_in(error: &postgres::Error) -> String {
     use postgres::error::SqlState;
     match error.code() {

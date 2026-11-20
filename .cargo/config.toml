@@ -7,3 +7,7 @@ RUST_MIN_STACK = "268435456"
 # `cargo status` re-renders the HQL cells of the status pages over themselves.
 [alias]
 status = "run -q -- --vault doc render --emit after --in-place doc/status/kanban-status.hmd doc/status/ADR-status.hmd"
+
+# The browser build (HQL-0061): `getrandom` 0.4 takes its backend from this.
+[target.wasm32-unknown-unknown]
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
