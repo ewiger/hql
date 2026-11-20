@@ -114,7 +114,7 @@ extra_css:
 
 # A miss is reported rather than fatal; `doc/stack.hmd` asks public pages to
 # link to the repository by URL, so a miss is a page to fix. A link from one
-# part of the site to the other is root-absolute (`/latest/book/`,
+# part of the site to the other is root-absolute (`/draft/book/`,
 # `/install/`), which MkDocs cannot check either; `split.py` checks it.
 validation:
   links:

@@ -169,8 +169,8 @@ arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
   `index`, `install`, `blog` and `blog/` are the website, `assets/` is both,
   and every other page is the documentation.
 - The two builds link to each other by root-absolute links: the website
-  reaches the documentation at `/latest/…`, and the documentation reaches the
-  website at `/…`. `--strict` fails a relative link from one build into the
+  reaches the documentation at `/draft/…`, the documentation of `main` it is
+  built beside, and the documentation reaches the website at `/…`. `--strict` fails a relative link from one build into the
   other, and a root-absolute link to a page the other build does not have.
 - `pyproject.toml` exists only to install the
   `hypermarkdown[mkdocs]` package and [mike](https://github.com/jimporter/mike)

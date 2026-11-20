@@ -2,7 +2,7 @@
 # published at the root of the site, beside mike's version folders, so it is
 # always current and never versioned. The Book, Examples and Reference are the
 # documentation, `mkdocs.yml`, published per version; this build reaches them
-# at `/latest/` by root-absolute links. What both builds share is in
+# at `/draft/`, the documentation of `main`, by root-absolute links. What both builds share is in
 # `mkdocs.base.yml`.
 INHERIT: mkdocs.base.yml
 
@@ -20,15 +20,15 @@ nav:
   - Home: index.md
   - Learn:
       - Install: install.md
-      - HQL Book: /latest/book/
+      - HQL Book: /draft/book/
       - Demo: https://github.com/ewiger/hql-demo
-      - Examples: /latest/examples/
+      - Examples: /draft/examples/
   # A post is a page under `blog/`, newest first; `blog.md` lists them and the
   # home page shows the latest.
   - Blog:
       - blog.md
       - "From Rust to English to Strange Loops": blog/ai-oriented-programming-language.md
-  - Reference: /latest/reference/
+  - Reference: /draft/reference/
 
 extra:
   # Which pages this build keeps; see `contrib/mkdocs/split.py`.

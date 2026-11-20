@@ -17,7 +17,7 @@ This hook runs after the plugins, so it sees those pages and removes them.
 
 The two parts cannot link to each other with relative links, since they are
 served from different places. The website reaches the documentation at
-`/latest/…`, and the documentation reaches the website at `/…`. A relative link
+`/draft/…`, and the documentation reaches the website at `/…`. A relative link
 into the other part fails the build, and so does a root-absolute link to a page
 that part does not have. Both are logged as warnings, which `--strict` turns
 into errors.
@@ -44,11 +44,12 @@ _WEBSITE_PAGES = {"index.md", "install.md", "blog.md"}
 _WEBSITE_DIRS = ("blog/",)
 _SHARED_DIRS = ("assets/",)
 
-#: Where the website finds the documentation: the newest release.
-DOCS_PREFIX = "/latest/"
-#: A root-absolute path to a version other than `latest`: a version folder
-#: (`/v0.7.1/`) or the draft. Pinned on purpose, so not checked.
-_PINNED = re.compile(r"^/(v\d[^/]*|draft)(/|$)")
+#: Where the website finds the documentation: the draft, built from `main`
+#: like the website, so every page the website links to is there.
+DOCS_PREFIX = "/draft/"
+#: A root-absolute path to a release: a version folder (`/v0.7.1/`) or
+#: `latest`. Pinned on purpose, so not checked.
+_PINNED = re.compile(r"^/(v\d[^/]*|latest)(/|$)")
 
 _HREF = re.compile(r"\]\((?P<md>[^)\s]+)|\bhref=\"(?P<html>[^\"]+)\"")
 _SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*:")
