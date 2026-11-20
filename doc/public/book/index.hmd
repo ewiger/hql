@@ -6,7 +6,7 @@ for an exception is in somebody's notes. Before we can ask what happened,
 we write a query, a script, and a little program to reconcile their answers.
 The little program tends to become permanent.
 
-HQL begins with this everyday inconvenience. It is a statically typed
+HQL begins with this everyday inconvenience. It is a strongly typed
 language for querying and transforming data in records, tables, files,
 streams, and vaults of linked Markdown documents. Its central device is a
 pipeline: each step receives a value and produces another, and the types
