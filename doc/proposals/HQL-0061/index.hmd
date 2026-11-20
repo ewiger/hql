@@ -1,0 +1,159 @@
+# HQL-0061: A browser playground: `hql` compiled to WebAssembly
+
+**Status**: drafted
+**Created**: 2026-11-20
+**Source**: front page redesign of hql-lang.org, 2026-11-20
+
+## Abstract
+
+The `hql` crate builds for `wasm32-unknown-unknown` with its native I/O
+behind a default cargo feature, `native`. Without that feature the crate
+keeps the lexer, parser, checker, evaluator and every standard module that
+needs no socket, process, dynamic library or host file system. A new
+workspace crate, `hql-wasm`, exposes `check` and `eval` to JavaScript
+through `wasm-bindgen`, over a virtual file system seeded with the
+`examples/reading-club` vault. The documentation site loads the module on
+demand: a `/playground/` page, and a Run button on each program of the front
+page's demo panel. The programs that reach a server stay static in the
+browser.
+
+## Motivation
+
+- A reader judges a language by running it. Today the shortest path to a
+  first run is `cargo install hql`, a compile of several minutes.
+- The front page shows four programs with their output. A Run button turns
+  each from a claim into a check the reader makes.
+- A wasm build forces a clean line between the language and its I/O. The
+  same line is what a future embedding (an editor, a notebook, a language
+  server) needs.
+
+## Non-goals
+
+- Running Kafka, PostgreSQL, NATS, SQLite or Spark endpoints in the browser.
+- A WASI build or a server-side sandbox.
+- Loading extensions (`libloading`) or installing packages in the browser.
+- An editor beyond a text area with the site's code styling.
+
+## Specification
+
+### 1. The `native` feature
+
+The crate's native dependencies become optional and are enabled together by
+one default feature.
+
+- `Cargo.toml` MUST declare `[features] default = ["native"]` and
+  `native = [...]` enabling `postgres`, `rusqlite`, `rskafka`, `async-nats`,
+  `tokio`, `libloading`, `rustyline` and `clap`. A plain `cargo build` and
+  `cargo install hql` are unchanged.
+- The modules that use them MUST compile only with `native`: `postgres.rs`,
+  `kafka.rs`, `nats.rs`, `spark.rs`, `net.rs`, `transaction.rs`,
+  `package/load.rs`, `package/build.rs`, `package/registry.rs`, `cli.rs`,
+  `main.rs`, and the `rusqlite` paths of `endpoints.rs`,
+  `extensions/io.rs` and `extensions/semantic.rs`.
+- Without `native`, an endpoint whose kind needs one of them MUST still
+  check. Evaluating a read or write on it MUST fail with the diagnostic
+  `endpoint-unavailable`, naming the kind and the build. A program's types do
+  not depend on the build it runs in.
+- `getrandom` MUST select its JavaScript backend on `wasm32`. `jiff` keeps
+  `tzdb-bundle-always`, so time zones need no host database.
+
+### 2. The file system
+
+Every file access goes through one trait, so the browser build reads from
+memory.
+
+- A trait `Fs` (read, list, metadata, write) MUST replace the direct
+  `std::fs` calls in `io.rs`, `sources.rs`, `walk.rs`, `vault.rs`,
+  `context.rs`, `modules.rs`, `checker.rs` and `help.rs`. The native build
+  implements it over `std::fs`.
+- The wasm build implements it over an in-memory tree. Writes go to that
+  tree and are lost when the page is closed.
+- The playground seeds the tree with `examples/reading-club/` at `/vault/`
+  and runs with `--vault /vault`, so `cards`, `@[[dune]]` and the book's
+  vault programs work unchanged.
+
+### 3. `hql-wasm`
+
+A thin crate in `crates/hql-wasm/` depends on `hql` with
+`default-features = false`.
+
+```text
+check(source: string) -> { ok: bool, diagnostics: string }
+eval(source: string)  -> { ok: bool, output: string, diagnostics: string }
+version()             -> string
+```
+
+- `diagnostics` MUST be the text `hql check` prints, without colour, with
+  the program's file named `playground.hql`.
+- `eval` MUST stop after `5 s` of evaluation and report `timeout`, so a
+  runaway program does not freeze the tab. The evaluator checks a deadline
+  between pipeline steps.
+- Output MUST be what `hql eval` prints for the same program.
+
+### 4. The site
+
+The module is a build artifact of the site, not a committed file.
+
+- The `pages.yml` and `release.yml` workflows MUST build `hql-wasm` with
+  `wasm-pack build --target web --release` and copy `hql_wasm.js` and
+  `hql_wasm_bg.wasm` into `doc/public/assets/wasm/` before `mkdocs build`.
+  The folder is ignored by git.
+- The gzip-compressed `.wasm` SHOULD stay under `4 MiB`
+  (`4194304` bytes). CI prints its size on every build.
+- `assets/hql-playground.js` MUST load the module only when a reader presses
+  Run or opens `/playground/`. A page that is never run downloads nothing.
+- On the front page, the Query, Contract and Documents tabs gain a Run
+  button that replaces the shown output with the live one. The Kafka →
+  Postgres tab keeps its static output and links to hql-demo.
+- `/playground/` is a page with a text area, Check and Run buttons, an
+  output pane, and a menu of the book's runnable examples. Without
+  JavaScript it shows the programs and their recorded output.
+
+## Backwards Compatibility
+
+`cargo install hql` and every native behaviour are unchanged: `native` is a
+default feature. The `Fs` trait is internal. Before 1.0, a crate depending
+on `hql` with `default-features = false` gets the reduced build as
+specified, with no compatibility shim.
+
+## Security Considerations
+
+The module runs in the reader's browser tab, with no network access: the
+browser build has no socket code. The in-memory file system holds only the
+seeded vault and what the reader writes. The `5 s` deadline bounds CPU use
+per run; memory is bounded by the tab.
+
+## Deployment / Activation
+
+1. Add the `native` feature and gate the modules; `cargo build` and the test
+   suite unchanged.
+2. Introduce `Fs` with the `std::fs` implementation; tests unchanged.
+3. `cargo build --target wasm32-unknown-unknown --no-default-features`
+   passes in CI.
+4. Add `hql-wasm` and its tests.
+5. Add the CI build step and `/playground/` as a draft page.
+6. Add Run buttons to the front page; publish with the next release.
+
+## Reference Implementation
+
+- `Cargo.toml`: `[features]`, optional dependencies, workspace member.
+- `src/lib.rs`: `#[cfg(feature = "native")]` on the native modules.
+- `src/fs.rs`: the `Fs` trait, `StdFs`, `MemFs`.
+- `crates/hql-wasm/`: bindings and the seeded vault (`include_dir!`).
+- `doc/public/playground.hmd`, `doc/public/assets/hql-playground.js`.
+- `.github/workflows/pages.yml`, `release.yml`: the wasm build step.
+
+## Test Plan
+
+- `cargo test` with default features: the existing suite, unchanged.
+- `cargo check --target wasm32-unknown-unknown --no-default-features`.
+- `wasm-pack test --node crates/hql-wasm`: each front-page program gives
+  the output shown on the page; the Contract program gives
+  `type-mismatch`; a `postgres` endpoint read gives
+  `endpoint-unavailable`; an infinite `iterate` gives `timeout`.
+- The site build fails if the gzip-compressed `.wasm` exceeds the budget by
+  more than `25 %`.
+
+## Changelog
+
+- 2026-11-20: drafted
