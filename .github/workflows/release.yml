@@ -107,15 +107,22 @@ jobs:
             --notes-file notes.md \
             dist/*
 
-  # The release's documentation, at `/vX.Y.Z/`, and `/latest/` moved to it.
-  # mike commits each version's build to its own folder on `gh-pages`, which
-  # Pages serves; a version is published once and never rebuilt.
+  # The release's documentation (the Book, Examples and Reference), at
+  # `/vX.Y.Z/`, and `/latest/` moved to it. mike commits each version's build
+  # to its own folder on `gh-pages`, which Pages serves; a version is published
+  # once and never rebuilt. The root of `gh-pages` is the website, published
+  # from `main` by `pages.yml`, so no version is made the default: mike's
+  # default would replace the website's home page with a redirect.
   docs:
     name: Publish the documentation
     needs: release
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # Shared with `pages.yml`'s `publish`: one push to `gh-pages` at a time.
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -132,14 +139,6 @@ jobs:
       # without it a diagram degrades to its source.
       - name: Install d2
         run: curl -fsSL https://d2lang.com/install.sh | sh -s -- --version v0.7.1
-      # The playground's module (HQL-0061), built before the site so that
-      # `mkdocs build` publishes it. Ubuntu's clang emits wasm for SQLite.
-      - name: Install the wasm toolchain
-        run: |
-          rustup target add wasm32-unknown-unknown
-          curl -fsSL https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
-      - name: Build the playground module
-        run: contrib/playground/build.sh
       - name: Publish the version and move latest to it
         run: |
           tag="${{ inputs.tag || github.ref_name }}"
@@ -156,7 +155,6 @@ jobs:
             exit 1
           fi
           uv run mike deploy --push --update-aliases "$tag" latest
-          uv run mike set-default --push latest
       # The custom domain lives at the branch root, beside the versions; mike
       # leaves root files it did not write.
       - name: Keep the custom domain

@@ -161,7 +161,18 @@ no Python installed at all.
 arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
 `contrib/`, it is Python tooling that the crate never depends on.
 
-- `mkdocs.yml` is the site. `pyproject.toml` exists only to install the
+- The site is two MkDocs builds of `doc/public/`, served together from the
+  `gh-pages` branch. The **website**, `mkdocs.site.yml`, is Home, Install and
+  the Blog. The **documentation**, `mkdocs.yml`, is the Book, Examples and
+  Reference. Both inherit `mkdocs.base.yml`, the theme and extensions they
+  share. The hook `contrib/mkdocs/split.py` keeps each build's own pages:
+  `index`, `install`, `blog` and `blog/` are the website, `assets/` is both,
+  and every other page is the documentation.
+- The two builds link to each other by root-absolute links: the website
+  reaches the documentation at `/draft/…`, the documentation of `main` it is
+  built beside, and the documentation reaches the website at `/…`. `--strict` fails a relative link from one build into the
+  other, and a root-absolute link to a page the other build does not have.
+- `pyproject.toml` exists only to install the
   `hypermarkdown[mkdocs]` package and [mike](https://github.com/jimporter/mike)
   with [uv](https://docs.astral.sh/uv/), and `uv.lock` pins what the site is
   built with.
@@ -176,14 +187,18 @@ arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
   `doc/public/` is published; the wiki, the models, the proposals and the rest
   of `doc/` stay in the repository, and a public page does not link to them.
   A link to a repository file outside `doc/public/` is a GitHub URL.
+- The website is not versioned. It is `main`, rebuilt on every push to
+  `main` and served at the root, so it is always current.
 - Every release's documentation is published under its version,
   `/vX.Y.Z/`, by mike, built once from the release tag and never rebuilt;
-  `/latest/` is the newest release and holds the permanent URLs. Before 1.0
-  a release may break the previous one, and each version's pages describe
-  that version.
-- `/draft/` is `main`: the site as merged, rebuilt on every push to `main`.
-  It appears in the version menu as `draft (main)`, and it is never `latest`
-  or the default. It may describe what no release has yet.
+  `/latest/` is the newest release and holds the permanent URLs. A version's
+  root forwards to its Book. Before 1.0 a release may break the previous one,
+  and each version's pages describe that version.
+- `/draft/` is the documentation of `main`, rebuilt on every push to `main`.
+  It appears in the version menu as `draft (main)`, and it is never `latest`.
+  It may describe what no release has yet.
+- No version is mike's default: the root is the website, not a redirect to a
+  version.
 - Every function, type, trait and module of the builtin packages has a page
   under `doc/public/reference/`, at its permanent `/latest/` URL
   ([[HQL-0043]]). A page's marked part is written
@@ -208,20 +223,28 @@ arrangement as [hypermarkdown.org](https://hypermarkdown.org/). Like
   those words.
 
 ```sh
-uv sync --locked                  # the site toolchain, into .venv
-uv run mkdocs serve               # http://127.0.0.1:8000, rebuilt on save
-uv run mkdocs build --strict      # what every build runs
-uv run hmd lint --root doc/public # the site's wikilinks
-uv run hmd lint --root doc        # the rest of the knowledge base
+uv sync --locked                                  # the site toolchain, into .venv
+uv run mkdocs serve -f mkdocs.site.yml            # the website, http://127.0.0.1:8000
+uv run mkdocs serve                               # the documentation, the same address
+uv run mkdocs build --strict -f mkdocs.site.yml   # what every build runs, for both
+uv run mkdocs build --strict
+uv run hmd lint --root doc/public                 # the site's wikilinks
+uv run hmd lint --root doc                        # the rest of the knowledge base
 ```
 
-[`pages.yml`](../.github/workflows/pages.yml) builds the site on every pull
-request that touches it and on `main`. On a push to `main` its `draft` job
-then runs `mike deploy draft`, replacing the previous draft. A release
+A local preview serves one build, so a link into the other build is not found
+there; it is checked by `--strict` instead.
+
+[`pages.yml`](../.github/workflows/pages.yml) builds both on every pull
+request that touches the site and on `main`. On a push to `main` its
+`publish` job then runs `mike deploy draft`, replacing the previous draft,
+and puts the website at the root of `gh-pages` with
+`contrib/mkdocs/publish_website.py`, which replaces every root entry except
+mike's version folders, `versions.json`, `CNAME` and `.nojekyll`. A release
 publishes its version: the `docs` job of
 [`release.yml`](../.github/workflows/release.yml) runs `mike deploy` for the
-tag and moves `latest` to it, committing to the `gh-pages` branch, whose root
-also holds the `CNAME` file. Two settings live outside the repository: the
+tag and moves `latest` to it. Every job that commits to `gh-pages` is in the
+`gh-pages` concurrency group, so they never push at once. Two settings live outside the repository: the
 repository's **Settings → Pages → Source** must be *Deploy from a branch*,
 `gh-pages`, root, and the custom domain `hql-lang.org` is set there too.
 Its DNS, at Porkbun, is the four GitHub Pages `A` and `AAAA` records on the
@@ -246,7 +269,7 @@ all of it, in four jobs that run in that order:
   tag whose reference pages differ from its doc strings is not released.
 - **release** — creates the GitHub release from the changelog section, failing
   if the section is missing rather than publishing empty notes.
-- **docs** — publishes the site under `/vX.Y.Z/` with mike and moves
+- **docs** — publishes the documentation under `/vX.Y.Z/` with mike and moves
   `/latest/` to it, refusing a version already published.
 - **crates-io** — publishes the crate, so `cargo install hql` reaches the same
   version. It runs last because it is the only step that cannot be undone, and

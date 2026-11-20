@@ -7,7 +7,7 @@ template: home.html
 
 HQL runs in this page. A program is checked and evaluated in your browser;
 nothing is sent to a server. The vault is the book's
-[[21-a-vault|reading club]]: `cards`, `@[[dune]]` and the links between them
+[reading club](/draft/book/21-a-vault/): `cards`, `@[[dune]]` and the links between them
 are there to query.
 
 <div class="hql-playground" data-hql-playground hidden>
@@ -70,7 +70,7 @@ cards | filter(c => c.metadata.category == "author") | markdown
 
 <noscript markdown>
 The playground needs JavaScript. Without it, these are its programs; each is
-in the [[book|HQL Book]] with its output.
+in the [HQL Book](/draft/book/) with its output.
 </noscript>
 
 ## What runs here { .hql-section }

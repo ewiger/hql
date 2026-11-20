@@ -1,71 +1,9 @@
-site_name: HQL
-site_description: Hyper Query Language — a strongly typed language for querying, transforming, connecting and computing over data, knowledge and AI workflows.
-
-# Served from GitHub Pages under a custom domain. The build does not need this —
-# MkDocs emits relative links — but canonical URLs and `sitemap.xml` are wrong
-# without it. The domain itself is a DNS record plus the repository's Pages
-# setting; see the documentation-site section of `doc/stack.hmd`.
-site_url: https://hql-lang.org/
-
-repo_url: https://github.com/ewiger/hql
-repo_name: ewiger/hql
-edit_uri: edit/main/doc/public/
-
-# Everything in this repository is MIT, code and prose alike, so one string
-# states the whole claim and no footer template has to carry two.
-copyright: © 2026 Yauhen Yakimovich · <a href="https://github.com/ewiger/hql/blob/main/LICENSE">MIT</a>
-
-# The site is for people using HQL, and only `doc/public/` is published. The
-# design of the language — the wiki, the models, the proposals and the working
-# memory — stays in the repository.
-docs_dir: doc/public
-
-# A card and its folder note share one URL, so directory URLs are required.
-use_directory_urls: true
-
-theme:
-  name: material
-  # Template overrides; outside `docs_dir`, so nothing in it is published.
-  custom_dir: contrib/mkdocs/overrides
-  logo: assets/logo.svg
-  favicon: assets/favicon.svg
-
-  font:
-    text: Inter
-    code: JetBrains Mono
-
-  icon:
-    repo: fontawesome/brands/github
-
-  features:
-    - navigation.sections
-    - navigation.top
-    - navigation.indexes
-    - navigation.tracking
-    - navigation.tabs
-    - toc.follow
-    - search.suggest
-    - search.highlight
-    - content.code.copy
-    - content.tabs.link
-
-  # The sibling site's chrome — near-black with an amber accent — so the two
-  # read as one family. HQL's own mark sets it apart rather than a new palette.
-  palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: black
-      accent: amber
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: black
-      accent: amber
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
+# The documentation: the Book, Examples and Reference, as of one version of
+# HQL. mike publishes each release under `/vX.Y.Z/`, `latest` the newest, and
+# `main` under `/draft/`. Home, Install and the Blog are the website,
+# `mkdocs.site.yml`, always current at the root; this build reaches them by
+# root-absolute links. What both builds share is in `mkdocs.base.yml`.
+INHERIT: mkdocs.base.yml
 
 plugins:
   - search
@@ -82,20 +20,14 @@ plugins:
       alias_type: redirect
       canonical_version: latest
 
-# Runs after the plugins. A folder note `a/b/index.hmd` is the page `a/b.md`,
-# and this points its relative Markdown links at what they name from the
-# folder note's own directory. Removed once the plugin does this itself
-# (hypermarkdown issue 0010).
-hooks:
-  - contrib/mkdocs/folder_notes.py
-
-# `Learn` is the prose read cold, in reading order. `Reference` is what is
-# consulted afterwards. A top-level tab with children opens as a menu of
+# The tabs are the website's, so a reader moving between the two parts sees
+# one site. Home, Install and Blog are the website's pages, at the root; the
+# rest are this version's. A top-level tab with children opens as a menu of
 # them; see `contrib/mkdocs/overrides/partials/tabs-item.html`.
 nav:
-  - Home: index.md
+  - Home: /
   - Learn:
-      - Install: install.md
+      - Install: /install/
       - HQL Book:
           - book.md
           - "Part I: The language":
@@ -238,13 +170,8 @@ nav:
               - 38. The ml package: book/38-the-ml-package.md
       - Demo: https://github.com/ewiger/hql-demo
       - Examples: examples.md
-  # HQL in the page, compiled to WebAssembly (HQL-0061).
-  - Playground: playground.md
-  # A post is a page under `blog/`, newest first; `blog.md` lists them and the
-  # home page shows the latest.
-  - Blog:
-      - blog.md
-      - "From Rust to English to Strange Loops": blog/ai-oriented-programming-language.md
+  - Playground: /playground/
+  - Blog: /blog/
   # A section per package, a page per module; a function, type or trait is
   # reached from its module's page. `cargo test` fails when this
   # differs from the library.
@@ -295,51 +222,12 @@ nav:
 not_in_nav: |
   /reference/
 
-# A `.hmd` source is not served: the plugin registers the page it becomes, and
-# without this MkDocs would also copy the source into the site as a static file.
-exclude_docs: |
-  *.hmd
-
 extra:
-  generator: false
+  # Which pages this build keeps; see `contrib/mkdocs/split.py`.
+  site_part: docs
+  # The logo goes to the website's home, not to this version's root, which
+  # only forwards to the Book.
+  homepage: /
   version:
     provider: mike
     default: latest
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/ewiger/hql
-      name: HQL on GitHub
-    - icon: fontawesome/brands/rust
-      link: https://crates.io/crates/hql
-      name: HQL on crates.io
-
-extra_css:
-  - assets/hql.css
-
-# The playground's script; it fetches the module that runs HQL on first use.
-extra_javascript:
-  - path: assets/hql-playground.js
-    type: module
-
-# A miss is reported rather than fatal; `doc/stack.hmd` asks public pages to
-# link to the repository by URL, so a miss is a page to fix.
-validation:
-  links:
-    not_found: info
-    anchors: info
-
-markdown_extensions:
-  - admonition
-  - md_in_html
-  - attr_list
-  - footnotes
-  - tables
-  - toc:
-      permalink: true
-  - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.tabbed:
-      alternate_style: true
-  - pymdownx.tasklist:
-      custom_checkbox: true
-  - pymdownx.tilde
