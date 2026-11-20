@@ -12,7 +12,7 @@ template: home.html
 
 # HQL { .hql-hero }
 
-<p class="hql-tagline">A statically typed expression and query language.</p>
+<p class="hql-tagline">A strongly typed expression and query language.</p>
 
 In HQL a type is a data contract. The checker tests a program against its
 contracts before it reads any data, and every read tests each record against

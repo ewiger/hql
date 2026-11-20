@@ -1,6 +1,6 @@
 # 1. Hello world
 
-HQL is a statically typed expression and query language. You use it to read
+HQL is a strongly typed expression and query language. You use it to read
 data, transform it and write it out: records from a JSON file, rows of a
 table, events from a stream, the notes in a folder of Markdown documents.
 Where a shell pipeline would combine `jq`, `grep` and a script, an HQL program

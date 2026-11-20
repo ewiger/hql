@@ -1,6 +1,6 @@
 # 2. Data types
 
-HQL is a statically typed expression and query language. Its central idea is
+HQL is a strongly typed expression and query language. Its central idea is
 that a type is a contract. A type describes a value: the fields of a record,
 the type of each field, and any rules the values must follow. HQL checks
 values against their types at two points.
