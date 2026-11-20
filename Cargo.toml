@@ -23,6 +23,8 @@ exclude = [
     "/tests",
     "AGENTS.md",
     "CLAUDE.md",
+    "mkdocs.base.yml",
+    "mkdocs.site.yml",
     "mkdocs.yml",
     "pyproject.toml",
     "uv.lock",

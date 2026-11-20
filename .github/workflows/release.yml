@@ -107,15 +107,22 @@ jobs:
             --notes-file notes.md \
             dist/*
 
-  # The release's documentation, at `/vX.Y.Z/`, and `/latest/` moved to it.
-  # mike commits each version's build to its own folder on `gh-pages`, which
-  # Pages serves; a version is published once and never rebuilt.
+  # The release's documentation (the Book, Examples and Reference), at
+  # `/vX.Y.Z/`, and `/latest/` moved to it. mike commits each version's build
+  # to its own folder on `gh-pages`, which Pages serves; a version is published
+  # once and never rebuilt. The root of `gh-pages` is the website, published
+  # from `main` by `pages.yml`, so no version is made the default: mike's
+  # default would replace the website's home page with a redirect.
   docs:
     name: Publish the documentation
     needs: release
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # Shared with `pages.yml`'s `publish`: one push to `gh-pages` at a time.
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -148,7 +155,6 @@ jobs:
             exit 1
           fi
           uv run mike deploy --push --update-aliases "$tag" latest
-          uv run mike set-default --push latest
       # The custom domain lives at the branch root, beside the versions; mike
       # leaves root files it did not write.
       - name: Keep the custom domain
