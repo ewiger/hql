@@ -3,51 +3,264 @@
 # folder note, and this is the root one.
 nav:
   visibility: public
+# Full width, no sidebars; see `contrib/mkdocs/overrides/home.html`.
+template: home.html
 ---
+<section class="hql-band hql-band--hero" markdown>
+<div class="hql-hero-grid" markdown>
+<div class="hql-hero-text" markdown>
+
 # HQL { .hql-hero }
 
-HQL, the Hyper Query Language, is a strongly typed expression and query
-language. It combines functional expressions with pipelines over files,
-streams, structured data and HyperMarkDown documents, and checks a program's
-types before it evaluates it.
+<p class="hql-tagline">A statically typed expression and query language.</p>
 
-```hql
-type Book { title : String, year : Int, rating : Int }
+In HQL a type is a data contract. The checker tests a program against its
+contracts before it reads any data, and every read tests each record against
+them again. One language reads and writes files, PostgreSQL tables, Kafka
+topics, NATS subjects, lakehouse tables and HyperMarkDown documents.
 
-books = [
-    Book(title = "Dune", year = 1965, rating = 5),
-    Book(title = "Emma", year = 1815, rating = 3),
-    Book(title = "Beloved", year = 1987, rating = 4),
-]
+<p class="hql-actions" markdown>[[install|Install]]{ .md-button .md-button--primary } [[book|Read the book]]{ .md-button }</p>
 
-books
-| filter(b => b.rating >= 4)
-| sort(b => b.title)
-| map(b => b.title)
+```sh
+cargo install hql
 ```
-
-```text
-["Beloved", "Dune"]
-```
-
-`source` reads the documents a file holds, and `target` writes a value to one:
-
-```hql
-source(file("sightings.jsonl"), Json)
-| filter(s => s.seen == "morning")
-| target(file("morning.json"))
-```
-
-<div class="grid cards" markdown>
-
-- **[[install|Install]]** — a release binary or `cargo install hql`.
-- **[[book|HQL Book]]** — the book in five parts, the language,
-  data flows, knowledge and AI, the standard library, and extending HQL,
-  one runnable program at a time.
-- **[[reference|Reference]]** — the grammar, the command line, and
-  reporting.
 
 </div>
+<div class="hql-term" markdown>
+
+=== "Query"
+
+    ```hql
+    type Book { title : String, year : Int, rating : Int }
+
+    books = [
+        Book(title = "Dune", year = 1965, rating = 5),
+        Book(title = "Emma", year = 1815, rating = 3),
+        Book(title = "Beloved", year = 1987, rating = 4),
+    ]
+
+    books
+    | filter(b => b.rating >= 4)
+    | sort(b => b.title)
+    | map(b => b.title)
+    ```
+
+    ```text
+    ["Beloved", "Dune"]
+    ```
+
+=== "Contract"
+
+    ```hql
+    type Book { title : String, year : Int, rating : Int }
+
+    books = [
+        Book(title = "Dune", year = 1965, rating = 5),
+        Book(title = "Emma", year = "1815", rating = 3),
+    ]
+
+    books | map(b => b.title)
+    ```
+
+    ```text
+    check error[type-mismatch]: `year` of `Book` is Int, and this is String
+     --> books.hql:5:33
+      |
+    5 |     Book(title = "Emma", year = "1815", rating = 3),
+      |                                 ^^^^^^
+    ```
+
+=== "Kafka → Postgres"
+
+    ```hql
+    type EventData : DataContract = {
+        id       : Int
+        kind     : String
+        customer : String
+        amount   : Decimal
+        at       : String
+
+        require amount >= 0 as non_negative
+        require ["order_placed", "order_shipped", "payment_failed"]
+            | contains(kind) as known_kind
+    }
+
+    type Event    { id : Int, kind : String, customer : String,
+                    amount : Decimal, at : String }
+    type Rejected { id : Int, message : Data, rules : List<String> }
+
+    tap("order_events_raw")
+    | validate(EventData)
+    | fork {
+        clean =
+            oks()
+            | map(e => Event(id = e.id, kind = e.kind, customer = e.customer,
+                             amount = e.amount, at = e.at))
+            | sink("order_clean"),
+        quarantine =
+            errs()
+            | map(e => Rejected(
+                id = match e.value.id { some(Int n) => n, _ => 0 },
+                message = e.value,
+                rules = e.violations | map(v => v.rule)))
+            | sink("order_quarantine"),
+    }
+    ```
+
+    ```text
+    order_clean        ids 1, 2, 4, 6
+    order_quarantine   id 3  EventData.amount.type
+                       id 5  EventData.customer.missing
+                       id 7  EventData.non_negative
+                       id 8  EventData.known_kind
+    ```
+
+=== "Documents"
+
+    ```hql
+    cards
+    | filter(c => c.metadata.status == "todo")
+    | sort(by = c => c.title)
+    | map(c => c.title)
+    ```
+
+    ```text
+    ["Leaves of Grass", "The Common Reader", "The Hobbit"]
+    ```
+
+</div>
+</div>
+</section>
+
+<section class="hql-band" markdown>
+
+## One program, end to end { .hql-section }
+
+A source gives values of a type. Each step is checked against that type
+before the run. A target receives what the last step gives.
+
+<div class="hql-flow" aria-label="Sources flow through a type contract and a pipeline into targets">
+  <div class="hql-flow__stage">
+    <p class="hql-flow__label">Sources</p>
+    <ul class="hql-flow__chips">
+      <li>Kafka topic</li><li>NATS subject</li><li>PostgreSQL table</li>
+      <li>JSON file</li><li>HMD vault</li>
+    </ul>
+  </div>
+  <div class="hql-flow__arrow" aria-hidden="true"></div>
+  <div class="hql-flow__stage hql-flow__stage--contract">
+    <p class="hql-flow__label">Contract</p>
+    <p class="hql-flow__code"><code>type EventData : DataContract</code></p>
+    <p class="hql-flow__note">checked before the run, enforced on every read</p>
+  </div>
+  <div class="hql-flow__arrow" aria-hidden="true"></div>
+  <div class="hql-flow__stage">
+    <p class="hql-flow__label">Pipeline</p>
+    <ol class="hql-flow__steps">
+      <li><code>validate</code></li><li><code>fork</code></li>
+      <li><code>map</code></li><li><code>sink</code></li>
+    </ol>
+  </div>
+  <div class="hql-flow__arrow" aria-hidden="true"></div>
+  <div class="hql-flow__stage">
+    <p class="hql-flow__label">Targets</p>
+    <ul class="hql-flow__chips">
+      <li>PostgreSQL table</li><li>Delta table</li><li>Kafka topic</li>
+      <li>file</li>
+    </ul>
+  </div>
+</div>
+
+<div class="hql-pillars" markdown>
+
+<div markdown>
+### Checked before it runs
+
+`hql check` reports a wrong field, type or step with its line and column.
+Nothing is read until the program checks.
+</div>
+
+<div markdown>
+### Batch and stream
+
+`source` reads a table or file whole, as a `Seq<T>`. `tap` reads a topic as
+a `Stream<T>`. The same steps apply to both.
+</div>
+
+<div markdown>
+### Data and documents
+
+A HyperMarkDown vault is a source too: its cards, their metadata and the
+links between them are typed values.
+</div>
+
+</div>
+</section>
+
+<section class="hql-band hql-band--alt" markdown>
+
+## Endpoints { .hql-section }
+
+An endpoint is named in `.hql/config.toml` and used by name in a program.
+
+<div class="hql-endpoints" markdown>
+
+- [[16-tables-and-topics|**SQLite**]] <span>table</span>
+- [[16-tables-and-topics|**PostgreSQL**]] <span>table</span>
+- [[16-tables-and-topics|**Kafka**]] <span>topic</span>
+- [[17-subjects-and-the-lakehouse|**NATS**]] <span>subject</span>
+- [[17-subjects-and-the-lakehouse|**JetStream**]] <span>stream</span>
+- [[17-subjects-and-the-lakehouse|**Delta / Spark**]] <span>lakehouse</span>
+- [[09-io|**Files**]] <span>JSON, CSV, text</span>
+- [[21-a-vault|**HMD vault**]] <span>documents</span>
+- [[18-apis-webhooks-and-stores|**REST, webhooks**]] <span class="hql-design">design</span>
+
+</div>
+</section>
+
+<section class="hql-band" markdown>
+
+## How HQL compares { .hql-section }
+
+<div class="hql-compare" markdown>
+
+|               | What it is                                          | Types over data                                                        | Unbounded streams     | Sources and targets                                             |
+| ------------- | --------------------------------------------------- | ---------------------------------------------------------------------- | --------------------- | --------------------------------------------------------------- |
+| **HQL**       | Expression and query language, one binary           | Record types are contracts, checked before the run and on every read   | `Stream<T>` beside `Seq<T>` | Files, SQLite, PostgreSQL, Kafka, NATS, Delta, Markdown vaults |
+| SQL           | Query language of a relational database             | Column types of the database's tables                                  | Not in standard SQL   | The database it runs in                                         |
+| PRQL          | Pipelined query language that compiles to SQL       | Those of the target database                                           | No                    | The database the SQL runs in                                    |
+| dbt           | SQL models with Jinja templates, built in a warehouse | Model contracts checked at build; data tests run after               | No                    | One warehouse per target                                        |
+| Spark SQL     | SQL and DataFrames on a Spark cluster               | Schemas resolved when a query is analysed on the cluster               | Structured Streaming  | Many connectors                                                 |
+| Bend          | General-purpose functional language                 | Not a data language                                                    | —                     | —                                                               |
+
+</div>
+
+Why a language for this, and where it is going:
+[[00-ai-oriented-language|An AI-oriented language]].
+
+</section>
+
+<section class="hql-band hql-band--alt" markdown>
+
+## The book { .hql-section }
+
+<div class="hql-parts" markdown>
+
+- <span class="hql-part-no">I</span> [[book|**The language**]]
+  <span>Chapters 0–13 · types, collections, functions, modules, queries, streams, I/O, errors</span>
+- <span class="hql-part-no">II</span> [[14-etl-pipelines|**Data flows**]]
+  <span>Chapters 14–20 · pipelines, endpoints, tables and topics, OLTP, OLAP</span>
+- <span class="hql-part-no">III</span> [[21-a-vault|**Knowledge and AI**]]
+  <span>Chapters 21–27 · vaults, graphs, retrieval, documents, agents</span>
+- <span class="hql-part-no">IV</span> [[28-statistics|**Standard library**]]
+  <span>Chapters 28–31 · statistics, random, digests, cryptography</span>
+- <span class="hql-part-no">V</span> [[32-functions-and-declarations|**Extending HQL**]]
+  <span>Chapters 32–38 · extensions, packages, the registry</span>
+
+</div>
+</section>
+
+<section class="hql-band" markdown>
 
 ## From the blog { .hql-section }
 
@@ -66,3 +279,20 @@ which knowledge becomes code and code produces knowledge.
 </article>
 
 </div>
+</section>
+
+<section class="hql-band hql-band--cta" markdown>
+
+## Run the server programs { .hql-section }
+
+The Kafka, PostgreSQL, NATS and lakehouse programs run in the
+[hql-demo repository](https://github.com/ewiger/hql-demo). Each case starts
+its servers with Docker Compose and compares the output with the expected
+one.
+
+```sh
+git clone https://github.com/ewiger/hql-demo && cd hql-demo
+./run-all.sh
+```
+
+</section>
