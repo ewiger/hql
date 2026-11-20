@@ -16,4 +16,8 @@
          <loc>https://hql-lang.org/install/</loc>
          <lastmod>2026-11-20</lastmod>
     </url>
+    <url>
+         <loc>https://hql-lang.org/playground/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
 </urlset>

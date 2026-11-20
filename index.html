@@ -291,6 +291,25 @@
   
   
   
+    <li class="md-tabs__item">
+      <a href="playground/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Playground
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
     
     
       <li class="md-tabs__item hql-tabs__item--menu">
@@ -393,7 +412,7 @@ books = [
 books | map(b =&gt; b.title)
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>check error[type-mismatch]: `year` of `Book` is Int, and this is String
- --&gt; books.hql:5:33
+ --&gt; playground.hql:5:33
   |
 5 |     Book(title = "Emma", year = "1815", rating = 3),
   |                                 ^^^^^^
@@ -574,6 +593,13 @@ links between them are typed values.</p>
 <td>Many connectors</td>
 </tr>
 <tr>
+<td>fquery</td>
+<td>Graph query engine, a Python library</td>
+<td>Python objects of the host program</td>
+<td>Not documented</td>
+<td>Maps queries to SQL and Malloy</td>
+</tr>
+<tr>
 <td>Bend</td>
 <td>General-purpose functional language</td>
 <td>Not a data language</td>
@@ -694,6 +720,8 @@ one.</p>
     
     
       <script src="assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="assets/hql-playground.js" type="module"></script>
       
     
   </body>
