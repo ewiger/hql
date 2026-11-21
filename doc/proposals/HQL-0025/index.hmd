@@ -4,6 +4,8 @@
 **Superseded in part by**: [[HQL-0059]] (decisions 2 to 5: `.hql/config.toml`
 marks a project and `.hmd/` marks only a vault; `hql.toml` is retired;
 "workspace" is "project", `--workspace` is `--project`)
+**Extended by**: [[HQL-0062]] (`#!`, `hql FILE` and positional arguments:
+standalone execution of a script)
 **Created**: 2026-10-22
 
 ## Scope
