@@ -1,0 +1,41 @@
+{#-
+  Every page of both builds. Adds what a site needs to show a shared link as
+  a card: Open Graph tags (LinkedIn, Facebook, Slack, Discord, Mastodon) and
+  their Twitter counterparts (X). The image is the one card of the site,
+  `assets/social-card.png`, drawn from `contrib/mkdocs/social/card.svg`. It
+  is addressed from the site root, where the website build publishes it, so
+  a versioned docs page points at the same file. A page's own `title` and
+  `description` front matter, when it has them, take the place of its heading
+  and the site's description.
+-#}
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {%- if page.meta and page.meta.title -%}
+    {%- set og_title = page.meta.title -%}
+  {%- elif page.title and not page.is_homepage -%}
+    {%- set og_title = page.title | striptags ~ " · " ~ config.site_name -%}
+  {%- else -%}
+    {%- set og_title = config.site_name ~ " — a strongly typed expression and query language" -%}
+  {%- endif -%}
+  {%- set og_description = (page.meta.description if page.meta and page.meta.description else config.site_description) -%}
+  {%- set og_image = config.site_url ~ "assets/social-card.png" -%}
+  <meta property="og:type" content="{{ 'website' if page.is_homepage else 'article' }}">
+  <meta property="og:site_name" content="{{ config.site_name }}">
+  <meta property="og:title" content="{{ og_title }}">
+  <meta property="og:description" content="{{ og_description }}">
+  {#- A docs page is served under a version folder that `site_url` does not
+      know, so it states no URL and a reader takes the one that was shared. #}
+  {%- if page.canonical_url and config.extra.site_part == "website" %}
+  <meta property="og:url" content="{{ page.canonical_url }}">
+  {%- endif %}
+  <meta property="og:image" content="{{ og_image }}">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="HQL — a strongly typed expression and query language. hql-lang.org">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ og_title }}">
+  <meta name="twitter:description" content="{{ og_description }}">
+  <meta name="twitter:image" content="{{ og_image }}">
+{% endblock %}
