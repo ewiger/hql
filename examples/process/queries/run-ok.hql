@@ -2,6 +2,7 @@
 // feature: run gives ok with what a child that exited 0 wrote
 // implementation: implemented
 // environment: pure
+// platform: unix
 // expected-type: String
 // expected: 2
 

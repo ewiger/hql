@@ -2,6 +2,7 @@
 // feature: a program that is not in PATH is err under run, with the reason not-found
 // implementation: implemented
 // environment: pure
+// platform: unix
 // expected-type: String
 // expected: not-found
 

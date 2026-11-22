@@ -2,6 +2,7 @@
 // feature: a child still running at timeout_ms is terminated, and run gives err with the reason timed-out
 // implementation: implemented
 // environment: pure
+// platform: unix
 // expected-type: String
 // expected: timed-out
 

@@ -157,4 +157,5 @@ the record that specifies it: such a case is a design input, pinned before it
 runs, and the harness asserts it does not check yet. A `modules:` line names a
 module root under `examples/` that the program imports from, and `io: sandbox`
 says the program reads and writes files relative to its own directory, so the
-harness runs it in a temporary copy of its example.
+harness runs it in a temporary copy of its example. A `platform: unix` line says the
+program starts Unix programs, so the harness runs it on Unix only.

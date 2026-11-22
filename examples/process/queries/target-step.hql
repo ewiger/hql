@@ -2,6 +2,7 @@
 // feature: target writes one document to the child's standard input, closes it, and waits
 // implementation: implemented
 // environment: pure
+// platform: unix
 // expected-type: Step
 // expected: ()
 

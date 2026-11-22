@@ -19,7 +19,7 @@ use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, ExitStatus, Stdi
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// How long a terminated child has to end before it is killed.
 const GRACE: Duration = Duration::from_secs(5);
@@ -271,8 +271,8 @@ impl Running {
         #[cfg(unix)]
         {
             stop(self.child.id(), false);
-            let deadline = Instant::now() + GRACE;
-            while Instant::now() < deadline {
+            let deadline = std::time::Instant::now() + GRACE;
+            while std::time::Instant::now() < deadline {
                 if let Ok(Some(_)) = self.child.try_wait() {
                     break;
                 }
