@@ -32,10 +32,10 @@ does its work.
       once, through `stderr_to`, `report_to` and `measurements_to`.
     - **The boilerplate is a function** the program writes once, not a new
       construct.
-    - **A logical zombie is found two ways.** A wait that nothing in the
-      evaluation can end is certain, and `hql` fails it as `deadlock`. A
-      consumer that stops taking input or stops giving output is
-      suspected, and its watchdog reports it.
+    - **A logical zombie is found two ways.** Branches that all wait on
+      each other are certain, and `hql` fails them as `deadlock`. A child
+      that stops taking input or stops giving output is suspected, and
+      its watchdog reports it.
 
 ## The use case: a consumer of a streaming queue
 
@@ -233,28 +233,30 @@ is one of two kinds:
 - **by design**: a stage that never ends, such as a consumer of a
   streaming queue, and has stopped taking input or giving output.
 
-`hql` finds the first kind for certain, and a watchdog finds the second.
+`hql` finds the first kind for certain when only branches wait. A
+watchdog finds the second kind, and the first when a child is among the
+waits.
 
 ### Certain: a wait nothing can end
 
 `hql` holds every wait of every branch: on a pipe of a child, a channel, the
 open of a named pipe, the exit of a child. A wait is **internal** when only
-a part of this evaluation can end it, and **external** when something
-outside can: standard input, a socket, a signal, a file, a child that runs
-and does not wait on `hql`.
+a branch of this evaluation can end it, and **external** when something
+else can: standard input, a socket, a signal, a file, or a running child.
 
-- A `tap(c)` of a channel waits on a writer of `c`: a branch that writes
-  it, or a running child wired to it.
-- A read of a child's output waits on the child. A child that waits on a
-  wired standard input, whose channel no running branch writes, waits on
-  `hql`.
-- When every branch waits, and no wait is external, nothing can end any
+- A `tap(c)` of a channel waits on a writer of `c`. The wait is internal
+  when no running child is wired to `c`, and external when one is.
+- Every wait on a running child is external. `hql` cannot show what a
+  child waits on: a child blocked on its standard input and a child that
+  sleeps before it writes look the same from outside, and no platform
+  reports the difference reliably.
+- When every branch waits, and every wait is internal, nothing can end any
   of them. `hql` MUST then fail the evaluation with the unrecoverable
   failure `deadlock`, which names each waiting branch and what it waits
   on.
 
 A program in that state can never end, so failing it changes no result
-it could have had. Two programs of the FAQ end this way:
+it could have had. A program of the FAQ ends this way:
 
 ```hql
 sorted = Channel<String>("sorted")
@@ -267,6 +269,9 @@ hql: deadlock: tap(sorted) waits on a writer of channel "sorted";
      no running branch or child writes it
 ```
 
+The conversation written as two statements is not certain, because its
+wait is on a running child:
+
 ```hql
 questions = Channel<String>("questions")
 bc = command("bc", ["-l"], stdin_from = questions)
@@ -274,16 +279,9 @@ answers = tap(bc, Lines) | take(2)
 ["2 + 2", "10 / 4"] | sink(questions)
 ```
 
-```text
-hql: deadlock: tap(bc) waits on bc (pid 4712);
-     bc waits on channel "questions"; no running branch writes it
-```
-
-A child's wait is internal only when `hql` can show that the child waits
-on a pipe `hql` writes: the child is idle, its standard input is wired to
-a channel, and no running branch writes that channel. A child that waits
-on anything else is an external wait, and `hql` does not call it a
-deadlock.
+`tap(bc)` waits on `bc`, and `bc` is idle with no running branch that
+writes `questions`. That is a logical zombie by mistake, and only a
+watchdog on `bc` reports it.
 
 ### Suspected: a consumer that no longer works
 
@@ -303,7 +301,7 @@ once".
 | | Certain | Suspected |
 |---|---|---|
 | found by | `hql`, from the waits it holds | a watchdog, from measurements |
-| kind | by mistake | by design, and waits outside `hql` |
-| applies to | branches, and children that wait on `hql` | any guarded child |
+| kind | by mistake, among branches | by design, and by mistake on a child |
+| applies to | branches whose waits are all internal | any guarded child |
 | needs a watchdog | no | yes |
 | result | the evaluation fails with `deadlock` | a report per miss; `unhealthy` at `misses` |
