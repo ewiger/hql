@@ -5,7 +5,8 @@ script starts, writes to, reads from and waits for. This note compares how
 Python, Haskell and Rust start one, and defines the operations of
 `io.process` that do it in HQL. The companion note
 [advanced child processes](04-advanced-child-processes.hmd) continues it
-with the child's pipes wired to channels.
+with the child's pipes wired to channels, and the
+[I/O FAQ](faq.hmd) shows the programs that hang or fail and why.
 
 !!! warning "Design only"
     Nothing in this note is implemented, and [[HQL-0062]] does not deploy
@@ -27,8 +28,8 @@ with the child's pipes wired to channels.
     - **HQL: `command`.** A `Command` is a pure value and an endpoint, read
       and written by the four operations of `io`: `source` waits for the
       child and gives everything it wrote, `tap` gives it as it arrives,
-      `target` and `sink` write its standard input. `run` waits and gives a
-      `Result`.
+      `target` writes one value to its standard input and `sink` writes a
+      stream to it. `run` waits and gives a `Result`.
     - **Two rules are HQL's own.** A non-zero exit status is a failure, and
       a child's lifetime is bounded by the evaluation that started it.
 
@@ -174,7 +175,7 @@ accept it.
 | `source(c, F)` | closed | read to its end, decoded by `F` | yes | `Seq<T>`, every document |
 | `tap(c, F)` | closed | read as it arrives, decoded by `F` | no | `Stream<T>` |
 | `target(v, c, F)` | `v` as one document, then closed | this process's standard output | yes | `Step` |
-| `sink(vs, c, F)` | each of `vs` as a document, then closed | this process's standard output | yes | `Step` |
+| `sink(vs, c, F)` | each of `vs` as it arrives, closed when `vs` ends | this process's standard output | yes | `Step` |
 | `c.run(input)` | `input`, then closed | captured | yes | `Result<Output, CommandFailure>` |
 
 ```hql
@@ -193,8 +194,10 @@ tap(git, Lines) | take(10)
 // target: one document on the child's standard input.
 {name: "wren", count: 3} | target(command("jq", [".count"]), Json)
 
-// sink: one document for each value.
-["b", "a"] | sink(command("sort"), Lines)
+// sink: one document for each value. It closes standard input when the
+// values end: after the file's last line, or never, for a live tap.
+source(file("names.txt"), Lines) | sink(command("sort"), Lines)
+tap(git, Lines) | sink(command("tr", ["a-z", "A-Z"]), Lines)
 
 // run: wait, and handle the failure.
 match git.run() {
@@ -209,10 +212,23 @@ match git.run() {
   as a `Stream<T>`.
 - `target(v, c, F)` MUST start the child, write `v` encoded by `F` as one
   document, close the child's standard input, and wait.
-- `sink(vs, c, F)` MUST do the same with one document for each value.
+- `sink(vs, c, F)` MUST start the child, write each value of `vs` encoded
+  by `F` as one document as the value arrives, close the child's standard
+  input when `vs` ends, and wait. A `vs` that does not end never closes
+  it, so `sink` returns only when the child ends by itself or is
+  terminated.
 - `run` MUST start the child, write `input`, close the child's standard
   input, read its standard output and standard error to their ends, and
   wait.
+
+`target` writes one document and `sink` one document for each value. Both
+close standard input when their input ends, so a list or `source(file(…),
+Lines)` ends under either. What a child needs is decided by the input, not
+by the operation. A child that reads its whole input before it writes, as
+`sort`, `wc` and `jq` do, answers only when its input ends, so a `sink`
+from a stream that does not end leaves it waiting. A child that answers
+each line as it reads it, as `tr`, `sed` and `bc` do, also works behind a
+live `tap`.
 - Each operation on one `Command` value MUST start one child. Two `source`
   calls are two runs of the program.
 
@@ -249,7 +265,17 @@ Both are defined in the companion note
 - A `program` without `/` MUST be looked up in `PATH`. A relative `program`
   with `/` MUST resolve against the directory of the source unit that names
   it, as every path does ([[HQL-0059]]).
-- A script that needs a shell names it: `command("sh", ["-c", line])`.
+- A pattern of file names is expanded in HQL, with `glob` of `io.fs`, and
+  each match is one argument:
+
+  ```hql
+  txt = folder(working_dir()) | glob(Glob("*.txt")) | map(e => e.name)
+  command("wc", concat(["-l"], txt))
+  ```
+
+- A script that needs shell text names the shell as the program:
+  `command("sh", ["-c", line])`. `Command` has no argument that turns a
+  shell on.
 
 ### Failures
 
@@ -334,6 +360,15 @@ commands = ["git", "kubectl"]
 
 - Absent, a run MUST grant every program. Stated, it grants the programs
   it lists, each matched against `program` as written, and no other.
+- A shell is granted like any other program. A list without `sh`, `bash`
+  or another shell keeps shell text out of the project: no command a
+  script builds is read by a shell. Listing one is the project's decision
+  to run shell text.
+
+```toml
+commands = ["git", "wc"]        # no shell
+commands = ["git", "wc", "sh"]  # sh -c is permitted
+```
 - `hql render` MUST grant no program.
 
 ### Purity

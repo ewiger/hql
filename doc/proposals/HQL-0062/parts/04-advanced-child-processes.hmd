@@ -22,7 +22,7 @@ as values, writes and reads one child, and holds a conversation with one.
       `stderr`: `tap(command(…).stderr, Lines)`. `command(…)` alone reads
       standard output, as `command(…).stdout` does.
     - **One child is written and read** by writing its primary pipe and
-      wiring its standard output with `stdout_to`: `sink` to it, then
+      wiring its standard output with `stdout_to`: `target` to it, then
       `source` of the channel.
     - **A conversation** wires standard input to a channel with
       `stdin_from` and taps standard output, in two branches of a
@@ -30,7 +30,11 @@ as values, writes and reads one child, and holds a conversation with one.
       order, so a write and a read of one running child need two
       branches.
     - **A wired standard input has no end of input.** A child that reads
-      to the end of its input is written with `sink`, `target` or `run`.
+      to the end of its input is written through its primary pipe, from
+      an input that ends: `target`, `run`, or `sink` of a finite sequence.
+
+The [I/O FAQ](faq.hmd) shows the programs that hang or fail under these
+rules, and why.
 
 ## How a channel works
 
@@ -171,8 +175,10 @@ err -> later
   terminates it. A channel has no end, so the child never reads an end of
   input.
 - A child that reads to the end of its input before it answers, as `sort`
-  does, MUST be written through its primary pipe, with `sink`, `target` or
-  `run`. Each closes standard input when its values are written.
+  does, MUST be written through its primary pipe, with `target`, `sink` or
+  `run`, from an input that ends. Each closes standard input when its
+  input ends, so a `sink` from a stream that does not end leaves such a
+  child waiting.
 
 ## Examples
 
@@ -213,7 +219,7 @@ from io.process import *
 
 sorted = Channel<String>("sorted")
 
-["wren", "avocet", "kite"] | sink(command("sort", stdout_to = sorted), Lines)
+["wren", "avocet", "kite"] | target(command("sort", stdout_to = sorted), Lines)
 source(sorted)
 ```
 
@@ -221,8 +227,9 @@ source(sorted)
 ["avocet", "kite", "wren"]
 ```
 
-Standard input is the primary pipe, so `sink` closes it and `sort` reads
-its end of input. `sink` returns when `sort` has ended.
+Standard input is the primary pipe. `target` writes the three lines as one
+document and closes it, and `sort` reads its end of input. `target` returns
+when `sort` has ended, so `source(sorted)` holds every line.
 
 ### A conversation
 
@@ -269,15 +276,18 @@ logs = repos | flat_map(r => source(command("git", ["log", "--oneline"],
 ### Two children in a row
 
 Two children are joined by an HQL pipeline, not by a channel. Each child
-is read or written through its primary pipe, and the second receives its
-end of input:
+is read or written through its primary pipe. A second child that reads its
+whole input needs an input that ends, so the first is read with `source`.
+One that answers line by line can follow a live `tap`:
 
 ```hql
 #!/usr/bin/env hql
 from io.process import *
 
-tap(command("git", ["log", "--format=%an"]), Lines)
-| sink(command("sort", ["-u"]), Lines)
+git = command("git", ["log", "--format=%an"])
+
+source(git, Lines) | sink(command("sort", ["-u"]), Lines)
+tap(git, Lines) | sink(command("tr", ["a-z", "A-Z"]), Lines)
 ```
 
 ## Which form for which need
@@ -286,10 +296,12 @@ tap(command("git", ["log", "--format=%an"]), Lines)
 |---|---|
 | everything a child wrote | `source(c, F)` |
 | each document as the child writes it | `tap(c, F)` |
-| to give a child its input | `target(v, c, F)`, `sink(vs, c, F)` |
+| to give a child its input as one document | `target(v, c, F)` |
+| to give a child its input one document for each value | `sink(vs, c, F)` |
 | the status and standard error of a child that may fail | `c.run()` |
 | standard error beside standard output | `stderr_to = channel` |
 | standard error instead of standard output | `source(c.stderr, F)`, `tap(c.stderr, F)` |
-| the output of a child it wrote to | `stdout_to = channel`, then `sink` |
+| the output of a child it wrote to | `stdout_to = channel`, then `target` |
 | a conversation with a child | `stdin_from = channel`, and `tap` in a `parallel` block |
-| one child's output as another's input | `tap(a, F) \| sink(b, F)` |
+| one child's output as the whole input of another | `source(a, F) \| sink(b, F)` |
+| one child's output as another's, as it arrives | `tap(a, F) \| sink(b, F)` |

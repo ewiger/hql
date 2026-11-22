@@ -72,7 +72,9 @@ presentation of the result do not change.
   `System.Process` and Rust's `Command`, and the companion note
   [advanced child processes](parts/04-advanced-child-processes.hmd) wires
   a child's pipes to channels. The companion note
-  [named pipes](parts/05-named-pipes.hmd) defines `fifo(path)` in `io.fs`.
+  [named pipes](parts/05-named-pipes.hmd) defines `fifo(path)` in `io.fs`,
+  and the [I/O FAQ](parts/faq.hmd) shows the programs that hang or fail
+  under these rules, and why.
   `argv` is in `io.env`, beside `arg` and `args`.
 - Running two statements at the same time. The companion note
   [`parallel`](parts/06-parallel.hmd) defines the keyword `parallel`, a

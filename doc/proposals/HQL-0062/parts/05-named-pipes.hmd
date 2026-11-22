@@ -155,7 +155,8 @@ child.
    reader.
 2. The child opens the pipe for reading. Both opens return.
 3. `sent` reads each frame from the file as a stream and writes it to the
-   pipe. The child reads each as it arrives.
+   pipe. The child reads each as it arrives. `tap` of a `File` ends at the
+   end of the file; only `file(path).end` is followed without end.
 4. `sent` closes the pipe and ends. The child reads its end of input,
    writes its report and exits `0`.
 5. `report` gives the report as a `Seq`. Every branch has ended, so the

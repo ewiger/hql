@@ -1,0 +1,425 @@
+# HQL-0062: I/O FAQ
+
+Companion to [[HQL-0062]]. Each entry is a program that hangs, fails or
+gives a result its author did not expect. Each entry gives what happens,
+the rule behind it, and the program that works. The last section holds the
+opposite case: a program that reads as a mistake and is correct. The rules
+are those of the
+companion notes [child processes](03-child-processes.hmd),
+[advanced child processes](04-advanced-child-processes.hmd),
+[named pipes](05-named-pipes.hmd) and [`parallel`](06-parallel.hmd).
+
+!!! warning "Design only"
+    Nothing in this note is implemented. The programs use the design
+    direction of the companion notes.
+
+## Waiting forever
+
+### Why does a `sink` to `sort` never return?
+
+```hql
+tap(command("tail", ["-f", "app.log"]), Lines)
+| sink(command("sort"), Lines)
+```
+
+`sink` closes the child's standard input only when its stream ends. `tail
+-f` never ends, so the stream never ends. `sort` writes nothing until it
+reads its end of input. Each process waits for the other, and `sink` never
+returns.
+
+```d2
+direction: right
+
+tail: "tail -f\nnever ends"
+sink: "sink\ncloses stdin when the stream ends"
+sort: "sort\nwrites when stdin is closed"
+
+tail -> sink: "a line at a time"
+sink -> sort: "a line at a time, never closed"
+sort -> sink: "waits for end of input" {style.stroke-dash: 3}
+```
+
+A child that reads its whole input needs an input that ends. Read a source
+that ends, and write it with `sink` or `target`:
+
+```hql
+source(file("app.log"), Lines) | sink(command("sort"), Lines)
+source(file("app.log"), Lines) | target(command("sort"), Lines)
+```
+
+`sink` writes one line for each value and closes standard input after the
+last. `target` writes the lines as one document and closes it. Either way
+`sort` reads its end of input and answers. `tap(…) | take(1000) | sink(…)`
+ends too, since `take` ends the stream.
+
+### Why does `sort` with `stdin_from` never answer?
+
+```hql
+names = Channel<String>("names")
+["wren", "kite"] | sink(names)
+source(command("sort", stdin_from = names), Lines)
+```
+
+A wired standard input stays open until the child ends. A channel has no
+end, so `sort` never reads an end of input, and `source` waits for a child
+that waits for input. A child that reads its whole input is written through
+its primary pipe:
+
+```hql
+["wren", "kite"] | target(command("sort"), Lines)
+```
+
+### Why does a conversation written as two statements hang?
+
+```hql
+questions = Channel<String>("questions")
+bc = command("bc", ["-l"], stdin_from = questions)
+
+answers = tap(bc, Lines) | take(2)
+["2 + 2", "10 / 4"] | sink(questions)
+```
+
+Statements run in order. The first reads answers to questions the second
+has not written yet, so it never ends, and the second never runs. The read
+and the write go in two branches of a `parallel` block, as in the example
+"A conversation" of [advanced child processes](04-advanced-child-processes.hmd).
+
+### Why does a `parallel` block with a `tap` never end?
+
+```hql
+r = parallel {
+    answers = tap(bc, Lines)
+    asked   = ["2 + 2"] | sink(questions)
+}
+```
+
+A branch whose result is a stream is read to its end inside the branch.
+`bc` keeps running after its last answer, so the stream does not end and
+the block does not end. Bound the read by what the program expects:
+`tap(bc, Lines) | take(1)`.
+
+### Why does a `tap` of a channel wait after the child has ended?
+
+```hql
+sorted = Channel<String>("sorted")
+["wren", "kite"] | target(command("sort", stdout_to = sorted), Lines)
+tap(sorted)
+```
+
+`tap(c)` gives only what is written after it. `target` returns when `sort`
+has ended, so every line is already in the channel and nothing more is
+written. The stream waits for a value that never comes. Read what the
+channel holds with `source(sorted)`.
+
+### Why does reading a named pipe wait before the first line?
+
+```hql
+tap(fifo(Path("/tmp/events")), Lines) | take(1)
+```
+
+Opening a named pipe for reading waits until some process opens it for
+writing. Nothing is read, and no line arrives, until a writer exists. The
+same holds the other way: `sink` to a named pipe waits until a reader opens
+it. Start the other side first, or start both in two branches of a
+`parallel` block.
+
+## Failing
+
+### Why does a `grep` that matches nothing stop the program?
+
+```hql
+tap(git, Lines) | sink(command("grep", ["--line-buffered", "wren"]), Lines)
+```
+
+`grep` exits `1` when nothing matches. Every status other than `0` is the
+failure `exited`, and under `source`, `tap`, `target` and `sink` a failure
+stops evaluation. A program that reads the status uses `run` and matches
+it:
+
+```hql
+match command("grep", ["wren", "names.txt"]).run() {
+    ok(out)                    => out.stdout,
+    err(e) given e.status == 1 => "",
+    err(e)                     => fmt("grep failed: {}", e.stderr),
+}
+```
+
+### Why does a `target` to `head` sometimes fail with `closed`?
+
+```hql
+source(git, Lines) | target(command("head", ["-1"]), Lines)
+```
+
+`head -1` reads one line, exits `0`, and closes its standard input. When
+the rest of the input no longer fits in the pipe, `hql` is still writing
+when the child closes it, and the write fails with the reason `closed`.
+Whether the input fits depends on its size and on timing, so the same
+program fails on a long log and succeeds on a short one. Take the first
+line in HQL instead: `source(git, Lines) | take(1)`.
+
+### Why is `source` of a wired pipe an `invalid-argument` failure?
+
+```hql
+out = Channel<String>("out")
+source(command("ls", stdout_to = out), Lines)
+```
+
+`source` reads standard output as its primary pipe, and `stdout_to` wires
+the same pipe to a channel. A pipe is either primary or wired. Drop one:
+read the command, or read the channel after a `run`.
+
+### Why is `command("ls *.txt")` the failure `not-found`?
+
+A shell does two things to `ls *.txt` before any program runs. It splits
+the line into words, the program `ls` and the argument `*.txt`, and it
+replaces `*.txt` with the names of the files that match. No shell reads a
+command, so neither happens:
+
+- `command("ls *.txt")` names a program `ls *.txt`, with the space and the
+  star. No program has that name, and the reason is `not-found`.
+- `command("ls", ["*.txt"])` runs `ls` with the literal argument `*.txt`.
+  `ls` does not expand a glob, finds no file of that name, and exits `1`.
+  The reason is `exited`.
+
+The expansion is a glob, and `io.fs` has one. Each match becomes one
+argument, so a name with a space or a `;` stays one argument:
+
+```hql
+txt = folder(working_dir()) | glob(Glob("*.txt")) | map(e => e.name)
+command("ls", txt)
+```
+
+A program that needs shell text runs a shell, and the project grants it by
+name, as the section "The grant" of
+[child processes](03-child-processes.hmd) states:
+
+```hql
+command("sh", ["-c", "ls *.txt"])
+```
+
+### Why does the child not see `HOME`?
+
+A child inherits only the environment variables the `env` grant gives the
+program. Under `env = ["PATH"]`, the child sees `PATH` and nothing else.
+Grant the variable, or add it to the `env` argument of `command`.
+
+## Results that surprise
+
+### Why does one command run twice?
+
+```hql
+git = command("git", ["log", "--format=%an"])
+{authors: source(git, Lines) | distinct, commits: size(source(git, Lines))}
+```
+
+A `Command` is a description, not a run. Each read or write starts the
+program once, so this runs `git log` twice. Bind the result once and read
+the binding:
+
+```hql
+names = source(git, Lines)
+{authors: names | distinct, commits: size(names)}
+```
+
+### Why do a child's lines appear in the program's output?
+
+```hql
+tap(git, Lines) | sink(command("tr", ["a-z", "A-Z"]), Lines)
+```
+
+`sink` writes the child's standard input, its primary pipe. Its standard
+output is secondary and goes to this process's standard output, so `tr`
+prints its lines directly, and the result of `sink` is a `Step`. To get the
+lines as values, wire the output: `command("tr", …, stdout_to = channel)`,
+then `source(channel)`.
+
+### Why is a child terminated after `take`?
+
+```hql
+tap(command("git", ["log"]), Lines) | take(10)
+```
+
+`take(10)` ends the read after ten lines, and `git` is still running. A
+child's lifetime is bounded by the evaluation, or the `parallel` branch,
+that started it, so `hql` terminates it: `SIGTERM`, then `SIGKILL` after 5
+seconds. A child that must finish is read with `source`.
+
+### Why are lines from two pipes in a different order on each run?
+
+```hql
+log = Channel<String>("log")
+command("make", stdout_to = log, stderr_to = log).run()
+source(log)
+```
+
+Lines of one pipe keep their order. Lines of two pipes are appended in the
+order they reach `hql`, and the kernel does not fix an order between two
+pipes. Wire each pipe to its own channel when the order matters within it,
+and do not depend on an order between them.
+
+## Reading as a mistake, and correct
+
+### Is a list written with `sink` a mistake?
+
+```hql
+questions = Channel<String>("questions")
+["2 + 2", "10 / 4"] | sink(questions)
+source(questions)
+```
+
+```text
+["2 + 2", "10 / 4"]
+```
+
+It reads as one: a list is a batch, and `sink` is the operation that writes
+a stream. It is correct, and `target` is the mistake here.
+
+`sink` writes one document for each element of its input, and it accepts
+anything that iterates, ended or not:
+
+1. `sink` appends `"2 + 2"` to the channel as one value.
+2. It appends `"10 / 4"`.
+3. The list has no further element, so `sink` returns a `Step`.
+
+`target` writes its whole input as one document. The channel holds
+`String`, and the whole input is a list:
+
+```hql
+["2 + 2", "10 / 4"] | target(questions)
+```
+
+```text
+check error[type-mismatch]: Channel<String> holds String, not List<String>
+```
+
+Both programs run today: a channel is implemented.
+
+### What is the difference between `target` and `sink`?
+
+What counts as a document. `target(v)` writes what `sink` writes over the
+one-element sequence `[v]`:
+
+| Program | Documents written |
+|---|---|
+| `["a", "b"] \| target(stdout, Json)` | one: the array `["a", "b"]` |
+| `[["a", "b"]] \| sink(stdout, Json)` | one: the array `["a", "b"]` |
+| `["a", "b"] \| sink(stdout, Json)` | two: `"a"`, then `"b"` |
+
+- `target` needs a completed value. A stream that may not end is a type
+  error under it, and the program bounds the stream first, with `take(n)`.
+  `target` does not join a stream itself.
+- `sink` writes each element as it arrives.
+- In a format whose documents are lines, the two write the same bytes:
+  `["a", "b"]` in `Lines` is the lines `a` and `b` under either. The choice
+  is then one of timing: `target` holds the whole value before it writes,
+  and `sink` feeds the endpoint as values arrive.
+
+### Does a `tap` beside a `source` in one `parallel` block never end?
+
+```hql
+r = parallel {
+    report = source(analyse, JsonLines)
+    sent   = tap(file("frames.jsonl"), JsonLines) | sink(frames, JsonLines)
+}
+r.report
+```
+
+It reads as a block that cannot end: `tap` is the operation that may wait
+forever, and `source` in the other branch waits for the child. The block
+ends, because the `tap` is of a file that ends.
+
+- `tap` waits forever only on a live endpoint. `file("frames.jsonl")` is a
+  `File`, which is `Replayable` and has an end. `tap` of it gives each
+  document as a stream and ends at the end of the file.
+- `file("frames.jsonl").end` is the live one. `tap` of that follows what
+  is appended and does not end.
+- When the stream ends, `sink` closes the named pipe. The child reads its
+  end of input, writes its report and exits, and `source` returns.
+
+`tap(file(p), F) | sink(…)` runs today and ends: over a file of two
+documents it writes two and returns, to standard output and through a
+named pipe alike.
+
+The same program with two batches is `source(file("frames.jsonl"),
+JsonLines) | target(frames, JsonLines)`. It writes the same bytes. It
+holds every frame in memory before the first is written, where `tap` with
+`sink` holds one.
+
+### Is `target` implemented as `sink` after a join?
+
+No. They are two functions of `src/extensions/io.rs`, `eval_target` and
+`eval_sink`, and neither calls the other. Both are implemented today.
+
+For an endpoint of bytes, a file or standard output:
+
+| | `eval_target` | `eval_sink` |
+|---|---|---|
+| the input | collected whole into a `Vec` first, when it is still a lazy traversal | iterated, one value at a time |
+| the encoding | `format::render` of the whole value, one text | `format::piece` of each value |
+| the write | one call, `io::write_whole` | a `Destination` is opened, `line` is called for each value, then `finish` |
+| held in memory | every value, then the whole rendered text | one value |
+
+For a `Channel<T>`:
+
+- `eval_target` pushes the input once, as one value: `io::push` of the
+  settled input.
+- `eval_sink` pushes each element: `io::push` for each.
+
+What follows from the code:
+
+- `target` behaves as `sink` after a join, and is not built that way. It
+  collects by itself, in `eval_target` and in `settled` for a channel.
+- `sink` streams. It writes each piece as it receives it and calls
+  `finish` only when its input ends. That call is what closes the
+  endpoint.
+- The two share one mechanism in one case. For `file(path).end`,
+  `eval_target` opens a `Destination` and writes one `line`, as `sink`
+  does for each value.
+- The two use different format functions, `render` and `piece`. In `Json`
+  that is why `target` writes an array over several lines and `sink`
+  writes each document on one line.
+
+### Which operation runs forever?
+
+`tap` of a live endpoint, and nothing else by itself.
+
+| Operation | Ends when | Waits forever |
+|---|---|---|
+| `source` | the endpoint's data ends. It reads to the end and gives a batch. | not by itself: `source` of a live endpoint, such as `file(path).end`, is a type error |
+| `tap` | the endpoint ends | by itself: a live endpoint, a followed file, a socket, a channel or `signals`, may never end |
+| `target` | its one document is written | no: it writes one completed value |
+| `sink` | its input ends | only when its input does, which means a `tap` is upstream |
+
+`sink` runs forever only when its input does, as in `tap(live) | sink(…)`.
+Over a list it writes each element and returns.
+
+### What else can an operation wait for?
+
+An operation other than `tap` waits only for something another process
+has to do.
+
+- **`source` waits for an end that the other side supplies.**
+  `source(stdin, F)` waits until standard input is closed. `source` of a
+  `Command` waits until the child exits, so a child that never exits holds
+  it unless `timeout_ms` is set.
+- **A named pipe waits on its open.** `tap` and `sink` of a `Fifo` each
+  wait until another process opens the other end.
+- **A full pipe holds a writer.** `sink` or `target` to a child that has
+  stopped reading waits until the child reads again or exits.
+
+A program that hangs is read in that order: a `tap` first, then a read or
+a write that waits for another process to close or open something.
+
+### What does `sink` close when it ends?
+
+| Endpoint | When the input of `sink` ends |
+|---|---|
+| a `Command` | the child's standard input is closed, so the child reads its end of input |
+| a named pipe | the pipe is closed, and a reader with no other writer reads its end |
+| a file | the file is complete |
+| a `Channel<T>` | nothing is closed: a channel has no end |
+
+The channel is the one endpoint where `sink` returning tells the reader
+nothing. A child whose standard input is wired to a channel therefore
+never reads an end of input, which is the entry "Why does `sort` with
+`stdin_from` never answer?" above.
