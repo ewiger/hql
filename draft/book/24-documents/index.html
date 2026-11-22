@@ -7258,31 +7258,66 @@
 them and builds the document they describe, so a reading list, an index or a
 status table is a query, not a list somebody keeps up to date.</p>
 <h2 id="cells">Cells<a class="headerlink" href="#cells" title="Permanent link">&para;</a></h2>
-<p>A fenced block whose info string is <code>hql</code> — or <code>hql#eval</code>, or <code>hql#query</code> — is a
-<strong>cell</strong>. This is <a href="https://github.com/ewiger/hql/tree/main/examples/notebook/reading-list.hmd"><code>examples/notebook/reading-list.hmd</code></a>:</p>
+<p>A <strong>cell</strong> is a fenced block whose info string is <code>hql#eval</code> or <code>hql#query</code>.
+This is <a href="https://github.com/ewiger/hql/tree/main/examples/notebook/reading-list.hmd"><code>examples/notebook/reading-list.hmd</code></a>:</p>
 <div class="highlight"><pre><span></span><code><span class="gh"># The club's reading list</span>
 
 Built from the vault with <span class="sb">`hql --vault examples/reading-club render`</span>.
 
-<span class="sb">```hql</span><span class="w"> </span>id=books hidden
-<span class="s">cards | filter(c =&gt; c.metadata.category == "book")</span>
+```hql#query id=books
+cards | filter(c =&gt; c.metadata.category == "book")
 <span class="sb">```</span>
 
-<span class="gu">## Still to read</span>
+<span class="sb">## Still to read</span>
 
-<span class="sb">```hql</span><span class="w"> </span>id=todo
-<span class="s">books</span>
-<span class="s">| filter(c =&gt; c.metadata.status == "todo")</span>
-<span class="s">| sort(by = c =&gt; c.title)</span>
-<span class="s">| map(c =&gt; c.title)</span>
+<span class="sb">```hql#eval id=todo</span>
+<span class="sb">books</span>
+<span class="sb">| filter(c =&gt; c.metadata.status == "todo")</span>
+<span class="sb">| sort(by = c =&gt; c.title)</span>
+<span class="sb">| map(c =&gt; c.title)</span>
 <span class="sb">```</span>
 
 <span class="gu">## How far along</span>
 
-<span class="sb">```hql</span>
-<span class="s">{books: books | size, to_read: todo | size}</span>
-<span class="sb">```</span>
+```hql#eval
+{books: books | size, to_read: todo | size}
+```
 </code></pre></div>
+<p>The fence's info string sets what <code>hql render</code> does with the block:</p>
+<table>
+<thead>
+<tr>
+<th>Fence</th>
+<th>Runs</th>
+<th>Writes output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>```hql#eval</code></td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>```hql#query</code></td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>```hql</code></td>
+<td>no</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>A <strong>query cell</strong>, <code>```hql#query</code>, is <code>```hql#eval hidden</code>. It runs so
+  that other cells can read its value by <code>id</code>, and its output is not written.</li>
+<li>A fence marked plain <code>```hql</code> is a <strong>code listing</strong>, not a cell. It is not
+  checked and does not run, and every render leaves it as it is. An <code>id=</code> on
+  it names nothing, so a cell that reads that name fails with an unknown
+  name.</li>
+</ul>
 <h2 id="building-the-document">Building the document<a class="headerlink" href="#building-the-document" title="Permanent link">&para;</a></h2>
 <p><code>hql render</code> runs every cell against the vault and writes the document with
 each cell replaced by its output, as Markdown:</p>
@@ -7312,7 +7347,8 @@ Built from the vault with <span class="sb">`hql --vault examples/reading-club re
 <ul>
 <li><code>id=&lt;name&gt;</code> exports the cell's value to the other cells of the document,
   under that name. <code>books</code> and <code>todo</code> above are such names.</li>
-<li><code>hidden</code> runs the cell and writes nothing, for a value other cells read.</li>
+<li><code>hidden</code> runs the cell and writes nothing, for a value other cells read.
+  <code>hql#query</code> implies it.</li>
 <li><code>replace</code> or <code>after</code> chooses where that one cell's output goes.</li>
 </ul>
 <p>Only a cell's value leaves it: a binding inside a cell stays in that cell. The
@@ -7325,12 +7361,12 @@ the last cell stops the build before the first one runs.</p>
 <h2 id="keeping-the-cells">Keeping the cells<a class="headerlink" href="#keeping-the-cells" title="Permanent link">&para;</a></h2>
 <p><code>--emit after</code> keeps every cell and writes its output after it, between two
 comments a Markdown preview does not display:</p>
-<div class="highlight"><pre><span></span><code><span class="sb">```hql</span><span class="w"> </span>id=todo
-<span class="s">books</span>
-<span class="s">| filter(c =&gt; c.metadata.status == "todo")</span>
-<span class="s">| sort(by = c =&gt; c.title)</span>
-<span class="s">| map(c =&gt; c.title)</span>
-<span class="sb">```</span>
+<div class="highlight"><pre><span></span><code>```hql#eval id=todo
+books
+| filter(c =&gt; c.metadata.status == "todo")
+| sort(by = c =&gt; c.title)
+| map(c =&gt; c.title)
+```
 &lt;!-- hql:output id=todo hash=9c9f41e99b94 status=ok --&gt;
 <span class="k">-</span><span class="w"> </span>Leaves of Grass
 <span class="k">-</span><span class="w"> </span>The Common Reader

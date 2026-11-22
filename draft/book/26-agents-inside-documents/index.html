@@ -7314,57 +7314,57 @@ render, read the answer, edit again.</p>
 Notes for the club's next meeting, built from the shelf with
 <span class="sb">`hql --vault examples/reading-club render`</span>.
 
-<span class="sb">```hql</span><span class="w"> </span>id=books hidden
-<span class="s">cards | filter(c =&gt; c.metadata.category == "book")</span>
+```hql#query id=books
+cards | filter(c =&gt; c.metadata.category == "book")
 <span class="sb">```</span>
 
-<span class="gu">## Candidates</span>
+<span class="sb">## Candidates</span>
 
-The books nobody has finished.
+<span class="sb">The books nobody has finished.</span>
 
-<span class="sb">```hql</span><span class="w"> </span>id=unread
-<span class="s">books</span>
-<span class="s">| filter(c =&gt; c.metadata.status == "todo")</span>
-<span class="s">| sort(by = c =&gt; c.title)</span>
-<span class="s">| map(c =&gt; c.title)</span>
+<span class="sb">```hql#eval id=unread</span>
+<span class="sb">books</span>
+<span class="sb">| filter(c =&gt; c.metadata.status == "todo")</span>
+<span class="sb">| sort(by = c =&gt; c.title)</span>
+<span class="sb">| map(c =&gt; c.title)</span>
 <span class="sb">```</span>
 
 <span class="gu">## Evidence</span>
 
 What the shelf holds on the question the club keeps returning to.
 
-<span class="sb">```hql</span><span class="w"> </span>id=evidence hidden
-<span class="s">import hmd</span>
-<span class="s">cards | semantic("which unread book suits a reading club") | take(3) | Context("evidence")</span>
+```hql#query id=evidence
+import hmd
+cards | semantic("which unread book suits a reading club") | take(3) | Context("evidence")
 <span class="sb">```</span>
 
-<span class="gu">## What should we read next?</span>
+<span class="sb">## What should we read next?</span>
 
-Pick one unread book for the next meeting, and say why. The candidates and
-the evidence are in this draft; rely on them and on the shelf.
+<span class="sb">Pick one unread book for the next meeting, and say why. The candidates and</span>
+<span class="sb">the evidence are in this draft; rely on them and on the shelf.</span>
 
-```hql#eval id=pick
-import ai
+<span class="sb">```hql#eval id=pick</span>
+<span class="sb">import ai</span>
 
-fn books_by(author: String) : List&lt;String&gt; =
-    cards | filter(c =&gt; c.metadata.author == author) | map(c =&gt; c.title) | List
+<span class="sb">fn books_by(author: String) : List&lt;String&gt; =</span>
+<span class="sb">    cards | filter(c =&gt; c.metadata.author == author) | map(c =&gt; c.title) | List</span>
 
-[this]
-| Context("draft")
-| concat(evidence)
-| run(@[[librarian]] | Agent, tools = [Tool(books_by, "The titles on the shelf by one author")])
+<span class="sb">[this]</span>
+<span class="sb">| Context("draft")</span>
+<span class="sb">| concat(evidence)</span>
+<span class="sb">| run(@[[librarian]] | Agent, tools = [Tool(books_by, "The titles on the shelf by one author")])</span>
 <span class="sb">```</span>
 
-<span class="sb">## What happened</span>
+<span class="gu">## What happened</span>
 
-<span class="sb">```hql#eval id=trace</span>
-<span class="sb">pick | trace | map(e =&gt; e.kind)</span>
+```hql#eval id=trace
+pick | trace | map(e =&gt; e.kind)
 <span class="sb">```</span>
 
-<span class="gu">## Remembered</span>
+<span class="sb">## Remembered</span>
 
-<span class="sb">```hql</span><span class="w"> </span>id=note hidden
-<span class="s">pick | remember("next-meeting-pick")</span>
+<span class="sb">```hql#query id=note</span>
+<span class="sb">pick | remember("next-meeting-pick")</span>
 <span class="sb">```</span>
 
 ```hql#eval
