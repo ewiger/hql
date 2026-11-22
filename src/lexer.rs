@@ -105,10 +105,20 @@ pub(crate) struct Spanned {
 }
 
 /// Scan a whole source string, ending with exactly one `End` token.
+///
+/// A source whose first two bytes are `#!` opens with an interpreter line
+/// (HQL-0062): it is skipped up to, and not including, its `\n`. Offsets
+/// keep counting from the start of the source, so the next line is still
+/// line 2.
 pub(crate) fn scan(source: &str) -> Result<Vec<Spanned>, Diagnostic> {
+    let offset = if source.starts_with("#!") {
+        source.find('\n').unwrap_or(source.len())
+    } else {
+        0
+    };
     let mut scanner = Scanner {
         source,
-        offset: 0,
+        offset,
         tokens: Vec::new(),
     };
     scanner.run()?;
@@ -493,6 +503,44 @@ impl Scanner<'_> {
             .is_some_and(u8::is_ascii_digit)
         {
             self.offset += 1;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tokens(source: &str) -> Vec<Token> {
+        scan(source)
+            .expect("the source scans")
+            .into_iter()
+            .map(|spanned| spanned.token)
+            .collect()
+    }
+
+    #[test]
+    fn an_interpreter_line_alone_is_an_empty_source() {
+        assert_eq!(tokens("#!/usr/bin/env hql"), tokens(""));
+        assert_eq!(tokens("#!/usr/bin/env hql\n"), tokens("\n"));
+    }
+
+    #[test]
+    fn an_interpreter_line_keeps_the_offsets_of_the_lines_after_it() {
+        let source = "#!/usr/bin/env hql\n1 + 1";
+        let scanned = scan(source).unwrap();
+        assert_eq!(scanned[0].token, Token::Newline);
+        assert_eq!(scanned[0].span, 18..19);
+        assert_eq!(scanned[1].token, Token::Int(1));
+        assert_eq!(scanned[1].span, 19..20);
+        let refused = scan("#!x\n@").unwrap_err();
+        assert_eq!(refused.span.start, 4);
+    }
+
+    #[test]
+    fn a_hash_bang_anywhere_else_is_refused() {
+        for source in [" #!x\n1", "\u{feff}#!x\n1", "1\n#!x"] {
+            assert!(scan(source).is_err(), "{source:?}");
         }
     }
 }
