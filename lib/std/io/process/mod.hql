@@ -39,7 +39,7 @@ type Output {
 }
 
 /// Why a command did not succeed. `reason` is `not-found`,
-/// `not-permitted`, `exited`, `signalled`, `timed-out`, `closed` or
+/// `not-permitted`, `exited`, `signalled`, `timed-out` or
 /// `invalid-text`. `status` is set when the child exited, `signal` when a
 /// signal ended it. `stdout` and `stderr` hold what the child wrote before
 /// it ended.

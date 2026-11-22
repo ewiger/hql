@@ -277,7 +277,9 @@ Both are defined in the companion note
 
 ### Failures
 
-A command fails in one of eight ways. `reason` of `CommandFailure` names it.
+A command fails in one of eight ways. `reason` names it: the field of
+`CommandFailure` under `run`, and the failure that stops evaluation under
+`source`, `tap`, `target` and `sink`.
 
 | `reason` | The failure | Set beside it |
 |---|---|---|
@@ -286,7 +288,7 @@ A command fails in one of eight ways. `reason` of `CommandFailure` names it.
 | `exited` | the child exited with a status other than `0` | `status` |
 | `signalled` | a signal ended the child | `signal` |
 | `timed-out` | `timeout_ms` passed and `hql` terminated the child | |
-| `closed` | the child closed its standard input before a write of `target` or `sink` ended | |
+| `closed` | under `target` or `sink`, the child closed its standard input before a write ended | |
 | `unhealthy` | its watchdog gave up and `hql` terminated the child ([watchdogs](06-watchdog.hmd)) | |
 | `invalid-text` | under `run`, the child wrote bytes that are not UTF-8, and `invalid_utf8` is `fail` | |
 
@@ -296,7 +298,13 @@ A child that does not exit `0` is a failure the program can handle, so
 - `run` MUST give `ok(Output)` when the child exits `0`, and
   `err(CommandFailure)` for each failure of the table.
 - `run` MUST judge the child by how it ended. A child that exits without
-  reading its `input` is not `closed`.
+  reading its `input` is not `closed`, so no `CommandFailure` has the
+  reason `closed`.
+- `closed` states that a write was refused, not that every line was read.
+  Lines the pipe already holds when the child exits without reading them are
+  lost without a failure, so whether a `target` or `sink` to such a child
+  fails depends on the size of the input and on timing
+  ([the FAQ](faq.hmd#why-does-a-target-to-head-sometimes-fail-with-closed)).
 - `source`, `tap`, `target` and `sink` give a sequence, a stream and a
   `Step`, which hold no status. A failure under them MUST stop evaluation
   with an unrecoverable failure that states the command, the reason, the
