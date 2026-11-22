@@ -15,8 +15,9 @@ is an existing file written as a path, and evaluates the word as an
 expression otherwise, as today. `hql` with no word runs standard input when
 it is not a terminal and opens the REPL when it is. The words after a
 program file are the program's own **positional arguments**, read with
-`io.env.argv()`. Relative paths, discovery, exit status and the presentation
-of the result do not change.
+`io.env.argv()`. The exit status is a function of the program's result: a
+result that is an `err` exits `1`. Relative paths, discovery and the
+presentation of the result do not change.
 
 ## Motivation
 
@@ -45,6 +46,9 @@ of the result do not change.
   every other script language run a program piped to them.
 - A script takes arguments: `./report.hql 2026 q1`. HQL has named arguments,
   `--arg year=2026`, and no way to receive a positional argument.
+- A script reports failure to its caller through its exit status:
+  `./check.hql && ./deploy.hql`. A program whose result is `err(e)` exits
+  `0`, so a shell cannot tell a failed check from a passed one.
 
 ## Non-goals
 
@@ -53,10 +57,19 @@ of the result do not change.
   script reaches the directory it was run from with `fs.working_dir()`.
   Whether a script should differ is an open question below, not a rule
   here.
-- An `exit(n)` operation. The exit status stays what `hql run` gives today.
+- An `exit(n)` operation. An operation that ends the process is a jump out
+  of an evaluation, and [[HQL-0033]] makes a failure a value. The exit
+  status is derived from the result instead (the section "The exit status").
+- An exit status other than `0` and `1` that the program chooses. The status
+  is a function of the result, so a later proposal extends it with a type,
+  not with an operation.
+- Processes: `io.process` and signals, child processes, named pipes, the
+  keyword `parallel` and watchdogs. [[HQL-0064]] specifies them. `argv` is
+  in `io.env`, beside `arg` and `args`, and stays here.
 - A Windows launcher. `#!` is a Unix convention; on Windows `hql FILE` is
   the whole of this proposal.
-- Changing `hql eval`, `hql run` or any other command when it is named.
+- Changing `hql eval`, `hql run` or any other command when it is named,
+  except for the exit status of a result that is an `err`.
 
 ## Specification
 
@@ -150,7 +163,50 @@ hql [OPTIONS] run FILE [ARG...]
 - Named arguments are unchanged: `--arg name=value` before `FILE`, read with
   `env.arg(name)`.
 
-### 5. What does not change
+### 5. The exit status
+
+The exit status is a function of the program's result, the value of its
+last expression. No operation sets it. Rust gives `main` the same rule:
+`main` returns a value, and the value gives the status.
+
+```text
+the program fails to parse, check or evaluate    1
+the result is `err(e)`                           1
+any other result                                 0
+a usage error                                    2
+```
+
+- When the result is a `Result` that is `err(e)`, `hql` MUST exit `1`.
+- When the result is `ok(v)`, or a value of any other type, `hql` MUST exit
+  `0`.
+- Only the result itself MUST be tested. An `err` inside a collection, a
+  stream or a record is data: `[ok(1), err("x")]` exits `0`.
+- The result MUST be presented whatever the status, on standard output in
+  the `--to` format: a program that exits `1` on `err(e)` still prints
+  `err(e)`.
+- The rule MUST apply wherever `hql` presents a program's result and exits:
+  `hql run`, `hql eval`, `hql FILE` and a program read from standard input.
+  The REPL does not exit on a result, so the rule does not apply to it.
+- A program whose result type is `Result<T, E>` states in its type that it
+  can exit `1`. The status needs no effect and no grant, because computing
+  the result is all the program does to set it.
+
+```hql
+#!/usr/bin/env hql
+import io.env
+
+// `./report.hql 2026` prints `ok("2026")` and exits 0.
+// `./report.hql` prints the `err` and exits 1.
+ok(env.argv()[0]) given env.argv() != []
+otherwise err("usage: report.hql YEAR")
+```
+
+The companion note
+[pure and effectful](parts/01-pure-and-effectful.hmd) compares this rule
+with Python's `sys.exit`, Haskell's `IO` and Rust's `main`, and states the
+rules a new I/O operation follows.
+
+### 6. What does not change
 
 The rest of a script's behaviour is what `hql run` already gives, and this
 proposal states it so that the `#!` path is held to it.
@@ -162,13 +218,11 @@ proposal states it so that the `#!` path is held to it.
 - A relative path MUST resolve against the script's source directory
   ([[HQL-0059]]). A script that lists the directory it was run from writes
   `folder(fs.working_dir())`, not `folder(".")`.
-- The exit status MUST be what `hql run` returns: `0` on success, `1` when
-  the program fails to parse, check or evaluate, `2` on a usage error.
 - The result MUST be presented as `hql run` presents it, in the `--to`
   format, `hql` by default. A script that writes lines writes them itself:
   `names | sink(stdout, Text)`.
 
-### 6. Example
+### 7. Example
 
 ```hql
 #!/usr/bin/env hql
@@ -204,6 +258,8 @@ chmod +x lsx.hql
   program.
 - `hql` with no word printed the help and exited `2`. Scripts that relied on
   that exit status change. None is known.
+- A program whose result is `err(e)` exited `0` and now exits `1`. A caller
+  that tests the status of such a program sees the failure.
 
 ## Security Considerations
 
@@ -226,10 +282,12 @@ chmod +x lsx.hql
 2. Positional arguments on `hql run` and `io.env.argv()` (section 4).
 3. File selection in `with_default_command` (section 2) and the no-program
    rule (section 3).
-4. An `examples/scripts/` folder, the README's quick start, and the
+4. The exit status of an `err` result (the section "The exit status").
+5. An `examples/scripts/` folder, the README's quick start, and the
    reference page for `argv`.
 
-No flag: each step only turns an error into a run.
+No flag: steps 1 to 3 only turn an error into a run, and step 4 is a
+breaking change made outright.
 
 ## Reference Implementation
 
@@ -239,7 +297,8 @@ No flag: each step only turns an error into a run.
   no-program rule. `Command::Run` gains
   `#[arg(trailing_var_arg = true, allow_hyphen_values = true)] args:
   Vec<String>`, and the default command forwards the words after `FILE`
-  to it.
+  to it. Where `run` and `eval` present a result, the status is `1` when
+  the result is an `err`.
 - `crate::extensions::env` (the `std` extension's `io.env`): store the
   positional arguments beside the named ones and implement `argv`.
 - `lib/std/io/env/mod.hql`: declare `argv` with the doc string above, and
@@ -269,6 +328,8 @@ Integration tests MUST include, in `tests/cli.rs` and `tests/io_env.rs`:
   grant of `[]` leaving `argv()` readable
 - `argv()` under `hql eval` giving `[]`
 - `echo '1 + 1' | hql` giving `2` with exit `0`
+- `hql eval 'err("x")'` printing `err("x")` with exit `1`; `ok(1)` and
+  `[ok(1), err("x")]` with exit `0`; and the same three from `hql run FILE`
 
 ```bash
 cargo test --locked --test cli --test io_env
@@ -299,9 +360,12 @@ cargo test --locked lexer
   as C and Python; `positional()` reads as HQL.
 - Should `hql -c '<program>'` be accepted as a synonym of `hql eval`, for
   those who write it from habit with Python and bash?
-- Should a script be able to choose its exit status, `exit(3)`, and how
-  does that sit with errors as values ([[HQL-0033]])?
 
 ## Changelog
 
 - 2026-11-21: drafted
+- 2026-11-22: the exit status as a function of the result; `exit(n)` a
+  non-goal
+- 2026-11-22: a companion note on pure and effectful operations
+- 2026-11-22: processes, pipes, `parallel` and watchdogs moved to
+  [[HQL-0064]]
