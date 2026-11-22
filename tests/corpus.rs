@@ -82,6 +82,14 @@ fn load_cases() -> Vec<Case> {
                 continue;
             }
             let text = fs::read_to_string(&path).unwrap();
+            // A script opens with its `#!` line, and its header follows it.
+            let (interpreter, text) = match text.strip_prefix("#!") {
+                Some(rest) => {
+                    let (line, rest) = rest.split_once('\n').unwrap_or((rest, ""));
+                    (format!("#!{line}\n"), rest.to_owned())
+                }
+                None => (String::new(), text),
+            };
             let (header, source) = text
                 .split_once("\n\n")
                 .unwrap_or_else(|| panic!("{}: missing corpus header", path.display()));
@@ -99,7 +107,7 @@ fn load_cases() -> Vec<Case> {
                     .to_string_lossy()
                     .replace('\\', "/"),
                 metadata,
-                source: source.to_owned(),
+                source: format!("{interpreter}{source}"),
             });
         }
     }
