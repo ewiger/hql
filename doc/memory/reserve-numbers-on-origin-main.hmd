@@ -1,0 +1,25 @@
+# Reserve numbers on origin main
+
+A new issue in [`doc/issues/`](../issues/) or a new proposal in
+[`doc/proposals/`](../proposals/) takes its number from a **reservation pushed
+to `origin/main`**, made before any work on it starts.
+
+1. `git fetch` and read the index as it stands on `origin/main`:
+   `last_id` in [`kanban.yaml`](../issues/kanban.yaml) for an issue, the table
+   in [`index.hmd`](../proposals/index.hmd) for a proposal.
+2. Take the next free number. Commit to `main` a change to the index only: the
+   new entry, and for an issue the raised `last_id`. Message:
+   `issues: reserve 0084, <title>` or `proposals: reserve HQL-0065, <title>`.
+   An entry whose work lives on a branch says so: `(reserved; on feat/xyz)`.
+3. Push `main` to `origin` at once. The number is reserved only once the push
+   succeeds. If the push is rejected, rebase onto `origin/main`, take the next
+   free number again, and push.
+4. Only then write the issue or proposal file, on `main` or on the branch after
+   merging `main` into it.
+
+A number committed to a local `main` but not pushed is not reserved: another
+branch or checkout can take the same one, and git merges two index entries
+without a conflict, so the duplicate goes unnoticed.
+
+When a duplicate does reach `origin/main`, the released or most-referenced
+entry keeps the number and the other is renumbered to the next free one.
