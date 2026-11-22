@@ -1496,7 +1496,7 @@ impl Evaluator<'_> {
                     )),
                     Field::Root => Ok(text(
                         &vault
-                            .map(|vault| vault.root.display().to_string())
+                            .map(|vault| crate::walk::paths::of(&vault.root))
                             .unwrap_or_default(),
                     )),
                     Field::Graph => crate::extensions::graph::construct(

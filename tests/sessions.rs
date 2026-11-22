@@ -215,6 +215,13 @@ fn valid_sessions_print_their_transcripts() {
             continue;
         }
         let (printed, expected) = replay(&session);
+        // A message names a path with the platform's separator between its
+        // segments; the transcripts are written with `/`.
+        let (printed, expected) = if cfg!(windows) {
+            (printed.replace('\\', "/"), expected.replace('\\', "/"))
+        } else {
+            (printed, expected)
+        };
         assert_eq!(printed, expected, "{}", session.path.display());
     }
 }

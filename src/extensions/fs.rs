@@ -146,7 +146,7 @@ fn eval_folder(
 
 /// The source directory of the running unit (HQL-0059).
 fn eval_source_dir(_: &mut dyn EvalCx, _: Value, _: &[TypedArg], _: Range<usize>) -> Result<Value> {
-    Ok(path_value(&io::source_directory().display().to_string()))
+    Ok(path_value(&paths::of(&io::source_directory())))
 }
 
 /// The directory `hql` was started in.
@@ -162,7 +162,7 @@ fn eval_working_dir(
             format!("the working directory cannot be read: {error}"),
         )
     })?;
-    Ok(path_value(&cwd.display().to_string()))
+    Ok(path_value(&paths::of(&cwd)))
 }
 
 fn eval_glob_of(

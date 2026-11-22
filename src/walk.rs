@@ -145,7 +145,7 @@ fn below<E: From<io::Error>>(
     visit: &mut dyn FnMut(Listed) -> Result<bool, E>,
 ) -> Result<bool, E> {
     for listed in entries(&root.join(prefix), walk)? {
-        let relative = prefix.join(&listed.relative);
+        let relative = joined(prefix, &listed.relative);
         let folder = listed.stat.kind == Kind::Folder;
         if !visit(Listed {
             relative: relative.clone(),
@@ -160,9 +160,43 @@ fn below<E: From<io::Error>>(
     Ok(true)
 }
 
+/// `name` below `prefix`, with `/` between them on every platform. A path
+/// below the folder walked is an identity a program reads as text: a card's
+/// `path` is the same text wherever its vault is read.
+fn joined(prefix: &Path, name: &Path) -> PathBuf {
+    if cfg!(windows) && !prefix.as_os_str().is_empty() {
+        let mut text = prefix.as_os_str().to_os_string();
+        text.push("/");
+        text.push(name);
+        PathBuf::from(text)
+    } else {
+        prefix.join(name)
+    }
+}
+
 /// A `Path`'s text, read as segments separated by `/`: what `join`,
 /// `parent`, `name`, `stem` and `extension` compute, from the text alone.
 pub(crate) mod paths {
+    /// The text of a path the host gives, as a program reads it: segments
+    /// separated by `/`. On Windows the host writes `\` between them and
+    /// opens a canonical path with `\\?\`; both are read here, so `name`,
+    /// `parent` and the rest find the segments, and the text still names the
+    /// same file.
+    pub(crate) fn of(path: &std::path::Path) -> String {
+        let text = path.display().to_string();
+        if !cfg!(windows) {
+            return text;
+        }
+        let text = match text.strip_prefix(r"\\?\") {
+            Some(rest) => match rest.strip_prefix(r"UNC\") {
+                Some(share) => format!(r"\\{share}"),
+                None => rest.to_owned(),
+            },
+            None => text,
+        };
+        text.replace('\\', "/")
+    }
+
     /// The text without trailing separators, the root `/` kept.
     fn trimmed(text: &str) -> &str {
         let trimmed = text.trim_end_matches('/');

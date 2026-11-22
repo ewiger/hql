@@ -176,8 +176,17 @@ fn every_program_in_the_book_writes_what_the_book_shows() {
                 continue;
             }
             let written = run(&block, &defined);
+            // A message names a path with the platform's separator between
+            // its segments; the book is written with `/`.
+            let same = |expected: &String| {
+                if cfg!(windows) {
+                    written.replace('\\', "/") == expected.replace('\\', "/")
+                } else {
+                    &written == expected
+                }
+            };
             if let Some(expected) = &block.expected
-                && &written != expected
+                && !same(expected)
             {
                 wrong.push(format!(
                     "{}: the program\n{}\nwrites\n{written}\nand the book shows\n{expected}",
