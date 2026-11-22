@@ -1,0 +1,85 @@
+# 0082 — A plain `hql` fence is a listing: `hql render` runs only `hql#eval` and `hql#query`
+
+Status: todo
+Related: the fence kinds were decided
+for HyperMarkDown cards on 2026-10-19 and are stated in
+[Cell output](https://hypermarkdown.org/public/cell-output/),
+[rendering documents](../public/book/24-documents.hmd),
+[the CLI's behaviour](../models/behavior/cli.hmd),
+`cell_attributes` in `src/transclude.rs`
+
+A card has three kinds of `hql` fence, and `hql render` treats them as one.
+
+## Expected
+
+| Fence | Runs | Writes output |
+| --- | --- | --- |
+| ` ```hql#eval ` | yes | yes |
+| ` ```hql#query ` | yes | no. The same as `hql#eval hidden` |
+| ` ```hql ` | no | no. A Markdown code listing |
+
+- **Only a fence marked `hql#eval` or `hql#query` is a cell.** A fence marked
+  plain `hql` is a code listing. It is not checked, not evaluated, and gets no
+  output block. An `id=` on it names nothing, so a cell that reads that name
+  fails as for any unknown name.
+- **`hql#query` is `hql#eval hidden`.** It runs, other cells read its value by
+  `id`, and no output block is written for it, with or without the `hidden`
+  attribute.
+- `--emit replace` leaves a listing in place as the fence it is. It removes a
+  query cell and writes nothing where it stood.
+
+## Actual
+
+In HQL 0.7.1 every one of the three runs and every one gets output.
+
+```sh
+cp -R hypermarkdown/examples/notebook /tmp/nb && cd /tmp/nb
+hql render --emit after contents.hmd
+```
+
+`contents.hmd` ends with a listing:
+
+````markdown
+```hql
+cards | size
+```
+````
+
+`hql render` evaluates it and writes `5` under it. It also writes an output
+block under the `hql#query id=todo` cell.
+
+The cause is one line. `cell_attributes` in `src/transclude.rs` accepts all
+three info strings alike:
+
+```rust
+if !matches!(words.next(), Some("hql" | "hql#eval" | "hql#query")) {
+    return None;
+}
+```
+
+The documentation states the same rule as the code:
+[rendering documents](../public/book/24-documents.hmd) opens with "A fenced
+block whose info string is `hql` — or `hql#eval`, or `hql#query` — is a cell",
+and [the CLI's behaviour](../models/behavior/cli.hmd) says the same of
+`hql render`.
+
+## Who works around it today
+
+The VS Code extension applies the expected rules itself. Before it hands a
+card to `hql`, `maskForHql` in `@hypermarkdown/core`
+(`tools/hmd-ts-core/src/cell/cells.ts` in the HyperMarkDown repository)
+rewrites a plain `hql` fence to `txt` and adds `hidden` to an `hql#query`
+fence. A card run from the editor and the same card run from the command line
+therefore differ.
+
+## Done when
+
+- `hql render` evaluates `hql#eval` and `hql#query` fences and no other.
+- A plain `hql` fence passes through every `--emit` mode unchanged.
+- An `hql#query` cell has no output block in any `--emit` mode.
+- `hql check` and `--cell <ID>` follow the same rule: a listing is not a cell.
+- The book chapter and the CLI's behaviour card state the three kinds.
+- A test renders `examples/notebook/contents.hmd` from the HyperMarkDown
+  repository, or a copy of it, and finds the listing unevaluated.
+- `maskForHql` can then stop rewriting fences; that removal is HyperMarkDown's
+  work and follows the HQL release that carries this.

@@ -17,7 +17,7 @@ board:
     { name: "doing", description: "Issues that are currently being worked on." },
     { name: "done", description: "Issues that have been completed." }
   ]
-  last_id: 81 # to be incremented when adding a new issue card
+  last_id: 82 # to be incremented when adding a new issue card
   items:
     backlog:
       - id: "0016"
@@ -48,6 +48,9 @@ board:
         title: "Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events"
         file: 0075-validation-rules-thresholds-and-events.hmd
     todo:
+      - id: "0082"
+        title: "A plain `hql` fence is a listing: `hql render` runs only `hql#eval` and `hql#query`"
+        file: 0082-a-plain-hql-fence-is-a-listing.hmd
       - id: "0080"
         title: "`sink` or `target`, `tap` or `source`: say the difference outright"
         file: 0080-sink-or-target-tap-or-source.hmd
