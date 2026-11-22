@@ -1,0 +1,17 @@
+<!-- hql reference: std/io/process.command -->
+# `command`
+
+In [`std/io/process`](index.hmd).
+
+```hql
+fn command(program: String, args: List<String> = [], *, dir: String = "", env: Data = {:}, timeout_ms: Int = 0) : Command
+```
+
+The command that runs `program` with `args`. A `program` without `/`
+is looked up in `PATH`; a relative one with `/` resolves against the
+directory of this source, as a file's path does. `dir` is the child's
+working directory, this process's own unless given. `env` is added to
+the environment the child inherits, the variables the `env` grant
+gives this program. A child still running after `timeout_ms`
+milliseconds is terminated. Constructing it starts nothing.
+<!-- hql reference: end -->

@@ -53,6 +53,7 @@ the standard library's doc strings, one page per function, type and trait.
 - [`std/io/fs`](std/io/fs/index.hmd) — The file system as data: folders, globs over paths, and the entries a folder holds, with their kinds, sizes and modification times.
 - [`std/io/env`](std/io/env/index.hmd) — What a program reads from the invocation that runs it: environment variables and named arguments.
 - [`std/io/net`](std/io/net/index.hmd) — Network endpoints: transports, read and written by `source`, `tap`, `target` and `sink` like any other endpoint (module `io`).
+- [`std/io/process`](std/io/process/index.hmd) — Child processes: a `Command` names a program and its arguments, and starts nothing until an operation of `io` uses it.
 - [`std/io/logging`](std/io/logging/index.hmd) — Logging: structured events written to a destination, apart from the result.
 - [`std/io/db/sqlite`](std/io/db/sqlite/index.hmd) — SQLite: one table of a database file, as a transport read by `source` and `tap` and written by `target` like any other endpoint (module `io`).
 - [`std/io/db/postgres`](std/io/db/postgres/index.hmd) — PostgreSQL: one table of a database, as a transport read by `source` and `tap` and written by `target` like any other endpoint (module `io`).

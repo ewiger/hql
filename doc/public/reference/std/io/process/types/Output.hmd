@@ -1,0 +1,11 @@
+<!-- hql reference: std/io/process.Output -->
+# `Output`
+
+In [`std/io/process`](../index.hmd).
+
+```hql
+type Output { stdout : String stderr : String }
+```
+
+What a child that exited with status `0` wrote.
+<!-- hql reference: end -->
