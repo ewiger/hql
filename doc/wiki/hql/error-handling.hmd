@@ -210,8 +210,29 @@ nothing a field carries.
 | `element` | the element a step was applying its function to: the step, its position, and the value |
 | `bindings` | the parameters in scope where it failed, of the innermost function or lambda |
 | `trace` | the `call` frames of the functions it was reached through, outermost first |
+| `causes` | the failures below the one `message` states, nearest first, as the program, library or system that failed gave them |
 | `source` | the document a bound card was read from |
 | `violations` | for a contract read, the `Violation`s `validate` would give |
+
+`trace` and `causes` are the two halves of an exception's stack trace.
+`trace` is where in the program the failure was reached; `causes` is what
+failed below it, outside the program. One failure is one diagnostic in the
+channel, its causes carried on it, so a count of failures and the exit
+status are the same whatever the depth of its causes:
+
+```text
+execute failure[io-failure]: http://127.0.0.1:9/x: connection failed
+ --> <expression>:2:1
+  |
+2 | source(http("http://127.0.0.1:9/x"), Json)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = caused by: Connect error
+  = caused by: Connection refused (os error 61)
+```
+
+A child process gives the last lines of its standard error as the cause of
+its failure. `--envelope json` and `--diagnostics-format json` carry
+`causes` as a list of strings.
 
 Take the mapreduce shelf, where `genre` is a string, and a query that reads it
 as a map:

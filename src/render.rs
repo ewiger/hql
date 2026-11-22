@@ -173,6 +173,14 @@ fn notes(
             .collect();
         lines.push(format!("{pad} = trace: {}", frames.join(" → ")));
     }
+    for cause in &diagnostic.context.causes {
+        let heading = format!("{pad} = caused by: ");
+        let indent = " ".repeat(heading.chars().count());
+        for (index, line) in cause.lines().enumerate() {
+            let lead = if index == 0 { &heading } else { &indent };
+            lines.push(format!("{lead}{line}"));
+        }
+    }
     lines
 }
 
