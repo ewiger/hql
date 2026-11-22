@@ -119,6 +119,11 @@ The [env](env/README.md) cases read invocation arguments and environment
 variables with `io.env`, each defaulted where it is absent, from
 [HQL-0041](../doc/proposals/HQL-0041/parts/05-env.hmd) part 5.
 
+The [process](process/README.md) cases start child processes with
+`command` of `io.process`: read a child's output with `source` and `tap`,
+write its input with `target`, and handle its failure with `run`, from
+[HQL-0064](../doc/proposals/HQL-0064/index.hmd).
+
 The [contexts](contexts/README.md) cases run in two projects whose
 `.hql/config.toml` gives a program a module root, an extension imported for every
 program, or no prelude, from [HQL-0025](../doc/proposals/HQL-0025/index.hmd).
