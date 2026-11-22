@@ -31,7 +31,18 @@ jobs:
           - os: macos-latest
             target: x86_64-apple-darwin
             cross: true
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    # One shell on every runner: the steps below are written for it.
+    defaults:
+      run:
+        shell: bash
     steps:
+      # Git for Windows checks text out with CRLF by default. The fixtures the
+      # tests compare byte for byte, and the files packaged below, stay LF.
+      - name: Keep LF line endings
+        if: ${{ runner.os == 'Windows' }}
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag || github.ref }}
@@ -58,10 +69,17 @@ jobs:
           version="${{ inputs.tag || github.ref_name }}"
           name="hql-${version}-${{ matrix.target }}"
           mkdir -p "dist/$name"
-          cp target/${{ matrix.target }}/release/hql "dist/$name/"
+          # The Windows binary is `hql.exe`. Its archive is a `.tar.gz` like
+          # the others, so one reader unpacks every target.
+          binary=hql
+          if [ "${{ runner.os }}" = Windows ]; then binary=hql.exe; fi
+          cp "target/${{ matrix.target }}/release/$binary" "dist/$name/"
           cp README.md CHANGELOG.md LICENSE "dist/$name/"
           tar -czf "dist/$name.tar.gz" -C dist "$name"
-          shasum -a 256 "dist/$name.tar.gz" | sed "s| dist/| |" > "dist/$name.tar.gz.sha256"
+          # `sha256sum` marks a file read in binary mode with `*` on Windows;
+          # the sidecar has one form on every target, `<digest>  <name>`.
+          digest=$(sha256sum "dist/$name.tar.gz" 2>/dev/null || shasum -a 256 "dist/$name.tar.gz")
+          echo "${digest%% *}  $name.tar.gz" > "dist/$name.tar.gz.sha256"
           echo "name=$name" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
