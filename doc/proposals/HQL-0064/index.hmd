@@ -50,6 +50,7 @@ gives a handleable failure as a `Result`, and never ends the process.
 | [named pipes](parts/04-named-pipes.hmd) | `fifo(path)` in `io.fs`, and a named pipe handed to a child |
 | [`parallel`](parts/05-parallel.hmd) | the keyword `parallel`: the block, the step, `join = any`, branches against children, and how it runs |
 | [watchdogs](parts/06-watchdog.hmd) | `Watchdog`, a question asked of a child or a block at an interval; a side note on `io.process.monitoring`, measurements, idle and reports |
+| [boilerplate logging](parts/07-boilerplate-logging.hmd) | who takes a `Measurement` and how it reaches a watchdog; children's standard error, reports and measurements in channels; the wiring written once; logical zombies, certain as `deadlock` and suspected as idle |
 | [I/O FAQ](parts/faq.hmd) | the programs that hang, fail or surprise under these rules, and those that read as a mistake and are correct |
 
 ## Relation to other proposals

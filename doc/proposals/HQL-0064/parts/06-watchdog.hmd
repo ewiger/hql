@@ -186,6 +186,7 @@ type Measurement {
     disk_written  : Int
     net_received  : Int
     net_sent      : Int
+    stdin_bytes   : Int
     stdout_bytes  : Int
     stderr_bytes  : Int
     idle_ms       : Int
@@ -193,8 +194,9 @@ type Measurement {
 ```
 
 - The byte counts are totals since the start of the child.
-- `idle_ms` is the time since the last byte on any of the child's disk,
-  network and standard streams.
+- `idle_ms` is the time since the child last used CPU time or moved a
+  byte on its disk, network or standard streams. A child that computes
+  without I/O is not idle.
 - Per-process network counters are not available on every platform. A
   measurement the platform does not give is `0`.
 
@@ -202,8 +204,8 @@ A watchdog that reads measurements has `ask` take the guarded child's
 latest measurement, `(Measurement) -> Bool`, in place of `() -> Bool`.
 
 **Idle** is a state the kernel does not report. A child that is idle is
-running, is not a zombie, and moves no bytes: it waits on input that never
-comes, or on a lock. A watchdog asks for it as a question on `idle_ms`:
+running, is not a zombie, uses no CPU time and moves no bytes: it waits on
+input that never comes, or on a lock. A watchdog asks for it as a question on `idle_ms`:
 
 ```hql
 from io.process.monitoring import *
@@ -218,13 +220,13 @@ program's `stderr`, so a child that stays idle is reported at every
 interval:
 
 ```text
-hql: watchdog: process 4711 (server) idle for 60 s
-hql: watchdog: process 4711 (server) idle for 120 s
-hql: watchdog: process 4711 (server) idle for 180 s
+hql: watchdog: server (pid 4711) idle for 60 s
+hql: watchdog: server (pid 4711) idle for 120 s
+hql: watchdog: server (pid 4711) idle for 180 s
 ```
 
-A watchdog built only to report never terminates the child: it reports
-each miss and has no limit of `misses`. The measurements themselves are a
-stream, so a program that keeps them reads them as it reads any endpoint:
-a `tap` of a monitoring endpoint gives a `Stream<Measurement>`, which a
-`sink` writes to a file or a metrics endpoint.
+A watchdog built only to report, with `misses = none`, never terminates
+the child. Who takes a measurement, how it reaches the watchdog, the
+channels for reports and measurements, and the logical zombies an idle
+child may be, are the companion note
+[boilerplate logging](07-boilerplate-logging.hmd).
