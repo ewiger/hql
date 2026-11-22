@@ -283,9 +283,19 @@ Ctrl-D on an empty line leaves.
 
 ## Documents that carry queries
 
-`hql render` is the second host. A block fenced `hql`, `hql#eval` or `hql#query`
-is a cell. Rendering runs each cell against the vault and writes its output as
+`hql render` is the second host. A block fenced `hql#eval` or `hql#query` is a
+cell. Rendering runs each cell against the vault and writes its output as
 Markdown, so the source document compiles to a built one.
+
+| Fence | Runs | Writes output |
+| --- | --- | --- |
+| ` ```hql#eval ` | yes | yes |
+| ` ```hql#query ` | yes | no: it is `hql#eval hidden` |
+| ` ```hql ` | no | no: it is a code listing |
+
+A code listing is not checked and does not run. Every `--emit` mode leaves it
+as written, `hql check` does not check it, and `--cell` cannot name it: an `id=`
+on a listing names nothing.
 
 ```
 hql render <FILE> [--write <OUT> | --in-place] [--emit replace|after] [--cell <ID>]

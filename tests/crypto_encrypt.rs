@@ -239,7 +239,7 @@ fn a_rendered_document_draws_nothing_from_the_host_generator() {
     let document = vault.path().join("keys.md");
     std::fs::write(
         &document,
-        "# Keys\n\n```hql\nfrom crypto import *\ngenerate_key_pair(Ed25519).public.thumbprint()\n```\n",
+        "# Keys\n\n```hql#eval\nfrom crypto import *\ngenerate_key_pair(Ed25519).public.thumbprint()\n```\n",
     )
     .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_hql"))

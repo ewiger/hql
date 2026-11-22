@@ -51,12 +51,14 @@ and what it depends on, which is the interface an editor extension drives.
 
 ### 1. The info string
 
-A fence is a cell when the first word of its info string is `hql`, `hql#eval`
-or `hql#query`. The words after it are attributes.
+A fence is a cell when the first word of its info string is `hql#eval` or
+`hql#query`. The words after it are attributes. `hql#query` is `hql#eval
+hidden`. A fence whose first word is plain `hql` is a code listing: it is not
+checked, not evaluated, gets no output, and every render leaves it as written.
 
 ```text
 info      := kind attribute*
-kind      := "hql" | "hql#eval" | "hql#query"
+kind      := "hql#eval" | "hql#query"
 attribute := "id=" ident | "replace" | "after" | "hidden"
 ```
 

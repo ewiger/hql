@@ -420,7 +420,7 @@ fn a_document_lists_only_under_its_own_directory() {
     let cell = |name: &str, program: &str| {
         fs::write(
             dir.path().join("t/z").join(name),
-            format!("```hql\nimport io.fs\nfrom io.fs import *\n{program}\n```\n"),
+            format!("```hql#eval\nimport io.fs\nfrom io.fs import *\n{program}\n```\n"),
         )
         .unwrap();
         hql_in(dir.path(), &["render", &format!("t/z/{name}")])

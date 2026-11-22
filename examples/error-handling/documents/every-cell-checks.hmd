@@ -1,17 +1,17 @@
 # Checked as a whole
 
-```hql id=pages hidden
+```hql#query id=pages
 [412, 280, 112]
 ```
 
 ## Books
 
-```hql
+```hql#eval
 pages | size
 ```
 
 ## Pages
 
-```hql
+```hql#eval
 pages | sum
 ```

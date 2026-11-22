@@ -6,21 +6,21 @@ status table is a query, not a list somebody keeps up to date.
 
 ## Cells
 
-A fenced block whose info string is `hql` — or `hql#eval`, or `hql#query` — is a
-**cell**. This is [`examples/notebook/reading-list.hmd`](https://github.com/ewiger/hql/tree/main/examples/notebook/reading-list.hmd):
+A **cell** is a fenced block whose info string is `hql#eval` or `hql#query`.
+This is [`examples/notebook/reading-list.hmd`](https://github.com/ewiger/hql/tree/main/examples/notebook/reading-list.hmd):
 
 ````markdown
 # The club's reading list
 
 Built from the vault with `hql --vault examples/reading-club render`.
 
-```hql id=books hidden
+```hql#query id=books
 cards | filter(c => c.metadata.category == "book")
 ```
 
 ## Still to read
 
-```hql id=todo
+```hql#eval id=todo
 books
 | filter(c => c.metadata.status == "todo")
 | sort(by = c => c.title)
@@ -29,10 +29,25 @@ books
 
 ## How far along
 
-```hql
+```hql#eval
 {books: books | size, to_read: todo | size}
 ```
 ````
+
+The fence's info string sets what `hql render` does with the block:
+
+| Fence | Runs | Writes output |
+| --- | --- | --- |
+| ` ```hql#eval ` | yes | yes |
+| ` ```hql#query ` | yes | no |
+| ` ```hql ` | no | no |
+
+- A **query cell**, ` ```hql#query `, is ` ```hql#eval hidden `. It runs so
+  that other cells can read its value by `id`, and its output is not written.
+- A fence marked plain ` ```hql ` is a **code listing**, not a cell. It is not
+  checked and does not run, and every render leaves it as it is. An `id=` on
+  it names nothing, so a cell that reads that name fails with an unknown
+  name.
 
 ## Building the document
 
@@ -72,6 +87,7 @@ A cell's info string carries attributes after its kind:
 - `id=<name>` exports the cell's value to the other cells of the document,
   under that name. `books` and `todo` above are such names.
 - `hidden` runs the cell and writes nothing, for a value other cells read.
+  `hql#query` implies it.
 - `replace` or `after` chooses where that one cell's output goes.
 
 Only a cell's value leaves it: a binding inside a cell stays in that cell. The
@@ -89,7 +105,7 @@ the last cell stops the build before the first one runs.
 comments a Markdown preview does not display:
 
 ````markdown
-```hql id=todo
+```hql#eval id=todo
 books
 | filter(c => c.metadata.status == "todo")
 | sort(by = c => c.title)
