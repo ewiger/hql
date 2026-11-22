@@ -10,22 +10,31 @@ on:
     paths:
       - "doc/**"
       - "mkdocs.yml"
+      - "mkdocs.base.yml"
+      - "mkdocs.site.yml"
+      - "contrib/mkdocs/**"
       - "pyproject.toml"
       - "uv.lock"
+      - "crates/hql-wasm/**"
+      - "contrib/playground/**"
+      - "src/playground.rs"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
-# Read-only by default: `build` publishes nothing. The `draft` job alone may
-# write, and only on `main`: it publishes `main` as the `draft` version. A
-# release publishes its own version with mike, in the `docs` job of
+# The site is two builds of `doc/public/`, both served from `gh-pages`:
+#
+# - the website (`mkdocs.site.yml`): Home, Install and the Blog, at the root
+#   of the branch, always the current `main`;
+# - the documentation (`mkdocs.yml`): the Book, Examples and Reference, one
+#   mike version folder per release, `/latest/` the newest, and `/draft/` the
+#   current `main`.
+#
+# Read-only by default: `build` publishes nothing. The `publish` job alone may
+# write, and only on `main`: it publishes the website and the `draft` version.
+# A release publishes its own version with mike, in the `docs` job of
 # `release.yml`.
 permissions:
   contents: read
-
-# mike commits to `gh-pages`; two publishes at once would race for it.
-concurrency:
-  group: pages-${{ github.ref }}
-  cancel-in-progress: false
 
 jobs:
   build:
@@ -49,25 +58,46 @@ jobs:
       - name: Install d2
         run: curl -fsSL https://d2lang.com/install.sh | sh -s -- --version v0.7.1
 
-      # Nothing is published that does not build clean.
-      - name: Build
-        run: uv run mkdocs build --strict
+      # Nothing is published that does not build clean. `--strict` also fails
+      # a link between the website and the documentation that names a page the
+      # other build does not have; see `contrib/mkdocs/split.py`.
+      - name: Build the documentation
+        run: uv run mkdocs build --strict -d ../site-docs
+      # The playground's module (HQL-0061). It is the website's: built after
+      # the documentation, so no version carries a copy, and before the
+      # website, whose build publishes it. Ubuntu's clang emits wasm for
+      # SQLite.
+      - name: Install the wasm toolchain
+        run: |
+          rustup target add wasm32-unknown-unknown
+          curl -fsSL https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+      - name: Build the playground module
+        run: contrib/playground/build.sh
+      - name: Build the website
+        run: uv run mkdocs build --strict -f mkdocs.site.yml -d ../site-website
 
       # The site's wikilinks. An unresolved link is a warning; an ambiguous
       # one, a link escaping the vault or a missing heading fails.
       - name: Lint
         run: uv run hmd lint --root doc/public
 
-  # What is merged to `main`, at `/draft/`, rebuilt on every push. It is a
-  # mike version like a release's, so the version menu lists it, but it is
-  # never `latest` and never the default: `/latest/` stays the newest release.
-  draft:
-    name: publish draft
+  # What is merged to `main`, rebuilt on every push: the website at the root,
+  # and the documentation at `/draft/`. The draft is a mike version like a
+  # release's, so the version menu lists it, but it is never `latest`:
+  # `/latest/` stays the newest release.
+  publish:
+    name: publish website and draft
     needs: build
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # Every job that commits to `gh-pages` is in this group, `release.yml`'s
+    # `docs` included, so two never push at once. Job-level, so pull-request
+    # builds neither wait for a publish nor cancel one.
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,3 +119,28 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin gh-pages:gh-pages || true
           uv run mike deploy --push --title "draft (main)" draft
+      # The playground's module (HQL-0061). It is the website's: built after
+      # the documentation, so no version carries a copy, and before the
+      # website, whose build publishes it. Ubuntu's clang emits wasm for
+      # SQLite.
+      - name: Install the wasm toolchain
+        run: |
+          rustup target add wasm32-unknown-unknown
+          curl -fsSL https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+      - name: Build the playground module
+        run: contrib/playground/build.sh
+      # The website replaces whatever is at the root of `gh-pages` other than
+      # mike's versions, `CNAME` and `.nojekyll`; see
+      # `contrib/mkdocs/publish_website.py`.
+      - name: Publish the website
+        run: |
+          uv run mkdocs build --strict -f mkdocs.site.yml -d ../site-website
+          git worktree add ../pages gh-pages
+          uv run python contrib/mkdocs/publish_website.py ../site-website ../pages
+          git -C ../pages add --all
+          if git -C ../pages diff --cached --quiet; then
+            echo "the website is unchanged"
+          else
+            git -C ../pages commit -m "Website from ${GITHUB_SHA::8}"
+            git -C ../pages push origin gh-pages
+          fi

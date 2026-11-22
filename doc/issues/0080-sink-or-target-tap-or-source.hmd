@@ -1,0 +1,91 @@
+# 0080 — `sink` or `target`, `tap` or `source`: say the difference outright
+
+Status: todo
+Related: [[HQL-0021]] (`target` and `sink`),
+[writing with `target` and `sink`](../public/book/09-io/target.hmd),
+[reading with `source`](../public/book/09-io/source.hmd),
+[finite or live](../public/book/09-io/finite-or-live.hmd),
+[tables and topics](../public/book/16-tables-and-topics.hmd),
+[subjects and lakehouse tables](../public/book/09-io/subjects-and-lakehouses.hmd),
+[hql-demo](https://github.com/ewiger/hql-demo)
+
+HQL has two ways to read and two ways to write. A reader of working code
+cannot always tell why a program uses one and not the other. Chapter 16
+moves a table's rows onto a topic and the topic's messages into a table:
+
+```hql
+orders : Seq<Event> = source("orders")      // a table: every row, then the end
+orders | sink("order_events")                // a message per row
+
+events : Stream<Event> = tap("order_events") // a topic: each message as it arrives
+events | sink("orders")                      // a row per message, committed as it comes
+```
+
+Both writes are `sink`, for different reasons, and the chapter states
+neither. `orders` is a `Seq`, so `target` would check; `sink` is chosen
+because a topic takes one message per value. `events` is a `Stream`, so
+`target` is a type error. Chapter 16 never shows `target` beside `sink`
+except in the ledger example earlier in the chapter. The full comparison
+is only in chapter 9, split over two pages, and the comparison of `tap`
+and `source` is a subsection of [finite or live](../public/book/09-io/finite-or-live.hmd).
+
+## `target` and `sink`
+
+`target` writes the whole value as one document, once, after the value is
+finished. `sink` writes one document per value, as each value arrives.
+
+| | `target` | `sink` |
+| --- | --- | --- |
+| Unit written | the whole value, as one document | one document per element |
+| When it writes | once, after the value is complete | as each element arrives |
+| `Seq<T>` (ends) | allowed | allowed |
+| `Stream<T>` (may not end) | type error: use `sink`, or `take(n)` first | allowed; the only way to write a stream |
+| File | written beside the file, then renamed over it, so a reader never sees half a file | truncated, then appended to as values come |
+| Kafka topic | not used | one message per value |
+| Postgres table | writes all rows; `mode` decides create, append or replace | appends rows, committing as they arrive |
+| SQLite table | writes all rows | type error: "write it whole with `target`" |
+
+## `source` and `tap`
+
+`source` reads what an endpoint holds and gives a `Seq` where the endpoint
+is `Replayable` (a file, a table, a channel), holding every document. Over a
+live endpoint it gives a `Stream`. `tap` always gives a `Stream`, one
+document at a time, holding only the current one: a file larger than memory
+is read with `tap`, `tap(file(p).end)` follows a file as `tail -F` does, a
+whole-document format such as `Text` cannot be tapped, and over a live
+endpoint `tap` and `source` give the same stream. Over a table, `tap` gives
+the rows one at a time and ends after the last. The table for this page is
+to be built from the behaviour, endpoint kind by endpoint kind, as the one
+above was: file, `file(p).end`, `stdin`, channel, SQLite, PostgreSQL,
+Kafka, NATS, JetStream, Databricks and Spark.
+
+## Scope
+
+- **Two new pages in chapter 9.** "`sink` or `target`" and "`tap` or
+  `source`", each opening with the one-sentence difference and the table,
+  then one short program per row. They are linked from the chapter's page
+  table and from every later chapter that chooses one of the pair.
+- **The existing pages.** [writing with `target` and `sink`](../public/book/09-io/target.hmd),
+  [reading with `source`](../public/book/09-io/source.hmd) and
+  [finite or live](../public/book/09-io/finite-or-live.hmd) keep their
+  mechanics and link to the comparison pages instead of repeating the
+  tables.
+- **Reread the book.** Every program that reads or writes, chapters 9, 14,
+  16, 19, 20 and 31 first: is the choice of step explained, or at least
+  obvious from the types shown? Where it is not, a sentence says why, with
+  a link to the comparison page.
+- **Review hql-demo.** Every case in the `hql-demo` repository, and the
+  programs under `examples/`: each read and write uses the step the
+  comparison pages recommend, and a case whose choice is surprising gets a
+  comment or a change.
+- **Other constructs.** Any other pair a reader has to choose between
+  without being told why, found during the reread, is listed here and
+  given the same treatment or its own issue.
+
+## Done when
+
+- The two pages exist, are checked by the book's tests, and each row of
+  their tables is backed by a program or a diagnostic shown on the page.
+- Chapter 16's topic section says why both writes are `sink`.
+- The reread and the hql-demo review are recorded here as a list of the
+  places changed.

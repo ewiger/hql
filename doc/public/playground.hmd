@@ -1,0 +1,84 @@
+---
+template: home.html
+---
+<section class="hql-band hql-band--playground" markdown>
+
+# Playground { .hql-play-title }
+
+HQL runs in this page. A program is checked and evaluated in your browser;
+nothing is sent to a server. The vault is the book's
+[reading club](/draft/book/21-a-vault/): `cards`, `@[[dune]]` and the links between them
+are there to query.
+
+<div class="hql-playground" data-hql-playground hidden>
+<div class="hql-play-bar">
+<label>Program <select aria-label="Example program"></select></label>
+<span class="hql-play-buttons">
+<button type="button" class="hql-run" data-how="check">Check</button>
+<button type="button" class="hql-run hql-run--primary" data-how="eval">Run</button>
+</span>
+</div>
+<textarea spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="HQL program" rows="18"></textarea>
+<pre class="hql-output" aria-live="polite">Press Run, or Ctrl+Enter.</pre>
+
+</div>
+
+<div class="hql-examples" markdown>
+
+```hql title="A typed query"
+type Book { title : String, year : Int, rating : Int }
+
+books = [
+    Book(title = "Dune", year = 1965, rating = 5),
+    Book(title = "Emma", year = 1815, rating = 3),
+    Book(title = "Beloved", year = 1987, rating = 4),
+]
+
+books
+| filter(b => b.rating >= 4)
+| sort(b => b.title)
+| map(b => b.title)
+```
+
+```hql title="A contract refuses a value"
+type Book { title : String, year : Int, rating : Int }
+
+books = [
+    Book(title = "Dune", year = 1965, rating = 5),
+    Book(title = "Emma", year = "1815", rating = 3),
+]
+
+books | map(b => b.title)
+```
+
+```hql title="The vault: books still to read"
+cards
+| filter(c => c.metadata.status == "todo")
+| sort(by = c => c.title)
+| map(c => c.title)
+```
+
+```hql title="The vault: one card"
+@[[dune]].title
+```
+
+```hql title="The vault: authors as Markdown"
+cards | filter(c => c.metadata.category == "author") | markdown
+```
+
+</div>
+
+<noscript markdown>
+The playground needs JavaScript. Without it, these are its programs; each is
+in the [HQL Book](/draft/book/) with its output.
+</noscript>
+
+## What runs here { .hql-section }
+
+The language, the standard library and SQLite, in memory. A program that
+names a server (a `postgres`, `kafka`, `nats` or `spark` endpoint, or a
+URL) checks, and fails where it would connect: those run in the
+[hql-demo repository](https://github.com/ewiger/hql-demo). Files on your
+machine are not read.
+
+</section>

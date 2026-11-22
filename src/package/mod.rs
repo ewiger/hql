@@ -11,7 +11,18 @@
 //! agree, is refused whole and leaves the rest as they were.
 
 pub mod build;
+#[cfg(feature = "native")]
 mod load;
+/// A build without `native` opens no library: a package is never loaded.
+#[cfg(not(feature = "native"))]
+mod load {
+    pub(super) fn open(
+        _package: &str,
+        _path: &std::path::Path,
+    ) -> Result<&'static crate::extensions::Extension, String> {
+        Err(crate::unavailable::reason("an installed package"))
+    }
+}
 pub mod lock;
 pub mod manifest;
 pub mod registry;

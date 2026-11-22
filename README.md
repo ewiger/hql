@@ -1262,6 +1262,11 @@ The same language model should remain valid whether computation is executed over
 
 ---
 
+## Community
+
+Questions, programs and release news: [r/hqlang](https://www.reddit.com/r/hqlang/).
+Bugs and feature requests: [GitHub issues](https://github.com/ewiger/hql/issues).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

@@ -335,6 +335,7 @@ type Answer = (Vec<(String, String)>, Vec<Vec<Option<Cell>>>);
 
 /// A session with an endpoint: statements run in it one at a time.
 struct Session {
+    #[cfg(feature = "native")]
     agent: ureq::Agent,
     url: String,
     authorization: String,
@@ -345,6 +346,15 @@ impl Session {
     /// # Errors
     /// Says that the endpoint did not open a session, and why; the token is
     /// never repeated.
+    #[cfg(not(feature = "native"))]
+    fn open(_server: &Server) -> Result<Self, String> {
+        Err(crate::unavailable::reason("a `spark` endpoint"))
+    }
+
+    /// # Errors
+    /// Says that the endpoint did not open a session, and why; the token is
+    /// never repeated.
+    #[cfg(feature = "native")]
     fn open(server: &Server) -> Result<Self, String> {
         let agent = ureq::AgentBuilder::new().timeout_connect(DEADLINE).build();
         // A warehouse reads a token as the password of the user `token`; a
@@ -377,7 +387,14 @@ impl Session {
         Ok(session)
     }
 
+    /// No session is ever open in a build that reaches no server.
+    #[cfg(not(feature = "native"))]
+    fn call(&self, _call: Call) -> Result<Value, String> {
+        Err(crate::unavailable::reason("a `spark` endpoint"))
+    }
+
     /// Post one call and read its result, the status checked.
+    #[cfg(feature = "native")]
     fn call(&self, call: Call) -> Result<Value, String> {
         let response = self
             .agent

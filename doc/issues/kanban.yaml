@@ -29,6 +29,9 @@ board:
       - id: "0065"
         title: "Neo4j parity analysis: graph patterns, traversal and graph schema"
         file: 0065-neo4j-parity-analysis.hmd
+      - id: "0081"
+        title: "fquery parity analysis: object-domain graph queries over SQL"
+        file: 0081-fquery-parity-analysis.hmd
       - id: "0071"
         title: "Key vaults: `crypto.keyvault` and its backends"
         file: 0071-key-vaults.hmd
@@ -45,6 +48,9 @@ board:
         title: "Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events"
         file: 0075-validation-rules-thresholds-and-events.hmd
     todo:
+      - id: "0080"
+        title: "`sink` or `target`, `tap` or `source`: say the difference outright"
+        file: 0080-sink-or-target-tap-or-source.hmd
       - id: "0069"
         title: "Transports: the core of HQL-0047 and HQL-0048"
         file: 0069-transports-core.hmd

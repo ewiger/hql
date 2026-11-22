@@ -15,6 +15,19 @@ The language continues to be in active development.
 - **A Windows binary.** The release carries `hql.exe` for
   `x86_64-pc-windows-msvc`, in a `.tar.gz` like the other targets, and every
   change is built and tested on Windows beside Linux and macOS.
+- **The crate builds for a browser**
+  ([HQL-0061](doc/proposals/HQL-0061/index.hmd)). Everything that needs a
+  socket, a process, a dynamic library or a terminal is behind one default
+  cargo feature, `native`: the server endpoints, HTTP, package loading and
+  the command line. Without it the crate is the language, its standard
+  modules and SQLite, and builds for `wasm32-unknown-unknown`.
+  `cargo install hql` and a plain `cargo build` are unchanged.
+- Without `native`, a program that names a server endpoint still checks, and
+  a read or a write on it fails saying the build has no such endpoint.
+- **`hql::playground`** runs a program for a page: its source in, and what
+  `hql eval` or `hql check` would print out, with a vault held in memory.
+- The website has a **Playground** page, and a Run button on each program of
+  its front page. They run `hql` in the browser.
 
 ### Fixed
 

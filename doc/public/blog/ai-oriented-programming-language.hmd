@@ -1,0 +1,256 @@
+---
+description: A Reddit question about AI-oriented languages drew answers from Rust and Lean to English and raw ASTs. Read together, they point past syntax to systems in which knowledge becomes code and code produces knowledge.
+---
+# From Rust to English to Strange Loops: What Is an AI-Oriented Programming Language? { .hql-post-title }
+
+<p class="hql-post-meta">20 November 2026 · Yauhen Yakimovich</p>
+
+!!! abstract "TL;DR"
+
+    - **Python, JS, C++?** Just use whatever LLMs were trained on.
+    - **Rust, Lean, formal verification?** Let the compiler and type system do
+      the hard work. AI generates, compiler complains, AI fixes. Repeat.
+    - **Bend and Tauto?** Agent instructions backed by proofs and
+      machine-checkable correctness.
+    - **ASTs instead of source code?** Why generate text just to parse it back
+      into a tree? Maybe we're optimizing the wrong interface.
+    - **English?** Intentions aren't executable specifications.
+    - **Reducible vs irreducible problems?** A program solves a problem
+      reducible to the algorithm written in it. LLMs approach problems that
+      are not necessarily reducible in the same way. The two sets overlap
+      hugely.
+
+    So the actual big question is: **what is reducible with AI?** Maybe the
+    original question is not about which language is best for AI at all. And
+    somehow all this leads to Hofstadter's strange loops.
+
+I recently asked a seemingly simple question on Reddit: **What would an AI-oriented programming language look like?**
+
+I was expecting some discussion about language design, static typing, syntax, and maybe the relative advantages of Rust, Python, or SQL.
+
+Instead, the answers were surprisingly diverse. Some were technically detailed, others philosophical, and a few essentially questioned whether the original question makes any sense.
+
+The suggestions ranged from **Rust, Python, Go, Java, Lean, and Prolog** to English, binary representations, and manipulating abstract syntax trees (ASTs) directly.
+
+And, well, I don't think there is an ultimate answer here. The more I thought about these replies, the more I realized that we're probably discussing several different problems under the same name.
+
+## 1. The best language is the one AI already knows
+
+One of the strongest arguments was also the simplest: LLMs are best at generating languages heavily represented in their training data.
+
+Python, JavaScript, C++, and other established languages have enormous ecosystems, documentation, and examples. Inventing a new syntax specifically for AI might actually make things worse.
+
+Fair enough. At least for the models we have today.
+
+But doesn't this answer a slightly different question? *Which programming language is best supported by today's LLMs?*
+
+It doesn't necessarily tell us what a language designed specifically for AI-assisted development should look like.
+
+There is an interesting circular dependency here. Popular languages generate more training data, which makes models better at writing those languages, which may reinforce their popularity.
+
+Does this mean we've already reached an optimal language design? I doubt it.
+
+## 2. Rust, Lean, and the compiler as a feedback mechanism
+
+Another group of answers focused on correctness.
+
+Rust received considerable support because its type system, ownership rules, and compiler diagnostics can constrain generated code. Go and Java were mentioned for their predictable ecosystems and established engineering practices. Lean brings formal verification into the picture.
+
+One commenter proposed a strict subset of C++ supported by static analyzers, sanitizers, debuggers, and LLVM tooling.
+
+This suggests a different criterion for an AI-oriented language.
+
+**Perhaps the important feature is not how easily an AI can generate code, but how effectively the environment can detect and correct its mistakes.**
+
+An LLM produces a candidate implementation. A compiler or verifier rejects invalid structures. The LLM incorporates the feedback and tries again.
+
+The language becomes part of a larger correction mechanism.
+
+This is a compelling argument for static typing, explicit error handling, rich contracts, predictable semantics, and useful diagnostics.
+
+Of course, compiling successfully does not mean solving the right problem. A compiler can establish certain properties of a program, but it cannot automatically establish that our requirements were correct in the first place.
+
+And this distinction becomes important later.
+
+### Two concrete projects that caught my attention: Bend and Tauto
+
+Apart from the usual Rust versus Python debate, I found two projects particularly interesting.
+
+**[Bend](https://bend-lang.com/)** was actually suggested in one of the Reddit replies. It has Python-like syntax, targets high performance and parallel execution, and its newer version introduces formal proofs as part of the development process.
+
+What I find interesting is the combination of agent instructions and verifiable rules.
+
+You can define application invariants in `LAWS.bend`, ask an AI agent to implement changes, and require proofs that those invariants still hold. The agent workflow itself is described through familiar instructions in `AGENTS.md`.
+
+Bend even describes the idea as `AGENTS.md` backed by proof.
+
+I think this is a really interesting direction. Rather than endlessly instructing an agent not to break something, you formalize at least some of those requirements and let a checker enforce them.
+
+The second project is **[Tauto](https://github.com/Hihaheho/tauto)**, an experimental language explicitly designed around AI-generated programs and machine-checked proofs.
+
+The idea is that an AI writes both the implementation and its proof. Humans can focus on reviewing the propositions, while a formal checker verifies whether the supplied proof establishes them.
+
+These are not mature, general-purpose replacements for Rust or Python, and they have different design goals. But both challenge the same assumption: maybe humans shouldn't have to review every line of generated code if some of its important properties can be verified mechanically.
+
+And I find this more interesting than simply choosing a language that LLMs are good at writing.
+
+It also raises another question: what happens to the role of `AGENTS.md` and similar agent instructions? Today, most of these are just natural-language documents. What if some of those instructions could become executable or formally verifiable contracts?
+
+Of course, there is still a fundamental limitation. **Proving that a program follows a specification is not the same as proving that the specification represents what we actually wanted.**
+
+But that's already a very different perspective on AI-oriented programming.
+
+## 3. Why generate source code at all?
+
+Some of the most interesting suggestions challenged an assumption we rarely question.
+
+Why should an LLM write textual source code, only for a compiler to parse that text into an AST?
+
+Why not generate or modify the AST directly?
+
+Instead of generating tokens for keywords, punctuation, indentation, and brackets, an agent could manipulate structured program representations.
+
+Another suggestion was to optimize syntax for tokenization, perhaps favoring composable pipelines over deeply nested expressions.
+
+There are tradeoffs, of course. Models are currently trained largely on textual representations, and AST manipulation is not automatically more efficient without the appropriate interfaces or training.
+
+Still, it raises a useful question.
+
+**Are we optimizing programming languages for humans who write code, or for machines that generate, transform, and validate programs?**
+
+Perhaps source code is just one possible interface to a program, rather than its essential representation.
+
+And if we go further, research into model-to-model communication through latent representations suggests that even textual exchange between AI systems might not always be necessary.
+
+## 4. Or perhaps the answer is simply English?
+
+Another answer was almost disarmingly simple: English.
+
+If AI can understand natural language, why introduce an additional programming language at all?
+
+Well, this is where things become more philosophical.
+
+Natural language is extraordinarily expressive. It accommodates ambiguity, incomplete specifications, analogies, intentions, and contextual meaning.
+
+Programming languages deliberately sacrifice much of this flexibility in exchange for precise, executable semantics.
+
+You can ask an LLM to design a booking system, negotiate a business rule, or decide how to interpret an ambiguous requirement.
+
+But saying something in English doesn't automatically make it executable, consistent, or verifiable.
+
+The distinction between expressing an intention and specifying an algorithm has not disappeared.
+
+And perhaps this is where the actual question begins.
+
+## 5. Are programming languages and LLMs solving different kinds of problems?
+
+One particularly interesting direction in this discussion made me think about the distinction between problems that can be reduced to an explicit procedure and problems requiring interpretation or discovery.
+
+A conventional program is generally designed to execute a defined computation. Given inputs, rules, and a computational model, its behavior can be described algorithmically.
+
+An LLM is useful precisely because it can operate when the problem is not fully specified.
+
+It can interpret vague intentions, propose hypotheses, generate alternatives, discover analogies, and help formulate rules that were not known beforehand.
+
+The temptation is to conclude:
+
+- Classical programming solves reducible problems.
+- LLMs solve irreducible problems.
+
+But wait. I don't think this is quite correct.
+
+First, an LLM is itself a computational system. It does not escape the mathematical limits of computation.
+
+Second, computational irreducibility has a specific meaning: roughly, there may be no substantial shortcut to determining the outcome of a computation. That is different from an undecidable problem, and both are different from a problem whose requirements are ambiguous or incomplete.
+
+What interests me is a more practical distinction.
+
+Imagine two overlapping sets:
+
+**P:** Problems we can solve using explicitly specified programs and algorithms.
+
+**L:** Problems for which generative inference, interpretation, or synthesis is a useful solving strategy.
+
+Their intersection, **P ∩ L**, is enormous.
+
+An LLM can generate SQL to deduplicate data. Once the rules are established, an ordinary program can execute that transformation perfectly well.
+
+Conversely, an existing program can invoke an LLM to classify a document or interpret a loosely expressed requirement.
+
+And plenty of tasks can move from one category toward the other as knowledge develops and specifications become more precise.
+
+There are also problems that neither approach can solve reliably, and formal limits that neither approach can bypass.
+
+So perhaps the useful distinction is not between computable and uncomputable problems, but between **executing an established formalization and discovering or revising the formalization itself**.
+
+To me, this is much more interesting than deciding whether Python or Rust is the better language for AI.
+
+## 6. This leads me to Hofstadter and strange loops
+
+I've recently become fascinated by Douglas Hofstadter's *Gödel, Escher, Bach: An Eternal Golden Braid*, published in 1979.
+
+One of its central ideas is the **strange loop**.
+
+Roughly speaking, a strange loop occurs when moving through different levels of a hierarchical system unexpectedly brings us back to where we started, through self-reference and a crossing of levels.
+
+Gödel's construction of a statement that refers, indirectly, to its own provability is one mathematical example. Escher's hands drawing one another offer a visual analogy.
+
+Hofstadter uses these ideas to explore how systems of symbols can acquire higher-level meanings and eventually represent aspects of themselves.
+
+And this seems surprisingly relevant to the direction in which AI-assisted programming is evolving.
+
+Consider a possible chain:
+
+**Natural-language intention → Formal specification → Generated program → Execution → Observations → Revised specification**
+
+Ordinary software development already follows variations of this cycle.
+
+But imagine a system in which the specification, program, observations, and agent instructions all exist as structured, inspectable, and executable artifacts.
+
+The system can inspect its previous results, revise its own specifications, modify the programs that produced those results, and repeat.
+
+Now the levels begin to interact.
+
+The document describes the computation. The computation produces new information. That information changes the document. And the modified document changes the next computation.
+
+Of course, an ordinary feedback loop is not automatically a Hofstadter-style strange loop. The particularly interesting step is when a system can represent aspects of its own structure or rules, and those representations participate in changing the system itself.
+
+That's the direction I want to explore.
+
+It also raises difficult engineering questions about validation, permissions, provenance, versioning, and the limits of self-modification.
+
+## 7. Maybe we're asking the wrong question
+
+I started with an interest in combining properties of Rust, SQL, and Markdown.
+
+A strongly typed language, capable of working with structured data, embedded in documents that also carry explanations, context, and executable results.
+
+But the Reddit discussions have pushed me toward a broader question.
+
+What if an AI-oriented programming language is not primarily a language optimized for models to generate correct syntax?
+
+What if it is an environment in which formal computation and informal reasoning can continuously interact?
+
+Where human-readable specifications, machine-verifiable contracts, executable code, observations, and generated knowledge coexist.
+
+Where an agent can reason about a program, execute it, inspect the result, and revise its own description of the problem.
+
+And where a human can inspect, interrupt, understand, and redirect that process.
+
+I'm not suggesting that such a system automatically constitutes a strange loop in Hofstadter's precise sense, or that it somehow overcomes Gödel's incompleteness results.
+
+But the analogy opens a fascinating design space.
+
+Perhaps the deeper problem is no longer how to make programming languages easier for AI to write.
+
+**Perhaps it is how to build systems in which knowledge becomes code, code produces knowledge, and both can participate in the revision of their own representations.**
+
+I don't think there's an ultimate answer yet. And judging by the diversity of the replies, we're not even asking quite the same question.
+
+That might be the most interesting discovery of the whole discussion.
+
+---
+
+*Original discussions: [r/ClaudeCode](https://www.reddit.com/r/ClaudeCode/comments/1xz27f8/what_is_an_aioriented_programming_language/) | [r/altprog](https://www.reddit.com/r/altprog/comments/1xz24ep/what_is_an_aioriented_programming_language/) | [Programming Language Design Stack Exchange](https://langdev.stackexchange.com/questions/4788/what-would-an-ai-targeted-programming-language-look-like)*
+
+*Further reading: [Strange Loops](https://mathworld.wolfram.com/StrangeLoop.html) | [Computational Irreducibility](https://mathworld.wolfram.com/ComputationalIrreducibility.html)*

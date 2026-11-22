@@ -234,14 +234,32 @@ fn repository() -> String {
     std::env::var(REPOSITORY_ENVIRONMENT).unwrap_or_else(|_| REPOSITORY.to_owned())
 }
 
+/// The bytes at a URL.
+#[cfg(feature = "native")]
+fn download(address: &str) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    ureq::get(address)
+        .call()
+        .map_err(|error| format!("{address}: {error}"))?
+        .into_reader()
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("{address}: {error}"))?;
+    Ok(bytes)
+}
+
+/// A build without `native` downloads nothing.
+#[cfg(not(feature = "native"))]
+fn download(_address: &str) -> Result<Vec<u8>, String> {
+    Err(crate::unavailable::reason("the package registry"))
+}
+
 /// The text at a registry address: a URL fetched, or a file read.
 fn fetch(address: &str) -> Result<String, String> {
     if address.starts_with("http://") || address.starts_with("https://") {
-        ureq::get(address)
-            .call()
-            .map_err(|error| format!("{address}: {error}"))?
-            .into_string()
-            .map_err(|error| format!("{address}: {error}"))
+        download(address).and_then(|bytes| {
+            String::from_utf8(bytes).map_err(|error| format!("{address}: {error}"))
+        })
     } else {
         std::fs::read_to_string(address).map_err(|error| format!("{address}: {error}"))
     }
@@ -455,13 +473,7 @@ pub fn fetch_source(
                 "https://static.crates.io/crates/{krate}/{krate}-{wanted}.crate",
                 krate = entry.krate
             );
-            let mut bytes = Vec::new();
-            ureq::get(&archive)
-                .call()
-                .map_err(|error| format!("{archive}: {error}"))?
-                .into_reader()
-                .read_to_end(&mut bytes)
-                .map_err(|error| format!("{archive}: {error}"))?;
+            let bytes = download(&archive)?;
             std::fs::create_dir_all(&destination)
                 .map_err(|error| format!("{}: {error}", destination.display()))?;
             let file = destination.join("crate.tar.gz");
@@ -488,8 +500,6 @@ pub fn fetch_source(
         },
     ))
 }
-
-use std::io::Read as _;
 
 #[cfg(test)]
 mod tests {

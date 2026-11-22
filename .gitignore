@@ -18,3 +18,7 @@ __pycache__/
 # Files the Mighty Types I/O programs write when run from the repository.
 /examples/mighty-types/data/shout.txt
 /examples/mighty-types/data/journal.txt
+
+# The playground's browser module, built by `contrib/playground/build.sh`
+# before the site is (HQL-0061).
+/doc/public/assets/wasm

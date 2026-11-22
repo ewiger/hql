@@ -13,6 +13,9 @@
 //! value rather than instead of it, so a caller can walk them afterwards.
 
 #![deny(unsafe_code)]
+// A build without `native` keeps the code of every transport and never
+// reaches it; what only a connection uses is unused there by design.
+#![cfg_attr(not(feature = "native"), allow(dead_code, unused_imports))]
 
 mod ast;
 mod checker;
@@ -27,19 +30,32 @@ mod lexer;
 pub mod modules;
 mod mutation;
 pub mod naming;
+#[cfg(feature = "native")]
 mod nats;
+#[cfg(not(feature = "native"))]
+use unavailable::nats;
+#[cfg(feature = "native")]
 mod net;
+#[cfg(not(feature = "native"))]
+use unavailable::net;
 pub mod package;
 mod parser;
 mod paths;
+pub mod playground;
+#[cfg(feature = "native")]
 mod postgres;
+#[cfg(not(feature = "native"))]
+use unavailable::postgres;
 mod spark;
 mod transaction;
+#[cfg(not(feature = "native"))]
+mod unavailable;
 mod walk;
 
 pub mod backends;
 pub mod boundary;
 pub mod builtins;
+#[cfg(feature = "native")]
 pub mod cli;
 pub mod context;
 pub mod data;
@@ -54,7 +70,10 @@ pub mod extensions;
 pub mod graph;
 pub mod help;
 pub mod io;
+#[cfg(feature = "native")]
 pub mod kafka;
+#[cfg(not(feature = "native"))]
+use unavailable::kafka;
 pub mod library;
 pub mod random;
 pub mod reference;

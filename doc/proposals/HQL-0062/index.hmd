@@ -1,0 +1,307 @@
+# HQL-0062: HQL as a script language: `#!`, `hql FILE` and the script's arguments
+
+**Status**: drafted
+**Created**: 2026-11-21
+**Source**: design discussion of 2026-11-21: a `.hql` file that starts with
+`#!/usr/bin/env hql`, made executable and run as `./foo.hql`, fails twice
+before it evaluates anything; and [[HQL-0025]], whose principle is that
+`hql script.hql` should feel like Python
+
+## Abstract
+
+A source unit MAY start with a `#!` line, which the lexer skips. `hql FILE`
+runs `FILE` as `hql run FILE` does when the first word that names no command
+is an existing file written as a path, and evaluates the word as an
+expression otherwise, as today. `hql` with no word runs standard input when
+it is not a terminal and opens the REPL when it is. The words after a
+program file are the program's own **positional arguments**, read with
+`io.env.argv()`. Relative paths, discovery, exit status and the presentation
+of the result do not change.
+
+## Motivation
+
+- An executable file with `#!/usr/bin/env hql` on its first line is how a
+  script language is run on Unix. HQL fails it twice. The kernel runs
+  `hql /path/foo.hql`, and `with_default_command` in `src/cli.rs` inserts
+  `eval`, so the path is parsed as a program:
+
+  ```text
+  parse failure[unexpected-token]: expected an expression, found `/`
+   --> <expression>:1:1
+  ```
+
+  With `hql run` the file is read, and the lexer refuses its first line:
+
+  ```text
+  parse failure[unexpected-token]: unexpected character
+   --> foo.hql:1:1
+  1 | #!/usr/bin/env hql
+  ```
+
+- [[HQL-0025]] states that standalone execution, `hql script.hql` and
+  `cat data.json | hql '...'`, should feel like `jq`, `awk` or Python. The
+  CLI meets the second form and not the first.
+- `echo '1 + 1' | hql` prints the help and exits `2`. Python, bash and
+  every other script language run a program piped to them.
+- A script takes arguments: `./report.hql 2026 q1`. HQL has named arguments,
+  `--arg year=2026`, and no way to receive a positional argument.
+
+## Non-goals
+
+- Changing how a relative path resolves. [[HQL-0059]] and [[HQL-0040]]
+  resolve it against the source directory of the unit that names it, and a
+  script reaches the directory it was run from with `fs.working_dir()`.
+  Whether a script should differ is an open question below, not a rule
+  here.
+- An `exit(n)` operation. The exit status stays what `hql run` gives today.
+- A Windows launcher. `#!` is a Unix convention; on Windows `hql FILE` is
+  the whole of this proposal.
+- Changing `hql eval`, `hql run` or any other command when it is named.
+
+## Specification
+
+### 1. The `#!` line
+
+A unit's first line is ignored when it starts with `#!`, so the file
+that carries it is still an HQL program.
+
+- When a unit's source starts with the two bytes `#!` at offset `0`, the
+  lexer MUST skip everything up to, and not including, the first `\n`, or
+  to the end of the source. A source that starts with a UTF-8 byte order
+  mark is not a `#!` source, because the kernel would not run it either.
+- The skipped line MUST still count as line `1`, so a diagnostic on the
+  next line reports line `2`, as an editor shows it.
+- The rule MUST apply to every unit: a program run by `hql run`, a program
+  read from standard input, and a module imported from a module root.
+  A module that is also a runnable script is then legal.
+- `#!` anywhere else MUST stay a syntax error. `#` is no token in HQL, so
+  the rule is unambiguous, and it is confined to offset `0` so it never
+  becomes a second comment syntax.
+
+### 2. `hql FILE`
+
+The default command chooses between a file and an expression, instead of
+always choosing an expression.
+
+`with_default_command` keeps its walk over the arguments. On the first word
+that is neither an option, an option's value nor a command name:
+
+```text
+1. If the word ends in `.hql`, or contains `/`, and names an existing
+   regular file: insert `run` before it.
+2. Else, if the word ends in `.hql`: insert `run` before it, so that the
+   run fails with the file's absence, not with a parse failure of its name.
+3. Else: insert `eval` before it, as today.
+```
+
+- A word MUST be taken as a file only when it is written as one: with a
+  `/`, which every `#!` invocation has because the kernel passes the
+  script's path, or with the `.hql` extension. A bare word such as `birds`
+  MUST stay an expression even when a file of that name is in the working
+  directory. Otherwise a file planted in the working directory would turn
+  an expression into a program run.
+- `hql '10 / 2'` MUST stay an expression: it contains `/`, and names no
+  existing file, so rule 3 applies.
+- A command name MUST win over a file of the same name. `hql run` is the
+  command; `hql ./run` is the file. A `#!` invocation is never affected,
+  since it always carries a `/`.
+
+### 3. `hql` with no program
+
+With no word naming a program, `hql` reads one the way a script language
+does.
+
+- With no such word, when standard input is not a terminal, `hql` MUST
+  behave as `hql run -`, reading the program from standard input.
+- With no such word, when standard input is a terminal, `hql` MUST behave
+  as `hql repl`.
+- `hql --help` and `hql help` MUST keep printing the help.
+
+### 4. Positional arguments
+
+The words after a program file belong to the program, as they do after a
+Python or a bash script.
+
+```text
+hql [OPTIONS] FILE [ARG...]
+hql [OPTIONS] run FILE [ARG...]
+```
+
+- Every word after `FILE` MUST be passed to the program unread by `hql`,
+  options included: in `./report.hql --to json`, `--to json` is the
+  script's, not `hql`'s. An option for `hql` MUST come before `FILE`.
+- `hql run -` MUST take positional arguments the same way, after the `-`.
+- `hql eval` takes no positional arguments; a word after the expression
+  MUST stay a usage error, exit `2`.
+- `io.env` MUST declare:
+
+  ```hql
+  /// The invocation's positional arguments, the words after the program
+  /// file, in order: `./report.hql 2026 q1` gives `["2026", "q1"]`. The
+  /// program's own path is not among them; it is `fs.source_dir()` and
+  /// the file's name.
+  effectful fn argv() : Seq<String>
+  ```
+
+- `argv()` MUST be granted whatever the project's `env` grant says, as
+  `arg` and `args` are: the invocation chose the arguments, and a program
+  cannot read anything through them that its invoker did not give it.
+- `argv()` MUST be `[]` under `hql eval`, `hql repl` and `hql render`.
+- Named arguments are unchanged: `--arg name=value` before `FILE`, read with
+  `env.arg(name)`.
+
+### 5. What does not change
+
+The rest of a script's behaviour is what `hql run` already gives, and this
+proposal states it so that the `#!` path is held to it.
+
+- Discovery MUST anchor at the script's directory ([[HQL-0025]]), so a
+  script inside a vault inherits its project and its cards, and a script
+  outside any MUST run standalone, never fail for want of a project. A
+  script that must not discover writes `#!/usr/bin/env -S hql --bare`.
+- A relative path MUST resolve against the script's source directory
+  ([[HQL-0059]]). A script that lists the directory it was run from writes
+  `folder(fs.working_dir())`, not `folder(".")`.
+- The exit status MUST be what `hql run` returns: `0` on success, `1` when
+  the program fails to parse, check or evaluate, `2` on a usage error.
+- The result MUST be presented as `hql run` presents it, in the `--to`
+  format, `hql` by default. A script that writes lines writes them itself:
+  `names | sink(stdout, Text)`.
+
+### 6. Example
+
+```hql
+#!/usr/bin/env hql
+from io.fs import *
+import io.env
+
+// The names in each folder given, or in the directory the script was run
+// from. A folder on the command line is named from where the user stands,
+// so it is joined to the working directory, not resolved beside the script.
+here = working_dir()
+folders = env.argv() | map(p => folder(here.join(p))) given env.argv() != []
+          otherwise [folder(here)]
+
+folders | flat_map(f => entries(f)) | map(e => e.name) | sink(stdout, Text)
+```
+
+```sh
+chmod +x lsx.hql
+./lsx.hql            # the working directory, one name per line
+./lsx.hql wiki data  # both folders
+```
+
+## Backwards Compatibility
+
+- A source starting with `#!` was a syntax error, so no valid program
+  changes meaning.
+- `hql WORD`, where `WORD` ends in `.hql`, or contains `/` and names an
+  existing file, was parsed as an expression and failed to parse, since a
+  path is no HQL expression. Running the file instead changes no invocation
+  that succeeded. The one exception is a quoted expression that is also the
+  path of an existing file, which does not occur in practice.
+- `hql run FILE extra` was a usage error; it now passes `extra` to the
+  program.
+- `hql` with no word printed the help and exited `2`. Scripts that relied on
+  that exit status change. None is known.
+
+## Security Considerations
+
+- No new capability. A `#!` script is a program `hql run` would run, with
+  the same host policy, grants and discovery.
+- File selection by name is limited to words written as paths (section 2),
+  so a file planted in the working directory cannot replace an expression a
+  user typed.
+- `argv()` exposes only what the invoker passed, so granting it
+  unconditionally widens nothing; an `env` grant guards the environment,
+  which the invoker may not have chosen.
+- Discovery from the script's directory means a script copied into a vault
+  picks up that vault's configuration, as a script run with `hql run` does
+  today. `--bare` in the `#!` line opts out.
+
+## Deployment / Activation
+
+1. The lexer rule (section 1), with its tests. It is independent and useful
+   with `#!/usr/bin/env -S hql run` on its own.
+2. Positional arguments on `hql run` and `io.env.argv()` (section 4).
+3. File selection in `with_default_command` (section 2) and the no-program
+   rule (section 3).
+4. An `examples/scripts/` folder, the README's quick start, and the
+   reference page for `argv`.
+
+No flag: each step only turns an error into a run.
+
+## Reference Implementation
+
+- `src/lexer.rs`: skip a `#!` line at offset `0` before the first token,
+  keeping line accounting.
+- `src/cli.rs`: `with_default_command` gains the file rule and the
+  no-program rule. `Command::Run` gains
+  `#[arg(trailing_var_arg = true, allow_hyphen_values = true)] args:
+  Vec<String>`, and the default command forwards the words after `FILE`
+  to it.
+- `crate::extensions::env` (the `std` extension's `io.env`): store the
+  positional arguments beside the named ones and implement `argv`.
+- `lib/std/io/env/mod.hql`: declare `argv` with the doc string above, and
+  mention it in the module's doc string.
+- `examples/scripts/`: an executable `lsx.hql` and a `README.md` table in
+  the style of `examples/fs/`.
+
+## Test Plan
+
+Unit tests MUST include, in `src/lexer.rs` or `tests/` beside the lexer's
+cases:
+
+- a source of only `#!/usr/bin/env hql` and one of `#!x\n1 + 1`, which gives
+  `2`
+- a diagnostic on the line after `#!` reported at line `2`
+- `#!` after a space, after a byte order mark, and on line 2, each refused
+  with `unexpected character`
+
+Integration tests MUST include, in `tests/cli.rs` and `tests/io_env.rs`:
+
+- `with_default_command` for `foo.hql`, `./foo`, `'10 / 2'`, `birds` with a
+  file `birds` present, `run` with a file `run` present, and `missing.hql`
+  (fails with the file's absence)
+- a temporary executable `#!/usr/bin/env hql` script run directly, on Unix
+  only, with `hql` on `PATH`
+- `hql run FILE a --b c` giving `argv() == ["a", "--b", "c"]`, and an `env`
+  grant of `[]` leaving `argv()` readable
+- `argv()` under `hql eval` giving `[]`
+- `echo '1 + 1' | hql` giving `2` with exit `0`
+
+```bash
+cargo test --locked --test cli --test io_env
+cargo test --locked lexer
+```
+
+## Open Questions
+
+- Should a relative path in a program run as a script resolve against the
+  working directory, as `open()` does in Python and every path does in
+  bash? This proposal keeps the [[HQL-0059]] rule, where `folder(".")` is
+  the script's folder, because one rule for every unit keeps a query's
+  answer independent of where it was run. The cost is that the first
+  script most people write, "list this folder", is `folder(".")` and lists
+  the wrong one. Positional arguments sharpen it: a path in `argv()` is
+  named from the working directory, and `folder(p)` resolves it beside the
+  script, so every script that takes a path MUST remember
+  `working_dir().join(p)`. Deciding for the working directory reverses
+  [[HQL-0040]], its `examples/fs` cases and the cells of every vault.
+- Should `Path.join` give the segment itself when the segment is absolute,
+  as Python's `Path` does? Today `working_dir().join("/tmp")` is
+  `<working dir>//tmp`, so the example above fails on `./lsx.hql /tmp`.
+  Changing it amends [[HQL-0040]], which defines `join` as pure text.
+- Should `Seq<String>` presented as `text` be one element per line? Today
+  `--to text` writes `["a", "b"]`, so the obvious script prints a literal,
+  and `sink(stdout, Text)` is the only way to print lines.
+- Is `argv` the name? `args` is taken by the named arguments. `argv` reads
+  as C and Python; `positional()` reads as HQL.
+- Should `hql -c '<program>'` be accepted as a synonym of `hql eval`, for
+  those who write it from habit with Python and bash?
+- Should a script be able to choose its exit status, `exit(3)`, and how
+  does that sit with errors as values ([[HQL-0033]])?
+
+## Changelog
+
+- 2026-11-21: drafted
