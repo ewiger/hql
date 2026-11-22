@@ -305,7 +305,7 @@ fn a_document_reaches_no_network() {
     std::fs::write(project_config(dir.path()), "").unwrap();
     fs::write(
         dir.path().join("d.md"),
-        "```hql\nfrom net import *\nsource(http(\"http://127.0.0.1:1/\"), Json)\n```\n",
+        "```hql#eval\nfrom net import *\nsource(http(\"http://127.0.0.1:1/\"), Json)\n```\n",
     )
     .unwrap();
     refused(

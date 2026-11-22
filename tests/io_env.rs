@@ -145,8 +145,8 @@ fn render_reads_no_variable_and_every_argument() {
     let path = directory.path().join("notes.hmd");
     std::fs::write(
         &path,
-        "```hql\nimport io.env\n[env.var(\"OTHER\"), env.arg(\"who\")]\n```\n\n\
-         ```hql\nfrom io.env import vars\nvars() | entries | size\n```\n",
+        "```hql#eval\nimport io.env\n[env.var(\"OTHER\"), env.arg(\"who\")]\n```\n\n\
+         ```hql#eval\nfrom io.env import vars\nvars() | entries | size\n```\n",
     )
     .unwrap();
     let output = hql_in(

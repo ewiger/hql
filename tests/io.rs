@@ -326,7 +326,7 @@ fn a_document_reads_beside_itself_and_writes_nothing() {
     fs::write(dir.path().join("outside.json"), "{\"k\": 2}").unwrap();
     let cell = |name: &str, program: &str| {
         let path = dir.path().join("doc").join(name);
-        fs::write(&path, format!("```hql\n{program}\n```\n")).unwrap();
+        fs::write(&path, format!("```hql#eval\n{program}\n```\n")).unwrap();
         hql_in(dir.path(), &["render", &format!("doc/{name}")])
     };
     assert!(ok(&cell("read.md", r#"source(file("d.json"))"#)).contains("{k: 1}"));
@@ -487,7 +487,7 @@ fn a_document_may_write_its_own_channels() {
     std::fs::write(project_config(dir.path()), "").unwrap();
     fs::write(
         dir.path().join("doc.md"),
-        "```hql\nc = Channel<Int>(\"cell\")\n[1, 2] | sink(c)\nsource(c) | size\n```\n",
+        "```hql#eval\nc = Channel<Int>(\"cell\")\n[1, 2] | sink(c)\nsource(c) | size\n```\n",
     )
     .unwrap();
     assert!(ok(&hql_in(dir.path(), &["render", "doc.md"])).contains('2'));

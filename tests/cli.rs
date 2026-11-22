@@ -491,7 +491,7 @@ fn render_writes_nothing_when_a_replaced_cell_fails() {
     let directory = tempdir().unwrap();
     let source = directory.path().join("broken.hmd");
     let built = directory.path().join("built.md");
-    std::fs::write(&source, "```hql\ncards | nosuchstep\n```\n").unwrap();
+    std::fs::write(&source, "```hql#eval\ncards | nosuchstep\n```\n").unwrap();
 
     let output = hql(&[
         "--vault",
@@ -937,7 +937,7 @@ fn render_runs_one_cell_and_reports_every_cell_as_json() {
     let path = directory.path().join("notes.hmd");
     std::fs::write(
         &path,
-        "```hql id=base\n10\n```\n\n```hql id=double\nbase * 2\n```\n\n```hql id=other\n1 / 0\n```\n",
+        "```hql#eval id=base\n10\n```\n\n```hql#eval id=double\nbase * 2\n```\n\n```hql#eval id=other\n1 / 0\n```\n",
     )
     .unwrap();
     let name = path.to_str().unwrap();

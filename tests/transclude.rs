@@ -96,7 +96,7 @@ fn replacing_a_rendered_notebook_drops_its_old_output() {
 
 #[test]
 fn a_cell_may_name_its_own_mode() {
-    let source = "```hql#eval after\n1 + 1\n```\n\n```hql\n2 + 2\n```\n";
+    let source = "```hql#eval after\n1 + 1\n```\n\n```hql#eval\n2 + 2\n```\n";
     let rendered = transclude::render(source, &fixture(), Mode::Strict, Emit::Replace);
     let hash = &rendered.cells[0].hash;
     assert_eq!(
@@ -109,7 +109,7 @@ fn a_cell_may_name_its_own_mode() {
 
 #[test]
 fn a_failed_cell_under_replace_leaves_the_build_incomplete() {
-    let source = "# Notes\n\n```hql\ncards | nosuchstep\n```\n";
+    let source = "# Notes\n\n```hql#eval\ncards | nosuchstep\n```\n";
     let rendered = transclude::render(source, &fixture(), Mode::Strict, Emit::Replace);
     assert_eq!(rendered.blocks, 1);
     assert!(hql::diagnostics::reaches(
@@ -123,7 +123,7 @@ fn a_failed_cell_under_replace_leaves_the_build_incomplete() {
 
 #[test]
 fn a_failed_cell_under_after_shows_its_error_as_output() {
-    let source = "```hql\ncards | nosuchstep\n```\n";
+    let source = "```hql#eval\ncards | nosuchstep\n```\n";
     let rendered = transclude::render(source, &fixture(), Mode::Strict, Emit::After);
     assert!(hql::diagnostics::reaches(
         &rendered.diagnostics,
@@ -178,7 +178,7 @@ fn the_birds_example_wiki_resolves_and_renders_every_query() {
         let built = transclude::render(&source, &vault, Mode::Strict, Emit::Replace);
         assert!(built.complete, "{}", card.name());
         if built.blocks > 0 {
-            assert!(!built.document.contains("```hql"), "{}", card.name());
+            assert!(!built.document.contains("```hql#"), "{}", card.name());
         }
     }
     assert!(blocks >= 3, "the collection notebook's queries must run");
@@ -224,7 +224,7 @@ fn replaced(source: &str) -> transclude::Rendered {
 
 #[test]
 fn a_cell_reads_another_by_its_id_whatever_order_they_are_written_in() {
-    let source = "```hql\ntotal + 1\n```\n\n```hql id=total\n[1, 2, 3] | sum\n```\n";
+    let source = "```hql#eval\ntotal + 1\n```\n\n```hql#eval id=total\n[1, 2, 3] | sum\n```\n";
     let rendered = replaced(source);
     assert!(rendered.complete, "{:?}", rendered.diagnostics);
     assert_eq!(rendered.document, "7\n\n6\n");
@@ -233,25 +233,25 @@ fn a_cell_reads_another_by_its_id_whatever_order_they_are_written_in() {
 
 #[test]
 fn a_cell_exports_its_value_and_keeps_its_bindings() {
-    let source = "```hql id=open\nhelper = 2\n[1, helper]\n```\n\n```hql\nhelper\n```\n";
+    let source = "```hql#eval id=open\nhelper = 2\n[1, helper]\n```\n\n```hql#eval\nhelper\n```\n";
     let rendered = replaced(source);
     assert!(!rendered.complete);
     let message = format!("{:?}", rendered.diagnostics);
     assert!(message.contains("`helper` is not bound"), "{message}");
-    let shadowed = "```hql id=n\n1\n```\n\n```hql\nn = 5\nn + 1\n```\n";
+    let shadowed = "```hql#eval id=n\n1\n```\n\n```hql#eval\nn = 5\nn + 1\n```\n";
     assert_eq!(replaced(shadowed).document, "1\n\n6\n");
 }
 
 #[test]
 fn a_cycle_and_a_duplicate_id_are_check_errors_naming_the_cells() {
-    let cycle = replaced("```hql id=a\nb\n```\n\n```hql id=b\na\n```\n");
+    let cycle = replaced("```hql#eval id=a\nb\n```\n\n```hql#eval id=b\na\n```\n");
     let message = format!("{:?}", cycle.diagnostics);
     assert!(
         message.contains("`a`, `b` read each other in a cycle"),
         "{message}"
     );
     assert_eq!(cycle.blocks, 0);
-    let twice = replaced("```hql id=a\n1\n```\n\n```hql id=a\n2\n```\n");
+    let twice = replaced("```hql#eval id=a\n1\n```\n\n```hql#eval id=a\n2\n```\n");
     let message = format!("{:?}", twice.diagnostics);
     assert!(
         message.contains("cells 0 and 1 both have the id `a`"),
@@ -262,7 +262,7 @@ fn a_cycle_and_a_duplicate_id_are_check_errors_naming_the_cells() {
 
 #[test]
 fn a_type_error_anywhere_stops_the_document_before_any_cell_runs() {
-    let source = "```hql id=a\n[1] | size\n```\n\n```hql\na | nosuchstep\n```\n";
+    let source = "```hql#eval id=a\n[1] | size\n```\n\n```hql#eval\na | nosuchstep\n```\n";
     let rendered = after(source);
     assert_eq!(rendered.cells[0].status, transclude::Status::NotRun);
     assert_eq!(rendered.cells[1].status, transclude::Status::Error);
@@ -270,7 +270,8 @@ fn a_type_error_anywhere_stops_the_document_before_any_cell_runs() {
 
 #[test]
 fn a_cell_waiting_on_a_failed_one_is_skipped_and_the_rest_still_run() {
-    let source = "```hql id=a\n1 / 0\n```\n\n```hql id=b\na + 1\n```\n\n```hql\n2 + 2\n```\n";
+    let source =
+        "```hql#eval id=a\n1 / 0\n```\n\n```hql#eval id=b\na + 1\n```\n\n```hql#eval\n2 + 2\n```\n";
     let rendered = after(source);
     let statuses: Vec<_> = rendered.cells.iter().map(|cell| cell.status).collect();
     use transclude::Status::{Error, Ok, Skipped};
@@ -287,15 +288,89 @@ fn a_cell_waiting_on_a_failed_one_is_skipped_and_the_rest_still_run() {
 
 #[test]
 fn a_hidden_cell_runs_and_writes_nothing() {
-    let source = "```hql id=base hidden\n10\n```\n\n```hql\nbase * 2\n```\n";
+    let source = "```hql#eval id=base hidden\n10\n```\n\n```hql#eval\nbase * 2\n```\n";
     assert_eq!(replaced(source).document, "20\n");
     let notebook = after(source);
     assert_eq!(notebook.document.matches(OUTPUT_OPEN).count(), 1);
 }
 
 #[test]
+fn a_query_cell_is_a_hidden_cell() {
+    let source = "```hql#query id=base\n10\n```\n\n```hql#eval\nbase * 2\n```\n";
+    assert_eq!(replaced(source).document, "20\n");
+    let notebook = after(source);
+    assert_eq!(notebook.cells.len(), 2);
+    assert_eq!(notebook.document.matches(OUTPUT_OPEN).count(), 1);
+    assert!(
+        notebook
+            .document
+            .contains("```hql#query id=base\n10\n```\n\n```hql#eval")
+    );
+    // Writing `hidden` on a query cell says it twice and changes nothing.
+    let twice = source.replace("id=base", "id=base hidden");
+    assert_eq!(after(&twice).document.matches(OUTPUT_OPEN).count(), 1);
+    assert!(after(&twice).diagnostics.is_empty());
+}
+
+#[test]
+fn a_plain_hql_fence_is_a_listing() {
+    let source = "```hql#eval\n1 + 1\n```\n\n```hql\ncards | nosuchstep\n```\n";
+    let built = replaced(source);
+    assert!(built.complete, "{:?}", built.diagnostics);
+    assert!(built.diagnostics.is_empty(), "{:?}", built.diagnostics);
+    assert_eq!(built.blocks, 1);
+    assert_eq!(built.document, "2\n\n```hql\ncards | nosuchstep\n```\n");
+    let notebook = after(source);
+    assert_eq!(notebook.cells.len(), 1);
+    assert!(
+        notebook
+            .document
+            .ends_with("```hql\ncards | nosuchstep\n```\n")
+    );
+    assert_eq!(notebook.document.matches(OUTPUT_OPEN).count(), 1);
+    assert_eq!(after(&notebook.document).document, notebook.document);
+}
+
+#[test]
+fn an_id_on_a_listing_names_nothing() {
+    let source = "```hql id=base\n10\n```\n\n```hql#eval\nbase * 2\n```\n";
+    let rendered = after(source);
+    assert_eq!(rendered.cells.len(), 1);
+    assert!(rendered.document.starts_with("```hql id=base\n10\n```\n"));
+    assert!(
+        rendered.document.contains("status=error"),
+        "{}",
+        rendered.document
+    );
+    let message = format!("{:?}", rendered.diagnostics);
+    assert!(message.contains("base"), "{message}");
+}
+
+#[test]
+fn the_hypermarkdown_notebook_leaves_its_listing_unevaluated() {
+    let vault = hql::environment::load(Path::new("tests/fixtures/hmd-notebook"))
+        .expect("the notebook vault loads");
+    let source = std::fs::read_to_string("tests/fixtures/hmd-notebook/contents.hmd").unwrap();
+    let rendered = transclude::render(&source, &vault, Mode::Strict, Emit::After);
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+    // Its saved outputs are current, so rendering writes the card unchanged:
+    // the listing gets no output and the query cell none either.
+    assert_eq!(rendered.document, source);
+    assert_eq!(rendered.cells.len(), 4);
+    assert!(rendered.document.ends_with("```hql\ncards | size\n```\n"));
+    let built = transclude::render(&source, &vault, Mode::Strict, Emit::Replace);
+    assert!(built.complete, "{:?}", built.diagnostics);
+    assert!(!built.document.contains("```hql#"), "{}", built.document);
+    assert!(built.document.ends_with("```hql\ncards | size\n```\n"));
+}
+
+#[test]
 fn an_output_records_its_cell_and_the_hash_of_the_code_behind_it() {
-    let source = "```hql id=base\n10\n```\n\n```hql\nbase * 2\n```\n";
+    let source = "```hql#eval id=base\n10\n```\n\n```hql#eval\nbase * 2\n```\n";
     let rendered = after(source);
     let base = &rendered.cells[0].hash;
     assert_eq!(base.len(), 12);
@@ -315,7 +390,7 @@ fn an_output_records_its_cell_and_the_hash_of_the_code_behind_it() {
 
 #[test]
 fn an_output_nobody_owns_is_removed_with_a_warning() {
-    let source = "Intro\n\n<!-- hql:output id=gone hash=000000000000 status=ok -->\nold\n<!-- /hql:output -->\n\n```hql\n1\n```\n";
+    let source = "Intro\n\n<!-- hql:output id=gone hash=000000000000 status=ok -->\nold\n<!-- /hql:output -->\n\n```hql#eval\n1\n```\n";
     let rendered = after(source);
     assert!(!rendered.document.contains("old"), "{}", rendered.document);
     let message = format!("{:?}", rendered.diagnostics);
@@ -324,7 +399,7 @@ fn an_output_nobody_owns_is_removed_with_a_warning() {
 
 #[test]
 fn an_unknown_attribute_is_a_warning_and_ignored() {
-    let rendered = replaced("```hql id=x shiny\n1\n```\n");
+    let rendered = replaced("```hql#eval id=x shiny\n1\n```\n");
     assert_eq!(rendered.document, "1\n");
     let message = format!("{:?}", rendered.diagnostics);
     assert!(
@@ -335,7 +410,7 @@ fn an_unknown_attribute_is_a_warning_and_ignored() {
 
 #[test]
 fn a_cells_report_points_into_the_document() {
-    let source = "# Title\n\n```hql\ncards | nosuchstep\n```\n";
+    let source = "# Title\n\n```hql#eval\ncards | nosuchstep\n```\n";
     let rendered = replaced(source);
     let report = rendered
         .diagnostics
@@ -347,7 +422,7 @@ fn a_cells_report_points_into_the_document() {
 
 #[test]
 fn one_cell_runs_with_what_it_reads_and_the_rest_is_left_as_written() {
-    let source = "```hql id=a\n1\n```\n<!-- hql:output id=a hash=000000000000 status=ok -->\nstale\n<!-- /hql:output -->\n\n```hql id=b\na + 1\n```\n\n```hql id=c\n99\n```\n<!-- hql:output id=c hash=000000000000 status=ok -->\nkept\n<!-- /hql:output -->\n";
+    let source = "```hql#eval id=a\n1\n```\n<!-- hql:output id=a hash=000000000000 status=ok -->\nstale\n<!-- /hql:output -->\n\n```hql#eval id=b\na + 1\n```\n\n```hql#eval id=c\n99\n```\n<!-- hql:output id=c hash=000000000000 status=ok -->\nkept\n<!-- /hql:output -->\n";
     let rendered =
         transclude::render_cell(source, &fixture(), Mode::Strict, Emit::After, Some("b")).unwrap();
     assert!(

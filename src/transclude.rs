@@ -4,8 +4,10 @@
 //! each cell against the vault and writes its output as Markdown, so a to-do
 //! list or an index is a query rather than a list somebody maintains.
 //!
-//! A cell is fenced `hql`, `hql#eval` or `hql#query`; the words after that are
-//! its attributes: `id=<name>`, `replace`, `after` and `hidden`. A cell with an
+//! A cell is fenced `hql#eval` or `hql#query`; the words after that are its
+//! attributes: `id=<name>`, `replace`, `after` and `hidden`. `hql#query` is
+//! `hql#eval hidden`. A fence marked plain `hql` is a code listing: it is not
+//! checked, not run, and passes through every render unchanged. A cell with an
 //! `id` exports its value under that name to every other cell of the document,
 //! and nothing else it binds. The cells form a dependency graph, checked as a
 //! whole and evaluated in dependency order, document order breaking ties; a
@@ -474,13 +476,20 @@ impl Attributes<'_> {
 }
 
 /// The attributes of a fence's info string, or `None` when the fence is not a
-/// cell.
+/// cell. A fence marked `hql#eval` or `hql#query` is a cell; `hql#query` is
+/// `hql#eval hidden`. A fence marked plain `hql` is a code listing.
 fn cell_attributes(info: &str) -> Option<Attributes<'_>> {
     let mut words = info.split_whitespace();
-    if !matches!(words.next(), Some("hql" | "hql#eval" | "hql#query")) {
-        return None;
+    let query = match words.next() {
+        Some("hql#eval") => false,
+        Some("hql#query") => true,
+        _ => return None,
+    };
+    let mut attributes: Vec<&str> = words.collect();
+    if query && !attributes.contains(&"hidden") {
+        attributes.push("hidden");
     }
-    Some(Attributes(words.collect()))
+    Some(Attributes(attributes))
 }
 
 fn is_identifier(name: &str) -> bool {
