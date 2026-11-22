@@ -1,0 +1,296 @@
+# Scripts
+
+A **script** is a program in a file that runs as a command: its first line
+names `hql` as its interpreter, the shell runs it by its path, and the words
+after the path are its arguments. The reading club keeps its shelf in a
+program, and its librarian wants one command for the question asked before
+every meeting: which books are still to read?
+
+```text
+$ ./todo.hql
+The Hobbit
+Leaves of Grass
+$ ./todo.hql reading
+Dune
+```
+
+A script is checked before it runs, as every program is. Its arguments are
+text, and it converts them as it converts any text. Its result is presented
+as `hql run` presents it, and the result also gives the **exit status** the
+shell reads.
+
+## A first script
+
+A script opens with an **interpreter line**, `#!` and the command that runs
+it. `hql` skips that line, and the program starts on the next:
+
+```text
+$ cat todo.hql
+#!/usr/bin/env hql
+import io.env
+
+type Book { title: String, status: String }
+
+shelf = [
+    Book(title = "Frankenstein", status = "done"),
+    Book(title = "Dune", status = "reading"),
+    Book(title = "The Hobbit", status = "todo"),
+    Book(title = "Leaves of Grass", status = "todo"),
+]
+wanted = env.argv()[0] | unwrap_or("todo")
+shelf | filter(b => b.status == wanted) | map(b => b.title) | sink(stdout, Text)
+$ chmod +x todo.hql
+$ ./todo.hql
+The Hobbit
+Leaves of Grass
+```
+
+`./todo.hql` makes the kernel run `/usr/bin/env hql ./todo.hql`, and
+`hql ./todo.hql` runs the file:
+
+```d2
+direction: down
+
+shell: "./todo.hql reading" {style.fill: "#f6efe6"}
+kernel: "/usr/bin/env hql ./todo.hql reading" {style.fill: "#f6efe6"}
+run: "hql run ./todo.hql -- reading" {style.fill: "#eef6ee"}
+argv: "env.argv() == [\"reading\"]" {style.fill: "#eef6ee"}
+status: "exit status from the result" {style.fill: "#eef6ee"}
+
+shell -> kernel: "#! line"
+kernel -> run: "a word with /"
+run -> argv: "the words after the file"
+run -> status
+```
+
+The interpreter line is skipped only at the very start of a file. Anywhere
+else `#!` is a syntax error, since `#` is not a token in HQL.
+
+A diagnostic still counts the interpreter line as line 1, so a mistake on
+the next line is reported on line 2, as an editor shows it.
+
+## Arguments
+
+`env.argv()` is the script's **positional arguments**: the words after the
+program, in order, as a `Seq<String>`. The script's own path is not among
+them. The program below runs as `./todo.hql reading`:
+
+<!-- run: novault -- reading -->
+```hql
+import io.env
+
+env.argv()
+```
+
+```text
+["reading"]
+```
+
+`env.argv()[0]` is the first word, an `Option<String>`, so a script with no
+arguments supplies its default with `unwrap_or`. This is the program of
+`todo.hql`, run with `reading`:
+
+<!-- run: --to text -- reading -->
+```hql
+import io.env
+
+type Book { title: String, status: String }
+
+shelf = [
+    Book(title = "Frankenstein", status = "done"),
+    Book(title = "Dune", status = "reading"),
+    Book(title = "The Hobbit", status = "todo"),
+    Book(title = "Leaves of Grass", status = "todo"),
+]
+wanted = env.argv()[0] | unwrap_or("todo")
+shelf | filter(b => b.status == wanted) | map(b => b.title)
+```
+
+```text
+Dune
+```
+
+Every word after the program belongs to the program, options included. In
+`./todo.hql --to json`, `--to json` is two words of the script's, not an
+option of `hql`. An option for `hql` comes before the program. `--bare`
+runs the script without looking for a project:
+
+```text
+$ hql --bare todo.hql reading
+Dune
+```
+
+Named arguments, `--arg name=value`, are options of `hql` too, so they come
+before the program as well. They are read with `env.arg(name)`
+([[environment|environment and arguments]]). Positional arguments are
+always granted, whatever the project's `env` grant says: the person who ran
+the script wrote them.
+
+## Ways to run a program
+
+A script is one of several ways to hand `hql` a program. Each one has a
+named command, and the short forms are the ones a shell user knows from
+Python and Bash:
+
+| Command line | Runs | Same as |
+| --- | --- | --- |
+| `./todo.hql reading` | the file, through its `#!` line | `hql ./todo.hql reading` |
+| `hql todo.hql reading` | the file: the word ends in `.hql` | `hql run todo.hql reading` |
+| `hql -c 'PROGRAM' a b` | the program text | `hql eval 'PROGRAM' a b` |
+| `hql 'PROGRAM'` | the program text | `hql eval 'PROGRAM'` |
+| `echo 'PROGRAM' \| hql` | standard input, when it is not a terminal | `hql run -` |
+| `hql` | the REPL, on a terminal | `hql repl` |
+
+A word is a file only when it is written as one: it ends in `.hql`, or it
+contains a `/` and names an existing file. `hql todo` evaluates `todo` as
+an expression even when a file named `todo` is in the directory. A file
+placed in a directory cannot turn a typed expression into a program run. A
+`#!` invocation always passes a path with a `/`, so every script runs.
+
+A command name wins over a file of that name: `hql run` is the command, and
+`hql ./run` is the file.
+
+## The exit status
+
+A shell reads a command's **exit status** to decide what happens next:
+`./check.hql && ./publish.hql` publishes only when the check passed. HQL
+has no operation that sets the status. The status follows from the
+program's result:
+
+| The program | Exit status |
+| --- | --- |
+| fails to parse, check or evaluate | `1` |
+| has a result that is `err(e)` | `1` |
+| has any other result | `0` |
+| is invoked wrongly, a usage error | `2` |
+
+A script that can fail says so in its result type, a `Result`. This
+version of `todo.hql` fails when no book has the status asked for. It runs
+as `./todo.hql lent`:
+
+<!-- run: novault -- lent -->
+```hql
+import io.env
+
+type Book { title: String, status: String }
+
+shelf = [
+    Book(title = "Dune", status = "reading"),
+    Book(title = "The Hobbit", status = "todo"),
+]
+wanted = env.argv()[0] | unwrap_or("todo")
+left = shelf | filter(b => b.status == wanted) | map(b => b.title)
+ok(left) given left != [] otherwise err("no book is " + wanted)
+```
+
+```text
+err("no book is lent")
+```
+
+The result is still printed, and the shell sees the failure:
+
+```text
+$ ./todo.hql lent; echo "exit $?"
+err("no book is lent")
+exit 1
+$ ./todo.hql todo; echo "exit $?"
+ok(["The Hobbit"])
+exit 0
+```
+
+Only the result itself is tested. An `err` inside a list or a record is
+data, so `[ok(1), err("x")]` exits `0`.
+
+## Relative paths
+
+A relative path in HQL resolves against the folder of the source that
+names it, never against the directory `hql` was started in. For a script,
+that is the script's own folder:
+
+<!-- run: skip -->
+```hql
+#!/usr/bin/env hql
+from io.fs import *
+
+entries(folder("."))   // the script's folder, wherever it is run from
+```
+
+This is where HQL differs from the languages a script is usually written
+in. Python, Node and Bash read `open("notes.txt")` and `ls .` against the
+**working directory**, the directory the user stands in. HQL reads the
+same path against the script's folder, as those languages resolve the
+modules a file imports:
+
+| | A module a file imports | A file a program reads |
+| --- | --- | --- |
+| Python | the script's folder | the working directory |
+| Node | the file's folder | the working directory |
+| Bash | the working directory | the working directory |
+| HQL | the unit's folder | the unit's folder |
+
+The same rule serves a document. A cell in a card resolves its paths
+against the card's folder, wherever `hql render` was started, so a card
+renders the same from the repository root, from its own folder, from CI
+and from an editor. This is what notebook tools do too: Jupyter, knitr and
+Quarto run a document's code in the document's folder. A script and a
+cell follow one rule, and a program's answer depends on the program and
+the files beside it, not on where it was run.
+
+A script does want the working directory in one place: a path the user
+types on the command line is named from where the user stands. The script
+reads that directory with `fs.working_dir()` and joins the argument to it:
+
+<!-- run: skip -->
+```hql
+#!/usr/bin/env hql
+from io.fs import *
+import io.env
+
+// Each folder named on the command line, or the directory the script was
+// run from.
+here = working_dir()
+folders = env.argv() | map(p => folder(here.join(p))) given env.argv() != []
+          otherwise [folder(here)]
+
+folders | flat_map(f => entries(f)) | map(e => e.name) | sink(stdout, Text)
+```
+
+`join` keeps an absolute path as it is, so the same line handles both
+kinds of argument:
+
+<!-- run: novault -->
+```hql
+import io.fs
+
+[Path("/home/ada").join("wiki"), Path("/home/ada").join("/tmp")]
+```
+
+```text
+[Path(text = "/home/ada/wiki"), Path(text = "/tmp")]
+```
+
+This is `lsx.hql` from the
+[script examples](https://github.com/ewiger/hql/tree/main/examples/scripts),
+run from the reading club's folder. `books` and `authors` are named from
+there, not from the script's folder:
+
+```text
+$ cd examples/reading-club
+$ ../scripts/lsx.hql books authors
+a-room-of-ones-own.hmd
+dune.hmd
+frankenstein.hmd
+leaves-of-grass.hmd
+mrs-dalloway.hmd
+the-common-reader.hmd
+the-hobbit.hmd
+frank-herbert.hmd
+jrr-tolkien.hmd
+mary-shelley.hmd
+virginia-woolf.hmd
+walt-whitman.hmd
+```
+
+[[endpoints|Files and standard endpoints]] states where every kind of unit
+resolves a relative path, and the [[env|reference]] states `argv` with the
+rest of `io.env`.

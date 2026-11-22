@@ -1,5 +1,5 @@
 //! The module `io.env` (HQL-0041 part 5): environment variables and the
-//! invocation's named arguments.
+//! invocation's named and positional arguments (HQL-0062).
 //!
 //! The environment is read from the process once, when a program first
 //! reads it, and held for the rest of the process: no code of the crate
@@ -9,7 +9,8 @@
 //! none under `hql render`, whose host policy is the document's. A variable
 //! whose name or value is not UTF-8 is not held, so it reads as unset, as a
 //! withheld one does. The arguments are the `--arg name=value` pairs the
-//! host fixed before evaluation, always granted.
+//! host fixed before evaluation, and the positional arguments are the words
+//! after the program; both are always granted.
 
 use super::{EvalCx, Operation, Purity, Shape, Signature};
 use crate::diagnostics::Diagnostic;
@@ -38,6 +39,7 @@ pub(crate) static STEPS: &[Operation] = &[
     reading("vars", eval_vars),
     reading("arg", eval_arg),
     reading("args", eval_args),
+    reading("argv", eval_argv),
 ];
 
 /// Which environment variables the host grants a program.
@@ -65,20 +67,24 @@ impl Grant {
     }
 }
 
-/// What the host fixed before evaluation: the grant and the arguments.
+/// What the host fixed before evaluation: the grant, the named arguments
+/// and the positional ones.
 #[derive(Debug, Clone, Default)]
 struct Invocation {
     grant: Grant,
     arguments: BTreeMap<String, String>,
+    positional: Vec<String>,
 }
 
 static INVOCATION: Mutex<Option<Invocation>> = Mutex::new(None);
 
-/// Fix the grant and the arguments every later evaluation reads.
-pub fn set_invocation(grant: Grant, arguments: Vec<(String, String)>) {
+/// Fix the grant and the arguments every later evaluation reads: the
+/// `--arg name=value` pairs, and the words after the program, in order.
+pub fn set_invocation(grant: Grant, arguments: Vec<(String, String)>, positional: Vec<String>) {
     *INVOCATION.lock().unwrap_or_else(PoisonError::into_inner) = Some(Invocation {
         grant,
         arguments: arguments.into_iter().collect(),
+        positional,
     });
 }
 
@@ -207,6 +213,17 @@ fn eval_arg(_: &mut dyn EvalCx, input: Value, _: &[TypedArg], span: Range<usize>
 
 fn eval_args(_: &mut dyn EvalCx, _: Value, _: &[TypedArg], span: Range<usize>) -> Result<Value> {
     map(&invocation().arguments, &span)
+}
+
+fn eval_argv(_: &mut dyn EvalCx, _: Value, _: &[TypedArg], _: Range<usize>) -> Result<Value> {
+    let words = invocation()
+        .positional
+        .iter()
+        .map(|word| text(word))
+        .collect();
+    Ok(Value::Traversal(Arc::new(
+        crate::traversal::Traversal::kept(TypeRef::STR, words),
+    )))
 }
 
 #[cfg(test)]

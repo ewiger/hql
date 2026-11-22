@@ -1,6 +1,6 @@
 # HQL-0062: HQL as a script language: `#!`, `hql FILE` and the script's arguments
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-11-21
 **Source**: design discussion of 2026-11-21: a `.hql` file that starts with
 `#!/usr/bin/env hql`, made executable and run as `./foo.hql`, fails twice
@@ -13,10 +13,21 @@ A source unit MAY start with a `#!` line, which the lexer skips. `hql FILE`
 runs `FILE` as `hql run FILE` does when the first word that names no command
 is an existing file written as a path, and evaluates the word as an
 expression otherwise, as today. `hql` with no word runs standard input when
-it is not a terminal and opens the REPL when it is. The words after a
-program file are the program's own **positional arguments**, read with
-`io.env.argv()`. Relative paths, discovery, exit status and the presentation
-of the result do not change.
+it is not a terminal and opens the REPL when it is. `hql -c PROGRAM` is
+`hql eval PROGRAM`. The words after a program file, or after an inline
+program, are the program's own **positional arguments**, read with
+`io.env.argv()`. The exit status is a function of the program's result: a
+result that is an `err` exits `1`. `Path.join` with an absolute segment
+gives the segment, and a sequence of strings presented as text is one
+element per line. Relative paths and discovery do not change.
+
+The companion note
+[against other script languages](parts/02-other-languages.hmd) compares
+this command line with Python, Node, Bash, Ruby, Perl, Lua and Deno. The
+companion note
+[relative paths, in a script and in a cell](parts/03-relative-paths.hmd)
+states what the relative-path rule gives a cell under `hql render`, and
+compares it with script languages and notebook tools.
 
 ## Motivation
 
@@ -45,18 +56,30 @@ of the result do not change.
   every other script language run a program piped to them.
 - A script takes arguments: `./report.hql 2026 q1`. HQL has named arguments,
   `--arg year=2026`, and no way to receive a positional argument.
+- A script reports failure to its caller through its exit status:
+  `./check.hql && ./deploy.hql`. A program whose result is `err(e)` exits
+  `0`, so a shell cannot tell a failed check from a passed one.
 
 ## Non-goals
 
 - Changing how a relative path resolves. [[HQL-0059]] and [[HQL-0040]]
   resolve it against the source directory of the unit that names it, and a
-  script reaches the directory it was run from with `fs.working_dir()`.
-  Whether a script should differ is an open question below, not a rule
-  here.
-- An `exit(n)` operation. The exit status stays what `hql run` gives today.
+  script reaches the directory it was run from with `fs.working_dir()`,
+  and the same rule holds for a script as for every other unit.
+- An `exit(n)` operation. An operation that ends the process is a jump out
+  of an evaluation, and [[HQL-0033]] makes a failure a value. The exit
+  status is derived from the result instead (the section "The exit status").
+- An exit status other than `0` and `1` that the program chooses. The status
+  is a function of the result, so a later proposal extends it with a type,
+  not with an operation.
+- Processes: `io.process` and signals, child processes, named pipes, the
+  keyword `parallel` and watchdogs. [[HQL-0064]] specifies them. `argv` is
+  in `io.env`, beside `arg` and `args`, and stays here.
 - A Windows launcher. `#!` is a Unix convention; on Windows `hql FILE` is
   the whole of this proposal.
-- Changing `hql eval`, `hql run` or any other command when it is named.
+- Changing `hql eval`, `hql run` or any other command when it is named,
+  except for the positional arguments they take and the exit status of a
+  result that is an `err`.
 
 ## Specification
 
@@ -105,6 +128,11 @@ that is neither an option, an option's value nor a command name:
 - A command name MUST win over a file of the same name. `hql run` is the
   command; `hql ./run` is the file. A `#!` invocation is never affected,
   since it always carries a `/`.
+- `-c` MUST be `eval`: `hql -c PROGRAM` is `hql eval PROGRAM`, as `-c` is
+  in Python and Bash. `hql eval` stays the command's name.
+- The named commands MUST stay: `hql FILE`, `hql -c PROGRAM` and `hql`
+  alone are shorthands for `hql run`, `hql eval` and `hql repl` or
+  `hql run -`, not replacements.
 
 ### 3. `hql` with no program
 
@@ -119,38 +147,112 @@ does.
 
 ### 4. Positional arguments
 
-The words after a program file belong to the program, as they do after a
-Python or a bash script.
+The words after a program belong to the program, as they do after a Python
+or a Bash script, and after `python -c PROGRAM` or `bash -c PROGRAM`.
 
 ```text
 hql [OPTIONS] FILE [ARG...]
 hql [OPTIONS] run FILE [ARG...]
+hql [OPTIONS] -c PROGRAM [ARG...]
+hql [OPTIONS] eval PROGRAM [ARG...]
+hql [OPTIONS] PROGRAM [ARG...]
 ```
 
-- Every word after `FILE` MUST be passed to the program unread by `hql`,
-  options included: in `./report.hql --to json`, `--to json` is the
-  script's, not `hql`'s. An option for `hql` MUST come before `FILE`.
+- Every word after `FILE` or `PROGRAM` MUST be passed to the program unread
+  by `hql`, options included: in `./report.hql --to json`, `--to json` is
+  the script's, not `hql`'s. An option for `hql` MUST come before `FILE`
+  or `PROGRAM`.
 - `hql run -` MUST take positional arguments the same way, after the `-`.
-- `hql eval` takes no positional arguments; a word after the expression
-  MUST stay a usage error, exit `2`.
+- An inline program MUST take positional arguments the same way:
+  `hql -c 'env.argv()' a b` gives `["a", "b"]`. No word stands in for the
+  program's name, unlike `sys.argv[0]` in Python and `$0` in Bash.
 - `io.env` MUST declare:
 
   ```hql
   /// The invocation's positional arguments, the words after the program
   /// file, in order: `./report.hql 2026 q1` gives `["2026", "q1"]`. The
   /// program's own path is not among them; it is `fs.source_dir()` and
-  /// the file's name.
+  /// the file's name. The running process is `io.process` (HQL-0064).
   effectful fn argv() : Seq<String>
   ```
 
 - `argv()` MUST be granted whatever the project's `env` grant says, as
   `arg` and `args` are: the invocation chose the arguments, and a program
   cannot read anything through them that its invoker did not give it.
-- `argv()` MUST be `[]` under `hql eval`, `hql repl` and `hql render`.
+- `argv()` MUST be `[]` under `hql repl` and `hql render`, and when no word
+  follows the program.
 - Named arguments are unchanged: `--arg name=value` before `FILE`, read with
   `env.arg(name)`.
 
-### 5. What does not change
+### 5. The exit status
+
+The exit status is a function of the program's result, the value of its
+last expression. No operation sets it. Rust gives `main` the same rule:
+`main` returns a value, and the value gives the status.
+
+```text
+the program fails to parse, check or evaluate    1
+the result is `err(e)`                           1
+any other result                                 0
+a usage error                                    2
+```
+
+- When the result is a `Result` that is `err(e)`, `hql` MUST exit `1`.
+- When the result is `ok(v)`, or a value of any other type, `hql` MUST exit
+  `0`.
+- Only the result itself MUST be tested. An `err` inside a collection, a
+  stream or a record is data: `[ok(1), err("x")]` exits `0`.
+- The result MUST be presented whatever the status, on standard output in
+  the `--to` format: a program that exits `1` on `err(e)` still prints
+  `err(e)`.
+- The rule MUST apply wherever `hql` presents a program's result and exits:
+  `hql run`, `hql eval`, `hql FILE` and a program read from standard input.
+  The REPL does not exit on a result, so the rule does not apply to it.
+- A program whose result type is `Result<T, E>` states in its type that it
+  can exit `1`. The status needs no effect and no grant, because computing
+  the result is all the program does to set it.
+
+```hql
+#!/usr/bin/env hql
+import io.env
+
+// `./report.hql 2026` prints `ok("2026")` and exits 0.
+// `./report.hql` prints the `err` and exits 1.
+ok(env.argv()[0]) given env.argv() != []
+otherwise err("usage: report.hql YEAR")
+```
+
+The companion note
+[pure and effectful](parts/01-pure-and-effectful.hmd) compares this rule
+with Python's `sys.exit`, Haskell's `IO` and Rust's `main`, and states the
+rules a new I/O operation follows.
+
+### 6. `Path.join` and an absolute segment
+
+A path in `argv()` is named from where the user stands, so a script joins
+it to `fs.working_dir()`. The join MUST then keep an absolute path as it
+is, as Python's `Path` does.
+
+- `base.join(segment)` MUST be `segment` when `segment` has a root: `/`, a
+  drive root such as `C:/`, or a share. Otherwise it is `base`, a `/` and
+  `segment`, as [[HQL-0040]] defines it.
+- `working_dir().join("/tmp")` is `/tmp`, and
+  `working_dir().join("wiki")` is `<working dir>/wiki`.
+- This amends [[HQL-0040]], where `join` is text appended after a `/` in
+  every case.
+
+### 7. A sequence of strings presented as text
+
+A script's result is often the names it found. Presented as text, a
+collection whose elements are all `String` MUST be one element per line,
+as `sink(stdout, Text)` writes it, and not its literal.
+
+- `hql --to text -c '["a", "b"]'` writes `a` and `b` on two lines.
+- An empty collection MUST write nothing.
+- Any other value is presented as text as before, and every other format
+  is unchanged: `--to hql` still writes `["a", "b"]`.
+
+### 8. What does not change
 
 The rest of a script's behaviour is what `hql run` already gives, and this
 proposal states it so that the `#!` path is held to it.
@@ -162,13 +264,10 @@ proposal states it so that the `#!` path is held to it.
 - A relative path MUST resolve against the script's source directory
   ([[HQL-0059]]). A script that lists the directory it was run from writes
   `folder(fs.working_dir())`, not `folder(".")`.
-- The exit status MUST be what `hql run` returns: `0` on success, `1` when
-  the program fails to parse, check or evaluate, `2` on a usage error.
 - The result MUST be presented as `hql run` presents it, in the `--to`
-  format, `hql` by default. A script that writes lines writes them itself:
-  `names | sink(stdout, Text)`.
+  format, `hql` by default, with the text rule of section 7.
 
-### 6. Example
+### 9. Example
 
 ```hql
 #!/usr/bin/env hql
@@ -200,10 +299,21 @@ chmod +x lsx.hql
   path is no HQL expression. Running the file instead changes no invocation
   that succeeded. The one exception is a quoted expression that is also the
   path of an existing file, which does not occur in practice.
-- `hql run FILE extra` was a usage error; it now passes `extra` to the
-  program.
+- `hql run FILE extra` and `hql eval PROGRAM extra` were usage errors; they
+  now pass `extra` to the program.
+- An option of `hql` written after the program, `hql 'source(stdin)' --to
+  json` or `hql run q.hql --to json`, was read by `hql`. It is now a word of
+  the program's, so the option moves before it: `hql --to json
+  'source(stdin)'`.
+- `-c` was an unknown option, a usage error.
+- `base.join(segment)` with an absolute `segment` gave `base//segment`, a
+  path that names nothing intended; it now gives `segment`.
+- A collection of strings under `--to text` was written as its literal and
+  is now one element per line. A caller that parsed the literal changes.
 - `hql` with no word printed the help and exited `2`. Scripts that relied on
   that exit status change. None is known.
+- A program whose result is `err(e)` exited `0` and now exits `1`. A caller
+  that tests the status of such a program sees the failure.
 
 ## Security Considerations
 
@@ -223,23 +333,33 @@ chmod +x lsx.hql
 
 1. The lexer rule (section 1), with its tests. It is independent and useful
    with `#!/usr/bin/env -S hql run` on its own.
-2. Positional arguments on `hql run` and `io.env.argv()` (section 4).
-3. File selection in `with_default_command` (section 2) and the no-program
-   rule (section 3).
-4. An `examples/scripts/` folder, the README's quick start, and the
+2. Positional arguments on `hql run` and `hql eval`, and `io.env.argv()`
+   (section 4).
+3. File selection and `-c` in `with_default_command` (section 2) and the
+   no-program rule (section 3).
+4. The exit status of an `err` result (the section "The exit status").
+5. `Path.join` with an absolute segment (section 6).
+6. Text presentation of a collection of strings (section 7).
+7. An `examples/scripts/` folder, the README's quick start, and the
    reference page for `argv`.
 
-No flag: each step only turns an error into a run.
+No flag: steps 1 to 3 only turn an error into a run, and steps 4 to 6 are
+breaking changes made outright.
 
 ## Reference Implementation
 
 - `src/lexer.rs`: skip a `#!` line at offset `0` before the first token,
   keeping line accounting.
-- `src/cli.rs`: `with_default_command` gains the file rule and the
-  no-program rule. `Command::Run` gains
+- `src/cli.rs`: `with_default_command` gains the file rule, the `-c`
+  rule and the no-program rule. `Command::Run` and `Command::Eval` gain
   `#[arg(trailing_var_arg = true, allow_hyphen_values = true)] args:
-  Vec<String>`, and the default command forwards the words after `FILE`
-  to it.
+  Vec<String>`, and the default command inserts `--` after `FILE` or
+  `PROGRAM` so that clap reads no word after it as an option of `hql`.
+  Where `run` and `eval` present a result, the status is `1` when the
+  result is an `err`.
+- `src/paths.rs`: `join` returns the segment when the segment has a root.
+- `src/extensions/format.rs`: the `Text` default writes a collection of
+  `String` one element per line.
 - `crate::extensions::env` (the `std` extension's `io.env`): store the
   positional arguments beside the named ones and implement `argv`.
 - `lib/std/io/env/mod.hql`: declare `argv` with the doc string above, and
@@ -267,41 +387,33 @@ Integration tests MUST include, in `tests/cli.rs` and `tests/io_env.rs`:
   only, with `hql` on `PATH`
 - `hql run FILE a --b c` giving `argv() == ["a", "--b", "c"]`, and an `env`
   grant of `[]` leaving `argv()` readable
-- `argv()` under `hql eval` giving `[]`
+- `hql eval 'env.argv()'` giving `[]`, and `hql -c 'env.argv()' a --b`
+  and `hql eval 'env.argv()' a --b` giving `["a", "--b"]`
+- `hql -c '1 + 1'` giving `2`
 - `echo '1 + 1' | hql` giving `2` with exit `0`
+- `hql eval 'err("x")'` printing `err("x")` with exit `1`; `ok(1)` and
+  `[ok(1), err("x")]` with exit `0`; and the same three from `hql run FILE`
+- `working_dir().join("/tmp")` giving `/tmp`, and a relative segment
+  joined as before, in `tests/io_fs.rs`
+- `hql --to text -c '["a", "b"]'` writing two lines, `[]` writing nothing,
+  and `--to hql` writing the literal
 
 ```bash
-cargo test --locked --test cli --test io_env
+cargo test --locked --test cli --test io_env --test io_fs
 cargo test --locked lexer
 ```
-
-## Open Questions
-
-- Should a relative path in a program run as a script resolve against the
-  working directory, as `open()` does in Python and every path does in
-  bash? This proposal keeps the [[HQL-0059]] rule, where `folder(".")` is
-  the script's folder, because one rule for every unit keeps a query's
-  answer independent of where it was run. The cost is that the first
-  script most people write, "list this folder", is `folder(".")` and lists
-  the wrong one. Positional arguments sharpen it: a path in `argv()` is
-  named from the working directory, and `folder(p)` resolves it beside the
-  script, so every script that takes a path MUST remember
-  `working_dir().join(p)`. Deciding for the working directory reverses
-  [[HQL-0040]], its `examples/fs` cases and the cells of every vault.
-- Should `Path.join` give the segment itself when the segment is absolute,
-  as Python's `Path` does? Today `working_dir().join("/tmp")` is
-  `<working dir>//tmp`, so the example above fails on `./lsx.hql /tmp`.
-  Changing it amends [[HQL-0040]], which defines `join` as pure text.
-- Should `Seq<String>` presented as `text` be one element per line? Today
-  `--to text` writes `["a", "b"]`, so the obvious script prints a literal,
-  and `sink(stdout, Text)` is the only way to print lines.
-- Is `argv` the name? `args` is taken by the named arguments. `argv` reads
-  as C and Python; `positional()` reads as HQL.
-- Should `hql -c '<program>'` be accepted as a synonym of `hql eval`, for
-  those who write it from habit with Python and bash?
-- Should a script be able to choose its exit status, `exit(3)`, and how
-  does that sit with errors as values ([[HQL-0033]])?
 
 ## Changelog
 
 - 2026-11-21: drafted
+- 2026-11-22: the exit status as a function of the result; `exit(n)` a
+  non-goal
+- 2026-11-22: a companion note on pure and effectful operations
+- 2026-11-22: processes, pipes, `parallel` and watchdogs moved to
+  [[HQL-0064]]
+- 2026-11-22: `-c`, positional arguments after an inline program,
+  `Path.join` with an absolute segment, text presentation of a collection
+  of strings, relative paths kept beside the script; a companion note
+  against other script languages, and one on relative paths in a script
+  and in a cell
+- 2026-11-22: implemented

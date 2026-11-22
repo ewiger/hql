@@ -150,11 +150,19 @@ pub struct Options {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Type-check and evaluate one program given as an argument.
+    /// Type-check and evaluate one program given as an argument. `-c` is
+    /// the same command.
     Eval {
         /// The program.
         #[arg(allow_hyphen_values = true)]
         expression: String,
+        /// The program's positional arguments, read with `io.env.argv()`.
+        #[arg(
+            trailing_var_arg = true,
+            allow_hyphen_values = true,
+            value_name = "ARG"
+        )]
+        args: Vec<String>,
     },
     /// Parse and type-check a program without evaluating it.
     Check {
@@ -183,10 +191,18 @@ enum Command {
         #[arg(long = "as", value_name = "TYPE")]
         element: Option<String>,
     },
-    /// Type-check and evaluate a program from a file.
+    /// Type-check and evaluate a program from a file. `hql FILE` is the same
+    /// command when `FILE` ends in `.hql` or contains a `/`.
     Run {
         /// A file, or `-` for standard input.
         file: String,
+        /// The program's positional arguments, read with `io.env.argv()`.
+        #[arg(
+            trailing_var_arg = true,
+            allow_hyphen_values = true,
+            value_name = "ARG"
+        )]
+        args: Vec<String>,
     },
     /// Read, evaluate and print, one program at a time.
     Repl,
@@ -501,12 +517,26 @@ const VALUED: [&str; 17] = [
     "--diagnostics-format",
 ];
 
-/// `hql '<program>'` is `hql eval '<program>'`: insert `eval` before a first
-/// word that names no command.
+/// The command an invocation names, filled in where it names none
+/// (HQL-0062):
+///
+/// - `-c PROGRAM` is `eval PROGRAM`;
+/// - a first free word that ends in `.hql`, or contains `/` and names an
+///   existing regular file, is `run FILE`; any other is `eval PROGRAM`;
+/// - no free word is `run -` when standard input is not a terminal, and
+///   `repl` when it is.
+///
+/// The words after the program are the program's own, so a `--` is put
+/// after it: clap then reads none of them as an option of `hql`.
 #[must_use]
-pub fn with_default_command(arguments: Vec<String>) -> Vec<String> {
+pub fn with_default_command(arguments: Vec<String>, stdin_is_terminal: bool) -> Vec<String> {
+    let mut arguments = arguments;
     let mut index = 1;
     while let Some(argument) = arguments.get(index) {
+        if argument == "-c" {
+            arguments[index] = "eval".to_owned();
+            return after_program(arguments, index + 1);
+        }
         if VALUED.contains(&argument.as_str()) {
             index += 2;
             continue;
@@ -515,12 +545,61 @@ pub fn with_default_command(arguments: Vec<String>) -> Vec<String> {
             index += 1;
             continue;
         }
+        if matches!(argument.as_str(), "run" | "eval") {
+            return after_program(arguments, index + 1);
+        }
         if COMMANDS.contains(&argument.as_str()) {
             return arguments;
         }
-        let mut arguments = arguments;
-        arguments.insert(index, "eval".to_owned());
+        let command = if written_as_file(argument) {
+            "run"
+        } else {
+            "eval"
+        };
+        arguments.insert(index, command.to_owned());
+        return after_program(arguments, index + 1);
+    }
+    let asks = |word: &str| matches!(word, "-h" | "--help" | "-V" | "--version");
+    if arguments.iter().skip(1).any(|word| asks(word)) {
         return arguments;
+    }
+    if stdin_is_terminal {
+        arguments.push("repl".to_owned());
+    } else {
+        arguments.extend(["run".to_owned(), "-".to_owned()]);
+    }
+    arguments
+}
+
+/// Whether a word names a program file: it is `-`, standard input; it ends
+/// in `.hql`, so that a missing one fails as a missing file; or it contains
+/// a separator, `/` or on Windows `\`, and names an existing regular file.
+/// A bare word is an expression even when a file of that name exists, so a
+/// file placed in the working directory cannot turn a typed expression into
+/// a program run.
+fn written_as_file(word: &str) -> bool {
+    word == "-"
+        || Path::extension(Path::new(word)).is_some_and(|extension| extension == "hql")
+        || (word.chars().any(std::path::is_separator) && Path::new(word).is_file())
+}
+
+/// `arguments` with `--` after the program at `at`, its file or its text,
+/// when a word follows it: every word after the program is the program's,
+/// a `--` among them included.
+fn after_program(mut arguments: Vec<String>, at: usize) -> Vec<String> {
+    // Options between the command and its program are still `hql`'s.
+    let mut index = at;
+    while let Some(argument) = arguments.get(index) {
+        if VALUED.contains(&argument.as_str()) {
+            index += 2;
+        } else if argument.starts_with("--") && argument.len() > 2 {
+            index += 1;
+        } else {
+            break;
+        }
+    }
+    if index + 1 < arguments.len() {
+        arguments.insert(index + 1, "--".to_owned());
     }
     arguments
 }
@@ -546,7 +625,10 @@ pub fn parse() -> Cli {
     static VERSION: std::sync::LazyLock<String> = std::sync::LazyLock::new(version);
     let matches = Cli::command()
         .version(VERSION.as_str())
-        .get_matches_from(with_default_command(std::env::args().collect()));
+        .get_matches_from(with_default_command(
+            std::env::args().collect(),
+            std::io::stdin().is_terminal(),
+        ));
     let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
     if let Command::Render {
         files,
@@ -656,7 +738,11 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             crate::extensions::env::Grant::All,
             crate::extensions::env::Grant::Only,
         );
-    crate::extensions::env::set_invocation(grant, cli.options.arguments.clone());
+    let positional = match &cli.command {
+        Command::Run { args, .. } | Command::Eval { args, .. } => args.clone(),
+        _ => Vec::new(),
+    };
+    crate::extensions::env::set_invocation(grant, cli.options.arguments.clone(), positional);
     // The run's diagnostic channel exists before the loader runs, so the
     // loader writes into it as every later phase does.
     let opened = crate::io::open_diagnostics();
@@ -710,7 +796,7 @@ fn undeclared(levels: &[PathBuf]) -> Result<(), String> {
 /// the program file a command reads, and the project options.
 fn request(cli: &Cli) -> crate::context::Request {
     let file = match &cli.command {
-        Command::Run { file }
+        Command::Run { file, .. }
         | Command::Check { file }
         | Command::Plan { file }
         | Command::Boundary { file, .. } => Some(file.as_str()),
@@ -1507,7 +1593,7 @@ fn dispatch(
             write_context(context, &cli.options, out)?;
             Ok(0)
         }
-        Command::Eval { expression } => {
+        Command::Eval { expression, .. } => {
             crate::io::set_host(crate::io::Policy::Open, PathBuf::from("."));
             let outcome = crate::run_on(expression, env, settings.mode, backend);
             emit(
@@ -1522,7 +1608,7 @@ fn dispatch(
                 err,
             )
         }
-        Command::Run { file } => {
+        Command::Run { file, .. } => {
             let (source, origin) = read(file)?;
             crate::io::set_host(crate::io::Policy::Open, directory_of(file));
             if file == "-" {
@@ -2108,7 +2194,13 @@ fn presented(
             .map(Some)
             .map_err(|error| error.to_string());
     }
-    crate::extensions::format::render(value, format, 0, None, &env.formats).map(Some)
+    let text = crate::extensions::format::render(value, format, 0, None, &env.formats)?;
+    // An empty collection of lines is no line at all, not a blank one.
+    let empty = || value.elements().is_some_and(|elements| elements.is_empty());
+    if text.is_empty() && matches!(format.0, "Text" | "String" | "Lines") && empty() {
+        return Ok(None);
+    }
+    Ok(Some(text))
 }
 
 /// Write a stream as it arrives, one piece per value, each flushed so a
@@ -2175,7 +2267,7 @@ fn emit(
             streamed(traversal, to.as_ref(), host, env, options.compact, out)?;
         }
         deliver(&outcome.diagnostics, source, origin, shown, options, err)?;
-        return Ok(u8::from(outcome.failed()));
+        return Ok(status(outcome));
     }
     match options.envelope {
         Shape::Json => {
@@ -2227,7 +2319,14 @@ fn emit(
             deliver(&outcome.diagnostics, source, origin, shown, options, err)?;
         }
     }
-    Ok(u8::from(outcome.failed()))
+    Ok(status(outcome))
+}
+
+/// The exit status of a presented result (HQL-0062): `1` when the program
+/// failed or its result is an `err`, else `0`. Only the result itself is
+/// tested; an `err` inside a collection or a record is data.
+fn status(outcome: &crate::Outcome) -> u8 {
+    u8::from(outcome.failed() || matches!(outcome.value, Some(Value::Err(..))))
 }
 
 /// The diagnostics with `origin` where they name none: what the program

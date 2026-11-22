@@ -99,6 +99,16 @@ fn run(block: &Block, defined: &HashMap<String, String>) -> String {
         words.drain(..2);
     }
     source.push_str(&block.program);
+    // Words after `--` in a directive are the program's own, passed after
+    // it and read with `io.env.argv()`: `<!-- run: -- 2026 q1 -->`.
+    let positional: Vec<&str> = match words.iter().position(|word| *word == "--") {
+        Some(at) => {
+            let after = words[at + 1..].to_vec();
+            words.truncate(at);
+            after
+        }
+        None => Vec::new(),
+    };
     let arguments: Vec<&str> = match words.as_slice() {
         [] => vec!["--vault", "examples/reading-club"],
         ["novault"] => vec![],
@@ -123,9 +133,14 @@ fn run(block: &Block, defined: &HashMap<String, String>) -> String {
             .unwrap();
         child.wait_with_output().unwrap()
     } else {
-        hql.args(["eval", &source]).output().unwrap()
+        hql.args(["eval", &source])
+            .args(&positional)
+            .output()
+            .unwrap()
     };
-    let text = if output.status.success() {
+    // A result that is an `err` exits 1 and is still written on standard
+    // output (HQL-0062); a failure writes its diagnostics on standard error.
+    let text = if output.status.success() || output.stderr.is_empty() {
         output.stdout
     } else {
         output.stderr

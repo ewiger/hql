@@ -73,31 +73,31 @@ fn standard_input_reads_as_jq_writes_it() {
     let dir = tempdir().unwrap();
     let one = piped_in(
         dir.path(),
-        &["source(stdin, Json)", "--to", "json"],
+        &["--to", "json", "source(stdin, Json)"],
         r#"{"name":"owl","count":3}"#,
     );
     assert_eq!(ok(&one), "{\n  \"count\": 3,\n  \"name\": \"owl\"\n}\n");
     let compact = piped_in(
         dir.path(),
-        &["source(stdin, Json)", "--to", "json", "--compact"],
+        &["--to", "json", "--compact", "source(stdin, Json)"],
         "{\"a\": 1}\n{\"a\": 2}\n",
     );
     assert_eq!(ok(&compact), "{\"a\":1}\n{\"a\":2}\n");
     // What `--to json` writes, `source(stdin, Json)` reads back.
     let pretty = piped_in(
         dir.path(),
-        &["source(stdin, Json)", "--to", "json"],
+        &["--to", "json", "source(stdin, Json)"],
         "{\"a\": 1}\n{\"a\": 2}\n",
     );
     let again = piped_in(
         dir.path(),
-        &["source(stdin, Json)", "--to", "json", "--compact"],
+        &["--to", "json", "--compact", "source(stdin, Json)"],
         &ok(&pretty),
     );
     assert_eq!(ok(&again), "{\"a\":1}\n{\"a\":2}\n");
     let yaml = piped_in(
         dir.path(),
-        &["source(stdin, Json)", "--to", "yaml"],
+        &["--to", "yaml", "source(stdin, Json)"],
         "{\"a\": 1}",
     );
     assert_eq!(ok(&yaml), "---\na: 1\n");
@@ -109,10 +109,10 @@ fn a_json_array_is_one_document() {
     let output = piped_in(
         dir.path(),
         &[
-            "source(stdin, Json) | map(d => 1)",
             "--to",
             "json",
             "--compact",
+            "source(stdin, Json) | map(d => 1)",
         ],
         "[1, 2, 3]",
     );
@@ -131,7 +131,7 @@ fn a_file_is_every_document_it_holds_in_its_format() {
     .unwrap();
     fs::write(dir.path().join("lines.txt"), "a\nb\n").unwrap();
     fs::write(dir.path().join("docs.yaml"), "a: 1\n---\na: 2\n").unwrap();
-    let json = |program: &str| ok(&hql_in(dir.path(), &[program, "--to", "json", "--compact"]));
+    let json = |program: &str| ok(&hql_in(dir.path(), &["--to", "json", "--compact", program]));
     assert_eq!(
         json(r#"source(file("one.json"))"#),
         "[{\"species\":\"owl\"}]\n"
@@ -311,7 +311,7 @@ fn a_relative_path_resolves_against_the_program_that_names_it() {
     fs::write(dir.path().join("sub/q.hql"), r#"source(file("data.json"))"#).unwrap();
     let output = hql_in(
         dir.path(),
-        &["run", "sub/q.hql", "--to", "json", "--compact"],
+        &["--to", "json", "--compact", "run", "sub/q.hql"],
     );
     assert_eq!(ok(&output), "[{\"here\":true}]\n");
 }
@@ -381,10 +381,10 @@ fn a_stream_from_an_open_pipe_answers_before_the_input_ends() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_hql"))
         .current_dir(dir.path())
         .args([
-            "source(stdin, Json) | filter(d => d == {a: 2})",
             "--to",
             "json",
             "--compact",
+            "source(stdin, Json) | filter(d => d == {a: 2})",
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -410,10 +410,10 @@ fn tapping_the_end_of_a_file_follows_what_is_appended() {
     let child = Command::new(env!("CARGO_BIN_EXE_hql"))
         .current_dir(dir.path())
         .args([
-            r#"tap(file("app.log").end, Lines) | take(1)"#,
             "--to",
             "json",
             "--compact",
+            r#"tap(file("app.log").end, Lines) | take(1)"#,
         ])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -560,7 +560,7 @@ fn each_tee_branch_writes_its_own_output() {
 fn lines_frame_text_by_line_and_text_is_one_document() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("notes.txt"), "a\nb\n").unwrap();
-    let json = |program: &str| ok(&hql_in(dir.path(), &[program, "--to", "json", "--compact"]));
+    let json = |program: &str| ok(&hql_in(dir.path(), &["--to", "json", "--compact", program]));
     // The terminator belongs to the representation.
     assert_eq!(
         json(r#"source(file("notes.txt"), Lines)"#),
@@ -641,7 +641,7 @@ fn a_read_decodes_each_document_as_the_type_it_is_expected_to_give() {
     let run = |program: &str| {
         hql_in(
             dir.path(),
-            &[&format!("{SIGHTING}{program}"), "--to", "json", "--compact"],
+            &["--to", "json", "--compact", &format!("{SIGHTING}{program}")],
         )
     };
     // A binding's declared element type is what each document decodes as;
@@ -797,10 +797,10 @@ fn rejected_values_are_written_and_read_back_as_invalid() {
     let read = hql_in(
         dir.path(),
         &[
-            "source(file(\"rejected.jsonl\"), JsonLines) | Invalid | map(e => [e.contract, fmt(\"{}\", e.value), e.violations[0] | map(v => v.rule) | unwrap_or(\"\")])",
             "--to",
             "json",
             "--compact",
+            "source(file(\"rejected.jsonl\"), JsonLines) | Invalid | map(e => [e.contract, fmt(\"{}\", e.value), e.violations[0] | map(v => v.rule) | unwrap_or(\"\")])",
         ],
     );
     assert_eq!(

@@ -1,0 +1,124 @@
+# HQL-0062: relative paths, in a script and in a cell
+
+Companion to [[HQL-0062]]. A relative path in HQL resolves against the
+source directory of the unit that names it ([[HQL-0059]], [[HQL-0040]]).
+For a script that is the script's folder. For a cell that is the folder of
+the document that holds it. This note states what the rule gives a cell
+under `hql render`, what a working-directory rule would cost it, and how
+the rule compares with script languages and with notebook tools.
+
+!!! abstract "TL;DR"
+    - **One rule for every unit.** A script, a cell and an imported module
+      resolve a relative path beside their own source. `hql` never resolves
+      one against the directory it was started in.
+    - **For a cell, the rule is the document's folder.** It is the same
+      folder the document sandbox grants, so a relative read is always
+      inside the grant, and a card renders the same from anywhere.
+    - **Notebook tools use the same rule.** Jupyter, knitr and Quarto run a
+      document's code in the document's folder. Script languages use the
+      working directory for data and the file's folder for code.
+    - **A working-directory rule would make a cell's output depend on its
+      caller**: committed outputs would change with the directory `hql
+      render` ran in, and the editor and the command line would disagree.
+    - **`working_dir()` is for scripts.** A script joins a path from
+      `argv()` to it. A cell that reads it depends on who ran it.
+
+## How a cell resolves a path
+
+`hql render FILE` sets two things to the folder of `FILE`: the source
+directory, against which a relative path resolves, and the root of the
+document's sandbox, the only folder a document reads and lists below.
+
+```hql
+birds = source(file("birds.csv"), Csv)  // a file beside the document
+notes = entries(folder("notes"))        // a folder beside the document
+```
+
+Both read beside the `.hmd` file, wherever `hql render` was started:
+
+```sh
+hql render --emit after wiki/birds.hmd   # from the repository root
+cd wiki && hql render --emit after birds.hmd
+```
+
+Both write the same output blocks.
+
+A module a cell imports resolves its own relative paths beside the
+module's file, not beside the document that imports it ([[HQL-0059]]).
+
+## What the rule gives a cell
+
+- **The same output from anywhere.** A card renders the same from the
+  repository root, from its own folder, from CI, from the editor and from
+  the site build. `--in-place` writes the outputs it read, so a committed
+  card does not change because someone ran it from another directory.
+- **A relative read is inside the sandbox.** The sandbox root and the
+  source directory are one folder, so `folder(".")` and `file("data.csv")`
+  are always granted. A path leaves the grant only by naming a place
+  outside the document's folder, with `..` or a link, and is then refused.
+- **Several documents in one run.** `hql render --in-place a.hmd b/c.hmd`
+  resolves each document's paths beside that document. A run has one
+  working directory, so a working-directory rule gives two documents in
+  different folders one base.
+- **A card moves with its data.** A card and the files it reads, moved
+  together, keep working.
+- **The editor and the command line agree.** The editor runs from the
+  workspace root and the command line from wherever the user stands. Under
+  the rule, both resolve beside the document.
+
+## What a working-directory rule would cost a cell
+
+- The same card would render one output from its own folder and another
+  from the repository root, and `--in-place` would rewrite committed
+  outputs on every such run.
+- A relative path would leave the sandbox whenever `hql render` ran
+  outside the document's folder, so the read that works from one directory
+  is refused from another.
+- A cell's output would be a function of its caller, not of the document
+  and the files beside it.
+
+## Against other tools
+
+| | Code a file imports | Data a file reads | A document's code cells |
+|---|---|---|---|
+| Python | the script's folder (`sys.path[0]`) | the working directory | — |
+| Node | the file's folder (`require`, `import`) | the working directory (`fs`) | — |
+| Bash | the working directory (`source`) | the working directory | — |
+| Jupyter | — | — | the notebook's folder |
+| knitr, R Markdown | — | — | the document's folder |
+| Quarto | — | — | the document's folder |
+| Markdown links | — | — | the document's folder |
+| HQL | the unit's folder | the unit's folder | the document's folder |
+
+Script languages already split their rule. Code resolves beside the file,
+so a program finds its own modules from anywhere, and data resolves
+against the working directory, so a command operates where the user
+stands. Notebook tools run a document's cells in the document's folder,
+for the reason HQL does: a document's output is to be reproducible, and it
+is kept beside its source.
+
+HQL resolves data as code is resolved, for every unit. A query's answer is
+then a function of the program and the files beside it.
+
+## What a script does instead
+
+A script is the one unit that operates where the user stands, and its
+arguments are named from there. It reaches that directory with
+`fs.working_dir()`, and joins a path from `argv()` to it:
+
+```hql
+from io.fs import *
+import io.env
+
+// A folder on the command line, named from where the user stands.
+folders = env.argv() | map(p => folder(working_dir().join(p)))
+```
+
+`working_dir().join(p)` gives `p` itself when `p` is absolute (the section
+"`Path.join` and an absolute segment" of [[HQL-0062]]), so `./lsx.hql /tmp`
+and `./lsx.hql wiki` both name the folder the user meant.
+
+A cell does not read `working_dir()`. Under `hql render` it is the
+directory `hql` was started in, which makes the cell's output depend on
+its caller, and a path below it is outside the sandbox unless that
+directory is inside the document's folder.

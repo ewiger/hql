@@ -1,0 +1,70 @@
+# HQL-0062: against other script languages
+
+Companion to [[HQL-0062]]. Python, Node, Bash, Ruby, Perl and Lua share
+one command-line shape for running a program: a file and its arguments, an
+inline program after a flag, standard input when it is piped, and an
+interactive prompt on a terminal. This note compares `hql` with them point
+by point. Where `hql` follows them it says so. Where it does not, it names
+the reason and the place that owns the rule.
+
+!!! abstract "TL;DR"
+    - **The shared convention is followed as is.** No arguments on a
+      terminal is the REPL, piped standard input is a program, `FILE ARG...`
+      runs the file with the words after it as its arguments, options after
+      `FILE` are the script's, and `-c PROGRAM ARG...` runs an inline
+      program with arguments.
+    - **Five points differ**, each for a stated reason: a free word is an
+      expression, a word is a file only when written as a path, `argv()`
+      leaves out the program's own path, the exit status comes from the
+      result, and a relative path resolves beside the script.
+
+## The comparison
+
+| | Python | Node | Bash | Ruby | Perl | Lua | `hql` |
+|---|---|---|---|---|---|---|---|
+| No arguments, a terminal | REPL | REPL | interactive shell | reads a program from the terminal; `irb` is the REPL | reads a program from the terminal | REPL | REPL |
+| No arguments, piped input | runs it | runs it | runs it | runs it | runs it | runs it | runs it, as `hql run -` |
+| `X FILE A B` | runs `FILE`; `sys.argv[1:]` is `A B` | runs `FILE`; `process.argv[2:]` is `A B` | runs `FILE`; `$@` is `A B` | runs `FILE`; `ARGV` is `A B` | runs `FILE`; `@ARGV` is `A B` | runs `FILE`; `arg[1]`, `arg[2]` are `A B` | runs `FILE`; `argv()` is `["A", "B"]` |
+| An option after `FILE` | the script's | the script's | the script's | the script's | the script's | the script's | the script's |
+| Inline program | `-c` | `-e`, `-p` | `-c` | `-e` | `-e` | `-e` | `-c`, or `eval` |
+| Arguments after an inline program | yes; `sys.argv[0]` is `-c` | yes | yes; the first is `$0` | yes | yes | no; the first word is a script | yes; `argv()` is every word after the program |
+| `X WORD`, `WORD` no file | fails: no such file | fails: cannot find module | fails: no such file | fails: no such file | fails: no such file | fails: cannot open | evaluates `WORD` as an expression |
+| What counts as a file | the first free word | the first free word | the first free word | the first free word | the first free word | the first free word | a word ending in `.hql` or containing `/` |
+| The program's own path | `sys.argv[0]` | `process.argv[1]` | `$0` | `$0` | `$0` | `arg[0]` | not in `argv()`; `fs.source_dir()` and the file's name; the process itself is `io.process` ([[HQL-0064]]) |
+| Exit status | an uncaught exception `1`; `sys.exit(n)` | an uncaught error `1`; `process.exit(n)` | the last command's; `exit n` | an uncaught exception `1`; `exit(n)` | `die` non-zero, `255` when no error code is set; `exit(n)` | an error `1`; `os.exit(n)` | a failure or an `err` result `1`, else `0`; no operation sets it |
+| A relative path | the working directory | the working directory (`fs`) | the working directory | the working directory | the working directory | the working directory | the script's folder |
+
+Deno follows the same convention with named commands, the shape `hql`
+has: `deno run FILE`, `deno eval PROGRAM` and `deno repl`, with
+`deno FILE` as a shorthand for `deno run FILE` and `deno` alone as the REPL.
+`hql run`, `hql eval` and `hql repl` stay, and `hql FILE`, `hql -c` and
+`hql` alone are their shorthands.
+
+## Where `hql` differs, and why
+
+- **A free word is an expression.** `hql '1 + 1'` prints `2`, as `jq` and
+  `awk` take their program as the first word. That form predates scripts
+  ([[HQL-0025]]), and every invocation that worked keeps working.
+- **A word is a file only when it is written as one**, with `.hql` or a
+  `/`. A `#!` invocation always carries a `/`, so every script runs. A bare
+  word stays an expression even when a file of that name exists, so a file
+  placed in the working directory cannot turn a typed expression into a
+  program run (the section "`hql FILE`" of [[HQL-0062]]).
+- **`argv()` leaves out the program's own path.** It is the arguments
+  only, as `sys.argv[1:]` and `$@` are. The path is already known as
+  `fs.source_dir()` and the file's name, and an inline program has none.
+  `io.env` holds what the invocation fixed before the program started.
+  What is true of the running process, its identifier, its parent and its
+  signals, is `io.process` ([[HQL-0064]], the note on `io.process`).
+- **The exit status comes from the result.** HQL has no `exit(n)`: a
+  failure is a value ([[HQL-0033]]), and an operation that ends the process
+  would be a jump out of an evaluation. A result that is `err(e)` exits `1`,
+  as an uncaught exception does in Python, Node and Ruby. The companion note
+  [pure and effectful](01-pure-and-effectful.hmd) gives the reasoning.
+- **A relative path resolves against the script's folder.** One rule for
+  every unit ([[HQL-0059]], [[HQL-0040]]) keeps a query's answer
+  independent of where it is run. A script reaches the directory it was run
+  from with `fs.working_dir()`, and joins a path from `argv()` to it:
+  `working_dir().join(p)`, which gives `p` itself when `p` is absolute.
+  The note [relative paths, in a script and in a cell](03-relative-paths.hmd)
+  states what the rule gives a cell, and why notebook tools follow it too.
