@@ -156,3 +156,75 @@ sleep -> ask
   of this program, for as long as that runs.
 - It does not replace `timeout_ms`, which bounds how long a child may run.
   A watchdog bounds how long a child may go without answering.
+
+## Side note: monitoring
+
+!!! note "Side note"
+    This section is a direction for a later revision, not part of the
+    `Watchdog` above.
+
+A watchdog serves two purposes. The first is the health check above. The
+second is observation: measurements of the child and reports about it,
+declared once in the watchdog, where each program would otherwise wire
+them to every child it starts. A child's standard streams already carry
+its own output; a watchdog adds what `hql` measures from outside the
+child.
+
+A module `io.process.monitoring` would hold those measurements, the ones a
+cloud platform shows for a container:
+
+```hql
+module io.process.monitoring
+
+/// One reading of a running child, taken by `hql`.
+type Sample {
+    pid           : Int
+    uptime_ms     : Int
+    cpu_ms        : Int
+    memory_bytes  : Int
+    disk_read     : Int
+    disk_written  : Int
+    net_received  : Int
+    net_sent      : Int
+    stdout_bytes  : Int
+    stderr_bytes  : Int
+    idle_ms       : Int
+}
+```
+
+- The byte counts are totals since the start of the child.
+- `idle_ms` is the time since the last byte on any of the child's disk,
+  network and standard streams.
+- Per-process network counters are not available on every platform. A
+  measurement the platform does not give is `0`.
+
+A watchdog that reads samples has `ask` take the guarded child's sample,
+`(Sample) -> Bool`, in place of `() -> Bool`.
+
+**Idle** is a state the kernel does not report. A child that is idle is
+running, is not a zombie, and moves no bytes: it waits on input that never
+comes, or on a lock. A watchdog asks for it as a question on `idle_ms`:
+
+```hql
+from io.process.monitoring import *
+
+not_idle = Watchdog((s: Sample) => s.idle_ms < 60000, every_ms = 60000)
+
+command("server", ["--port", "8080"], watchdog = not_idle).run()
+```
+
+Each miss is a report. The watchdog writes one line per miss to the
+program's `stderr`, so a child that stays idle is reported at every
+interval:
+
+```text
+hql: watchdog: process 4711 (server) idle for 60 s
+hql: watchdog: process 4711 (server) idle for 120 s
+hql: watchdog: process 4711 (server) idle for 180 s
+```
+
+A watchdog built only to report never terminates the child: it reports
+each miss and has no limit of `misses`. The samples themselves are a
+stream, so a program that keeps them reads them as it reads any endpoint:
+a `tap` of a monitoring endpoint gives a `Stream<Sample>`, which a `sink`
+writes to a file or a metrics endpoint.
