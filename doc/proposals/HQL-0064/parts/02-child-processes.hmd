@@ -320,7 +320,7 @@ A child that does not exit `0` is a failure the program can handle, so
 
 A child writes bytes; `Output`, `CommandFailure` and every text format
 give `String`, which holds only UTF-8. What `hql` does with bytes that are
-not UTF-8 is a setting of `hql.toml` ([[HQL-0059]]):
+not UTF-8 is a setting of `.hql/config.toml` ([[HQL-0059]]):
 
 ```toml
 [command_output]
@@ -381,7 +381,7 @@ end -> err
 ### The grant
 
 Starting a program gives a script every right of the user who runs it, so
-a grant names the programs. It is a top-level key of `hql.toml`, beside
+a grant names the programs. It is a top-level key of `.hql/config.toml`, beside
 `env` and `process` ([[HQL-0059]]):
 
 ```toml

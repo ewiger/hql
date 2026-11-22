@@ -147,7 +147,7 @@ send(Signal("TERM"), to = to_int(env.argv()[0]))
 
 ### The grant
 
-Both directions are controlled by one grant, a top-level key of `hql.toml`
+Both directions are controlled by one grant, a top-level key of `.hql/config.toml`
 beside `env` ([[HQL-0059]]):
 
 ```toml
