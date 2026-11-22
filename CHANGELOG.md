@@ -51,6 +51,13 @@ HQL is a script language ([HQL-0062](doc/proposals/HQL-0062/index.hmd)).
   `--to hql`, the default, still writes the literal.
 - `hql` with no word and standard input not a terminal no longer prints the
   help and exits `2`.
+- **A plain `hql` fence is a code listing.** In a document only a fence
+  marked `hql#eval` or `hql#query` is a cell. `hql render` and `hql check`
+  leave a plain ` ```hql ` fence as written: it does not run and gets no
+  output, and an `id=` on it names nothing. A document whose cells are
+  fenced plain `hql` marks them `hql#eval` instead.
+- **`hql#query` is `hql#eval hidden`.** A query cell runs so that other
+  cells can read its value, and writes no output in any `--emit` mode.
 
 ## [0.7.2] — 2026-11-22
 
