@@ -108,6 +108,10 @@ be measured.
 
 - `hql` MUST take a measurement of a guarded child every `every_ms`, before
   it asks the watchdog's question.
+- `cpu_ms`, `memory_bytes`, `disk_read` and `disk_written` MUST be summed
+  over the child's process group (the section "The child's environment
+  and lifetime" of [child processes](02-child-processes.hmd)). A `make`
+  whose `cc` compiles is not idle.
 - The byte counts of the standard streams are exact at any moment. The
   fields read from the kernel are as fresh as the last measurement.
 - `idle_ms` is the time since the last measurement in which `cpu_ms` or

@@ -279,7 +279,7 @@ Both are defined in the companion note
 
 ### Failures
 
-A command fails in one of seven ways. `reason` of `CommandFailure` names it.
+A command fails in one of eight ways. `reason` of `CommandFailure` names it.
 
 | `reason` | The failure | Set beside it |
 |---|---|---|
@@ -290,6 +290,7 @@ A command fails in one of seven ways. `reason` of `CommandFailure` names it.
 | `timed-out` | `timeout_ms` passed and `hql` terminated the child | |
 | `closed` | the child closed its standard input before the write ended | |
 | `unhealthy` | its watchdog gave up and `hql` terminated the child ([watchdogs](06-watchdog.hmd)) | |
+| `invalid-text` | under `run`, the child wrote bytes that are not UTF-8, and `invalid_utf8` is `fail` | |
 
 A child that does not exit `0` is a failure the program can handle, so
 `run` gives it as a `Result` ([[HQL-0033]]).
@@ -315,9 +316,38 @@ A child that does not exit `0` is a failure the program can handle, so
     non-zero status for an ordinary answer, as `grep` uses `1` for no
     match, is handled by matching `e.status`.
 
+### Text a child writes
+
+A child writes bytes; `Output`, `CommandFailure` and every text format
+give `String`, which holds only UTF-8. What `hql` does with bytes that are
+not UTF-8 is a setting of `hql.toml` ([[HQL-0059]]):
+
+```toml
+[command_output]
+invalid_utf8 = "fail"      # fail | replace
+```
+
+| `invalid_utf8` | Bytes that are not UTF-8 |
+|---|---|
+| `fail`, the default | under `run`, `err(CommandFailure)` with the reason `invalid-text`; under `source`, `tap`, `target` and `sink`, a failure of the format |
+| `replace` | each invalid sequence becomes U+FFFD, the replacement character, and the read goes on |
+
+- Absent, `invalid_utf8` MUST be `fail`.
+- The setting MUST NOT change a type. Every value a child's output gives
+  is a `String` under either setting.
+- The setting applies to standard output and standard error, and to the
+  lines of a pipe wired to a channel.
+
 ### The child's environment and lifetime
 
 A child's lifetime is bounded by the evaluation that started it.
+
+- `hql` MUST start each child as the leader of a new process group. Every
+  process the child starts, and they start, belongs to that group unless
+  it leaves it.
+- Termination, on every path below, MUST signal the child's process group,
+  not only the child. A `make` that `hql` terminates takes the `cc` it
+  started with it.
 
 - The child MUST inherit the environment variables this program is granted
   by `env`, and no other. A child would otherwise read what the `env` grant
