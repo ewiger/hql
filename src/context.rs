@@ -201,6 +201,9 @@ fn validate(table: &toml::Table, level: Level, path: &Path) -> Result<(), Contex
             "packages" | "modules" | "execution" | "report" => true,
             // Reserved for the AI harness (HQL-0022), specified there.
             "env" | "endpoint" | "keyvault" | "format" | "ai" => level == Level::Project,
+            // The programs a run may start, and what their text that is not
+            // UTF-8 becomes (HQL-0064).
+            "commands" | "command_output" => level == Level::Project,
             CURRENT_CONTEXT | "context" => level == Level::Layer,
             "project" => level == Level::Context,
             _ => false,
@@ -239,6 +242,7 @@ fn validate(table: &toml::Table, level: Level, path: &Path) -> Result<(), Contex
         Level::Project => {
             section("packages", &["dependencies", "paths"])?;
             section("execution", &["backend", "max_elements", "max_bytes"])?;
+            section("command_output", &["invalid_utf8"])?;
         }
         Level::Layer => {
             section("packages", &["dependencies", "paths"])?;
@@ -1261,6 +1265,62 @@ impl ExecutionContext {
                 refuse(
                     &file.path,
                     "`env` is a list of variable names and `PREFIX_*` patterns",
+                )
+            })
+    }
+
+    /// The programs the project's `.hql/config.toml` grants a run, as its
+    /// `commands` lists them; `None` where it states no `commands`, so every
+    /// program is granted (HQL-0064).
+    ///
+    /// # Errors
+    ///
+    /// `commands` is stated and is not a list of strings.
+    pub fn commands_grant(&self) -> Result<Option<Vec<String>>, ContextError> {
+        let Some(file) = &self.project_config else {
+            return Ok(None);
+        };
+        let Some(value) = file.table.as_ref().and_then(|table| table.get("commands")) else {
+            return Ok(None);
+        };
+        value
+            .as_array()
+            .and_then(|items| {
+                items
+                    .iter()
+                    .map(|item| item.as_str().map(str::to_owned))
+                    .collect::<Option<Vec<_>>>()
+            })
+            .map(Some)
+            .ok_or_else(|| refuse(&file.path, "`commands` is a list of program names"))
+    }
+
+    /// What a child's text that is not UTF-8 becomes: the project's
+    /// `[command_output] invalid_utf8`, `fail` unless it says `replace`.
+    ///
+    /// # Errors
+    ///
+    /// `invalid_utf8` is stated and is neither `"fail"` nor `"replace"`.
+    pub fn invalid_utf8(&self) -> Result<crate::extensions::process::InvalidUtf8, ContextError> {
+        use crate::extensions::process::InvalidUtf8;
+        let Some(file) = &self.project_config else {
+            return Ok(InvalidUtf8::Fail);
+        };
+        let Some(value) = file
+            .table
+            .as_ref()
+            .and_then(|table| table.get("command_output"))
+            .and_then(|section| section.get("invalid_utf8"))
+        else {
+            return Ok(InvalidUtf8::Fail);
+        };
+        value
+            .as_str()
+            .and_then(InvalidUtf8::from_label)
+            .ok_or_else(|| {
+                refuse(
+                    &file.path,
+                    "`[command_output] invalid_utf8` is \"fail\" or \"replace\"",
                 )
             })
     }

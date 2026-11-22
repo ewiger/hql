@@ -657,6 +657,17 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
             crate::extensions::env::Grant::Only,
         );
     crate::extensions::env::set_invocation(grant, cli.options.arguments.clone());
+    // What `io.process` may start, and what a child's text that is not
+    // UTF-8 becomes; `hql render` starts no program, by its host policy.
+    let commands = context
+        .commands_grant()
+        .map_err(|error| error.to_string())?
+        .map_or(
+            crate::extensions::process::Grant::All,
+            crate::extensions::process::Grant::Only,
+        );
+    let invalid_utf8 = context.invalid_utf8().map_err(|error| error.to_string())?;
+    crate::extensions::process::set_policy(commands, invalid_utf8);
     // The run's diagnostic channel exists before the loader runs, so the
     // loader writes into it as every later phase does.
     let opened = crate::io::open_diagnostics();
