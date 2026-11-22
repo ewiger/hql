@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: target writes one document to the child's standard input, closes it, and waits
-// implementation: pending
-// proposal: doc/proposals/HQL-0064/parts/02-child-processes.hmd
+// implementation: implemented
 // environment: pure
 // expected-type: Step
 // expected: ()

@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: a child that exits non-zero is err under run, with the reason exited and its status
-// implementation: pending
-// proposal: doc/proposals/HQL-0064/parts/02-child-processes.hmd
+// implementation: implemented
 // environment: pure
 // expected-type: String
 // expected: exited 3

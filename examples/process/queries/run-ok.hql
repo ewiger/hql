@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: run gives ok with what a child that exited 0 wrote
-// implementation: pending
-// proposal: doc/proposals/HQL-0064/parts/02-child-processes.hmd
+// implementation: implemented
 // environment: pure
 // expected-type: String
 // expected: 2

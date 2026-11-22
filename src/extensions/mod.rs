@@ -47,6 +47,7 @@ pub mod nats;
 pub mod net;
 pub(crate) mod option;
 pub mod postgres;
+pub mod process;
 pub(crate) mod random;
 pub(crate) mod regex;
 pub(crate) mod result;
@@ -591,6 +592,10 @@ pub(crate) static STD: Extension = Extension {
         Provided {
             module: "io.env",
             steps: env::STEPS,
+        },
+        Provided {
+            module: "io.process",
+            steps: process::STEPS,
         },
         Provided {
             module: "io.db.sqlite",
@@ -2424,7 +2429,8 @@ mod tests {
                             | "encrypt_to"
                             | "encrypt_with_passphrase"
                     ))
-                || entry.module == "io.env";
+                || entry.module == "io.env"
+                || (entry.module == "io.process" && entry.name == "run");
             let expected = if effectful {
                 Purity::Effectful
             } else {

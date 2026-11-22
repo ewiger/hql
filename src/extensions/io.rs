@@ -1146,7 +1146,10 @@ fn eval_source(
         Endpoint::Decrypted { .. } if !endpoint.type_of().is(&TypeRef::REPLAYABLE) => {
             Ok(live(Reading::decrypted(&endpoint, format), element, span))
         }
-        Endpoint::File(_) | Endpoint::Http { .. } | Endpoint::Decrypted { .. } => {
+        Endpoint::File(_)
+        | Endpoint::Http { .. }
+        | Endpoint::Decrypted { .. }
+        | Endpoint::Command(_) => {
             let values = io::read_all(&endpoint, format)
                 .map_err(|message| Diagnostic::io_failure(span.clone(), message))?;
             Ok(Value::Traversal(Arc::new(Traversal::kept(element, values))))
@@ -1197,7 +1200,8 @@ fn eval_tap(
         | Endpoint::Socket(..)
         | Endpoint::WebSocket(_)
         | Endpoint::Nats { .. }
-        | Endpoint::NatsJetStream { .. } => Reading::live(&endpoint, format)
+        | Endpoint::NatsJetStream { .. }
+        | Endpoint::Command(_) => Reading::live(&endpoint, format)
             .map_err(|message| Diagnostic::io_failure(span.clone(), message))?,
         Endpoint::Http {
             url,

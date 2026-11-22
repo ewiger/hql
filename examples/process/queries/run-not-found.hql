@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: a program that is not in PATH is err under run, with the reason not-found
-// implementation: pending
-// proposal: doc/proposals/HQL-0064/parts/02-child-processes.hmd
+// implementation: implemented
 // environment: pure
 // expected-type: String
 // expected: not-found

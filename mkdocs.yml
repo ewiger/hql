@@ -198,6 +198,7 @@ nav:
           - std/io/fs: reference/std/io/fs.md
           - std/io/env: reference/std/io/env.md
           - std/io/net: reference/std/io/net.md
+          - std/io/process: reference/std/io/process.md
           - std/io/logging: reference/std/io/logging.md
           - std/io/db/sqlite: reference/std/io/db/sqlite.md
           - std/io/db/postgres: reference/std/io/db/postgres.md

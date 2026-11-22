@@ -1,7 +1,6 @@
-// status: proposed
+// status: valid-now
 // feature: a child still running at timeout_ms is terminated, and run gives err with the reason timed-out
-// implementation: pending
-// proposal: doc/proposals/HQL-0064/parts/02-child-processes.hmd
+// implementation: implemented
 // environment: pure
 // expected-type: String
 // expected: timed-out

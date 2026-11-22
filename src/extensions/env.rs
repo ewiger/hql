@@ -102,7 +102,7 @@ fn environment() -> &'static BTreeMap<String, String> {
 
 /// The variables a program may read now: none under `hql render`, else the
 /// granted ones that are set.
-fn granted() -> BTreeMap<String, String> {
+pub(crate) fn granted() -> BTreeMap<String, String> {
     if matches!(crate::io::policy(), Policy::Document { .. }) {
         return BTreeMap::new();
     }

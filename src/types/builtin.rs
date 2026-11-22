@@ -45,6 +45,8 @@ atoms! {
     FILE => "File", FILE_END => "FileEnd", PATH => "Path",
     FOLDER => "Folder", GLOB => "Glob", ENTRY => "Entry",
     HTTP => "Http", WEB_SOCKET => "WebSocket", SOCKET => "Tcp",
+    COMMAND => "Command", OUTPUT => "Output", COMMAND_FAILURE => "CommandFailure",
+    SIGNAL => "Signal",
     TRANSPORT => "Transport", DIRECT => "Direct", NETWORK => "Network",
     BYTE_TRANSPORT => "ByteTransport", MESSAGE_TRANSPORT => "MessageTransport",
     ROW_TRANSPORT => "RowTransport", NATS_JET_STREAM => "NatsJetStream", SQLITE => "Sqlite", NATS => "Nats",
@@ -414,6 +416,21 @@ pub(crate) fn build() -> Result<TypeSystem, TypeError> {
             TypeRef::SOCKET,
             TypeKind::Concrete,
             &[TypeRef::READABLE, TypeRef::WRITABLE],
+        ),
+        // Child processes: `lib/std/io/process/mod.hql` (HQL-0064). A
+        // command is read and written as an endpoint; what `run` gives and
+        // why it failed are records.
+        (
+            TypeRef::COMMAND,
+            TypeKind::Concrete,
+            &[TypeRef::REPLAYABLE, TypeRef::WRITABLE],
+        ),
+        (TypeRef::OUTPUT, TypeKind::Concrete, &[]),
+        (TypeRef::SIGNAL, TypeKind::Concrete, &[]),
+        (
+            TypeRef::COMMAND_FAILURE,
+            TypeKind::Concrete,
+            &[TypeRef::DATA_CONTRACT],
         ),
         // Logging: `lib/std/io/logging/mod.hql`. A level is a type, so a threshold is
         // passed as one and an event's level is tested with `is`.
