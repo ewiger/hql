@@ -584,3 +584,18 @@ fn a_relative_path_resolves_against_the_source_directory_of_its_unit() {
         )
     );
 }
+
+#[test]
+fn a_path_from_the_command_line_joins_to_the_working_directory() {
+    let vault = empty();
+    // An absolute segment is a path of its own, so a script joins any
+    // argument to the working directory (HQL-0062).
+    assert_eq!(value("working_dir().join(\"/tmp\").text", &vault), "/tmp");
+    let cwd = std::env::current_dir().unwrap();
+    let joined = value("working_dir().join(\"wiki\").text", &vault);
+    assert!(joined.ends_with("/wiki"), "{joined}");
+    assert!(
+        joined.contains(cwd.file_name().unwrap().to_str().unwrap()),
+        "{joined}"
+    );
+}

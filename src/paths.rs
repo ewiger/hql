@@ -70,8 +70,19 @@ fn trimmed(text: &str) -> &str {
 }
 
 /// `text` with `segment` appended after a `/`; onto `.` or an empty
-/// path, `segment` alone.
+/// path, `segment` alone. A `segment` with a root, `/`, a drive root or a
+/// share, is a path of its own and is `segment` itself (HQL-0062), as a
+/// path given on the command line is joined to the working directory.
 pub(crate) fn join(text: &str, segment: &str) -> String {
+    // On Windows a segment from the command line is the host's text.
+    let written = if cfg!(windows) {
+        read(segment)
+    } else {
+        segment.to_owned()
+    };
+    if root(&written) > 0 {
+        return written;
+    }
     let base = trimmed(text);
     match base {
         "" | "." => segment.to_owned(),
@@ -144,6 +155,11 @@ mod tests {
         assert_eq!(join("data/", "birds.csv"), "data/birds.csv");
         assert_eq!(join(".", "a"), "a");
         assert_eq!(join("/", "a"), "/a");
+        assert_eq!(join("/home/ada", "/tmp"), "/tmp");
+        assert_eq!(join("data", "/"), "/");
+        assert_eq!(join("data", "C:/Users"), "C:/Users");
+        assert_eq!(join("data", "//server/share/a"), "//server/share/a");
+        assert_eq!(join("data", "C:"), "data/C:");
         assert_eq!(parent("a/b"), Some("a"));
         assert_eq!(parent("a/b/"), Some("a"));
         assert_eq!(parent("a"), None);
