@@ -1,6 +1,6 @@
 # 0084 — A plain `hql` fence is a listing: `hql render` runs only `hql#eval` and `hql#query`
 
-Status: todo
+Status: done
 Related: the fence kinds were decided
 for HyperMarkDown cards on 2026-10-19 and are stated in
 [Cell output](https://hypermarkdown.org/public/cell-output/),
