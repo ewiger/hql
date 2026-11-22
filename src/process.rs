@@ -55,14 +55,15 @@ impl Failure {
         }
     }
 
-    /// The failure as one message: the command, the reason, the status or
-    /// signal, and the last lines of standard error.
+    /// The failure as one message: the command, the reason, and the status
+    /// or signal; the last lines of standard error are its cause.
     pub(crate) fn message(&self, spec: &CommandSpec) -> String {
         format!("command `{}` failed: {}", spec.program, self.detail())
     }
 
     /// The failure without the command's name, for a reader whose errors
-    /// are already prefixed with the endpoint.
+    /// are already prefixed with the endpoint. What the child last wrote to
+    /// its standard error is the cause the child gave.
     fn detail(&self) -> String {
         let mut message = self.reason.to_owned();
         if let Some(status) = self.status {
@@ -76,14 +77,14 @@ impl Failure {
         }
         let stderr = String::from_utf8_lossy(&self.stderr);
         let last: Vec<&str> = stderr.lines().rev().take(5).collect();
-        if !last.is_empty() {
-            let last: Vec<&str> = last.into_iter().rev().collect();
-            message.push_str(&format!(
-                "; its standard error ended with:\n{}",
-                last.join("\n")
-            ));
+        if last.is_empty() {
+            return message;
         }
-        message
+        let last: Vec<&str> = last.into_iter().rev().collect();
+        crate::diagnostics::caused(
+            message,
+            &format!("its standard error ended with:\n{}", last.join("\n")),
+        )
     }
 }
 

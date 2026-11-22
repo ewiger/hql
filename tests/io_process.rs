@@ -248,9 +248,60 @@ fn a_failed_read_states_the_reason_and_the_last_lines_of_standard_error() {
     );
     assert!(!output.status.success());
     let err = stderr(&output);
-    assert!(err.contains("exited, status 4"), "{err}");
+    assert!(err.contains("failed: exited, status 4\n"), "{err}");
     assert!(
-        err.contains("its standard error ended with:\nthe disk is full"),
+        err.contains("= caused by: its standard error ended with:"),
         "{err}"
+    );
+    assert!(err.contains("the disk is full"), "{err}");
+}
+
+#[test]
+fn the_standard_error_of_a_failed_child_is_the_cause_in_the_channel() {
+    let output = standalone(
+        &[],
+        r#"source(command("sh", ["-c", "echo the disk is full >&2; exit 4"]), Lines)"#,
+    );
+    let directory = tempfile::tempdir().unwrap();
+    let source = "from io.process import *\n\
+                  source(command(\"sh\", [\"-c\", \"echo the disk is full >&2; exit 4\"]), Lines)";
+    let enveloped = hql_in(
+        directory.path(),
+        &[],
+        &["--bare", "--envelope", "json", "eval", source],
+    );
+    assert!(!output.status.success());
+    let envelope: serde_json::Value = serde_json::from_slice(&enveloped.stdout).unwrap();
+    let diagnostic = &envelope["diagnostics"][0];
+    assert_eq!(
+        diagnostic["message"],
+        "command `sh`: failed: exited, status 4"
+    );
+    assert_eq!(
+        diagnostic["causes"],
+        serde_json::json!(["its standard error ended with:\nthe disk is full"])
+    );
+}
+
+#[test]
+fn a_failed_child_read_as_json_is_its_failure_and_not_a_decoding_one() {
+    let output = standalone(&[], r#"source(command("sh", ["-c", "exit 2"]), Json)"#);
+    assert!(!output.status.success());
+    let err = stderr(&output);
+    assert!(
+        err.contains("command `sh`: failed: exited, status 2"),
+        "{err}"
+    );
+    assert!(!err.contains("not JSON"), "{err}");
+}
+
+#[test]
+fn a_failed_run_as_the_result_exits_one() {
+    let output = standalone(&[], r#"command("sh", ["-c", "exit 3"]).run()"#);
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    assert!(
+        stdout(&output).starts_with("err(CommandFailure("),
+        "{}",
+        stdout(&output)
     );
 }

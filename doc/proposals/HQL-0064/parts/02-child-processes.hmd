@@ -307,9 +307,10 @@ A child that does not exit `0` is a failure the program can handle, so
   ([the FAQ](faq.hmd#why-does-a-target-to-head-sometimes-fail-with-closed)).
 - `source`, `tap`, `target` and `sink` give a sequence, a stream and a
   `Step`, which hold no status. A failure under them MUST stop evaluation
-  with an unrecoverable failure that states the command, the reason, the
-  status and the last lines of the child's standard error. A program that
-  handles the failure uses `run`.
+  with an unrecoverable failure that states the command, the reason and the
+  status. The last lines of the child's standard error MUST be its cause,
+  in the diagnostic's `causes`. A program that handles the failure uses
+  `run`.
 - A document of the child's output that `F` does not decode is a failure of
   the format, as it is for a file, and not a `CommandFailure`.
 - A command the grant refuses is a forbidden effect, an unrecoverable
@@ -557,8 +558,13 @@ of two ways.
   ```
 
   ```text
-  execute failure[io-failure]: command `sh`: failed: exited, status 3; its standard error ended with:
-  no disk
+  execute failure[io-failure]: command `sh`: failed: exited, status 3
+   --> <expression>:2:1
+    |
+  2 | source(command("sh", ["-c", "echo no disk >&2; exit 3"]), Lines)
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = caused by: its standard error ended with:
+                 no disk
   ```
 
 The output of a command, parsed, keeps the two apart. In

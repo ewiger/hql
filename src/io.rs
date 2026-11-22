@@ -1067,6 +1067,11 @@ fn pieces(reader: Box<dyn Read + Send>, format: TypeConstructor, origin: String)
                 .into_iter::<serde_json::Value>()
                 .map(move |document| {
                     document.map(tree).map_err(|error| {
+                        // The reader failed, not the text: its failure is
+                        // given as it is.
+                        if error.is_io() {
+                            return located(std::io::Error::from(error).to_string());
+                        }
                         located(format!(
                             "not JSON at line {}, column {}: {error}",
                             error.line(),
