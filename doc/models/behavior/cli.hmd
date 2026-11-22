@@ -14,9 +14,9 @@ binary can reach is logic that cannot be tested.
 
 | Command | What it does |
 | --- | --- |
-| `hql eval <program>` | check and evaluate an argument |
+| `hql eval <program> [arg...]` | check and evaluate an argument; `-c` is the same command |
 | `hql check <file>` | print the type without evaluating |
-| `hql run <file>` | check and evaluate a file |
+| `hql run <file> [arg...]` | check and evaluate a file |
 | `hql plan <file>` | check a file and print its plan on the backend in force without evaluating: per pipeline a statement is, the line and the expression its first step reads, then each step with its operation, shape, purity, stage and strategy; `--envelope json` writes the same as one JSON document |
 | `hql boundary <file> <id> [--as T]` | print the effective boundary of endpoint `id` read as `T`, or as its `element`, declared in `file`: per field, its external field, both types, position, read and write, what reads as absent, and the layer each comes from; every boundary error otherwise, with exit status 1 |
 | `hql repl` | read, evaluate and print, keeping bindings |
@@ -26,8 +26,23 @@ binary can reach is logic that cannot be tested.
 | `hql doctor` | check the semantic-search chain in order — vault, `.hql/config.toml`, index, model, query vectors, card coverage — printing one line per part; it stops at the first missing part, names the command to run next, and exits `1` when any part is missing |
 
 `-` reads standard input wherever a file is taken, so `hql` composes in a
-pipeline. A first argument that is not a command name is a program:
-`hql '<program>'` is `hql eval '<program>'`. The command line names no input
+pipeline. Where the command line names no command, `hql` fills one in
+([[HQL-0062]]):
+
+| Command line | Is |
+| --- | --- |
+| `hql -c '<program>' [arg...]` | `hql eval '<program>' [arg...]` |
+| `hql FILE [arg...]`, `FILE` ending in `.hql`, or containing `/` and naming a regular file | `hql run FILE [arg...]` |
+| `hql -` | `hql run -` |
+| `hql '<program>' [arg...]`, any other first free word | `hql eval '<program>' [arg...]` |
+| `hql`, standard input not a terminal | `hql run -` |
+| `hql`, standard input a terminal | `hql repl` |
+
+A command name wins over a file of the same name, and a bare word is a
+program even beside a file of its name. Options of `hql` come before the
+program: every word after it is the program's, read with `io.env.argv()`.
+A source whose first two bytes are `#!` skips its first line, so an
+executable file with `#!/usr/bin/env hql` runs as a script. The command line names no input
 and no output of a program's own: a program reads with `source` or `tap` and
 writes with `target` or `sink` ([[HQL-0021]]),
 and a result of type `Unit` is written as nothing.
@@ -224,7 +239,9 @@ result, because a JSON envelope is one document.
 ## Exit status
 
 `0` succeeded, possibly with warnings. `1` is a diagnostic at or above
-`error`, or an I/O failure. `2` is a usage error, which clap reports.
+`error`, an I/O failure, or a result that is itself `err(e)`, which is still
+written ([[HQL-0062]]); an `err` inside a collection or a record is data and
+exits `0`. `2` is a usage error, which clap reports.
 
 ## Output
 

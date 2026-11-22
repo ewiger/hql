@@ -2,7 +2,9 @@
 
 With `source` and `sink`, `hql` is a structured-data tool for the shell. A
 first argument that names no command is a program, so `hql '<program>'` is
-`hql eval '<program>'`:
+`hql eval '<program>'`, and `hql -c '<program>'` is the same, as `-c` is in
+Python and Bash. A first argument written as a file, `report.hql` or
+`./report`, runs that file instead ([[scripts]]):
 
 ```text
 $ cat examples/io/sightings.jsonl | hql 'source(stdin, Json) | filter(s => s.seen == "morning") | map(s => s.species)'
@@ -14,13 +16,17 @@ The result is a `Stream<String>`, so the host writes each value as it
 arrives, in HQL, the format a result is written in unless `--to` names
 another ([[08-output|writing results out]]).
 
+Options of `hql` come before the program. Every word after the program is
+the program's own, read with `io.env.argv()`, as the words after a Python or
+Bash script are ([[scripts|Scripts]]).
+
 ## `--to` and `--compact`
 
 `--to json` presents each document of the result pretty-printed, as `jq .`
 does, and `--compact` gives one line each, as `jq -c` does:
 
 ```text
-$ head -1 examples/io/sightings.jsonl | hql 'source(stdin, Json)' --to json
+$ head -1 examples/io/sightings.jsonl | hql --to json 'source(stdin, Json)'
 {
   "seen": "dusk",
   "site": "meadow",
@@ -29,7 +35,7 @@ $ head -1 examples/io/sightings.jsonl | hql 'source(stdin, Json)' --to json
 ```
 
 ```text
-$ head -2 examples/io/sightings.jsonl | hql 'source(stdin, Json)' --to json --compact
+$ head -2 examples/io/sightings.jsonl | hql --to json --compact 'source(stdin, Json)'
 {"seen":"dusk","site":"meadow","species":"barn owl"}
 {"seen":"morning","site":"hedge","species":"wren"}
 ```
@@ -42,7 +48,7 @@ line whatever the flags: a program writing a file says what the file is, and
 Converting between formats is a source and a `--to`:
 
 ```text
-$ hql 'source(file("examples/io/sightings.jsonl")) | map(s => s.site)' --to yaml
+$ hql --to yaml 'source(file("examples/io/sightings.jsonl")) | map(s => s.site)'
 - meadow
 - hedge
 - barn
@@ -77,4 +83,20 @@ kingfisher
 
 `hql run -` reads the program from standard input, so such a program cannot
 also read `stdin` as data, and `source(stdin, …)` in it is a type error.
+`hql` with no program does the same when standard input is not a terminal,
+and opens the REPL when it is:
+
+```text
+$ echo '1 + 1' | hql
+2
+```
+
 `--log-level` sets every logger's threshold ([[logging]]).
+
+## A program in a file
+
+`hql FILE` runs a file, the same as `hql run FILE`, when the word ends in
+`.hql` or contains a `/`. A file whose first line is `#!/usr/bin/env hql`
+runs on its own, and the exit status follows from its result. [[scripts]]
+covers arguments, the exit status, and where a script's relative paths
+resolve.

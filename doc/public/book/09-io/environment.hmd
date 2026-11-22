@@ -1,8 +1,9 @@
 # Environment and arguments
 
 The `io.env` module reads the invocation that runs a program: its
-**environment variables** and its **arguments**, the `--arg name=value` pairs
-of the command line. A program imports it, `import io.env`, and reaches it as
+**environment variables**, its **named arguments**, the `--arg name=value`
+pairs of the command line, and its **positional arguments**, the words after
+the program. A program imports it, `import io.env`, and reaches it as
 `env`: `env.arg(…)`. `from io.env import *` binds `arg` and the
 rest without the module's name. Each
 operation reads a value fixed for the whole evaluation, so a
@@ -52,6 +53,26 @@ Usage: hql [OPTIONS] <COMMAND>
 
 For more information, try '--help'.
 ```
+
+## Positional arguments
+
+`env.argv()` is every word after the program, in order, a `Seq<String>`.
+This program runs as `hql -c '…' 2026 q1`:
+
+<!-- run: novault -- 2026 q1 -->
+```hql
+import io.env
+
+env.argv()
+```
+
+```text
+["2026", "q1"]
+```
+
+The words come after a program file, `hql report.hql 2026 q1`, and after an
+inline program, `hql -c '…' 2026 q1`. The program's own path is not among
+them. [[scripts]] puts them to work in a script.
 
 ## Missing values and conversion
 
@@ -148,7 +169,8 @@ limit is Effectful: it uses `arg`
 Int
 ```
 
-Arguments are always granted: the invocation wrote them. The environment is
+Named and positional arguments are always granted: the invocation wrote
+them. The environment is
 read through a **grant** the host fixes before evaluation:
 
 | Host | Variables granted |

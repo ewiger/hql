@@ -84,6 +84,14 @@ hql --vault examples/reading-club eval '@[[virginia-woolf]] | downlinks | map(e 
 ["a-room-of-ones-own", "mrs-dalloway", "the-common-reader"]
 ```
 
+As a script, with `#!/usr/bin/env hql` on its first line and its arguments
+read with `io.env.argv()`:
+
+```bash
+examples/scripts/todo.hql reading            # ok(["Dune"])
+examples/scripts/todo.hql lent; echo $?     # err("no book is lent"), then 1
+```
+
 ---
 
 ## One language, several useful views
@@ -788,7 +796,7 @@ Pretty-print JSON from standard input:
 
 ```bash
 cat data.json |
-    hql 'source(stdin, Json)' --to json
+    hql --to json 'source(stdin, Json)'
 ```
 
 Filter a JSON stream:
@@ -806,7 +814,7 @@ Convert JSON to YAML:
 
 ```bash
 cat config.json |
-    hql 'source(stdin, Json)' --to yaml
+    hql --to yaml 'source(stdin, Json)'
 ```
 
 Work with files:
@@ -1072,9 +1080,12 @@ The same language can therefore run under different capability policies without 
 The CLI exposes HQL directly without introducing a second language of command-line switches.
 
 ```text
-hql '<program>'            the same as hql eval '<program>'
+hql '<program>' [arg...]   the same as hql eval '<program>' [arg...]
+hql -c '<program>'         the same as hql eval '<program>'
+hql FILE [arg...]          the same as hql run FILE, for FILE ending in .hql or containing /
+hql                        hql run - when stdin is piped, hql repl on a terminal
 hql eval <program>         check and evaluate a program given as an argument
-hql run <file>             check and evaluate a program from a file; - reads stdin
+hql run <file> [arg...]    check and evaluate a program from a file; - reads stdin
 hql check <file>           parse and type-check without evaluating
 hql plan <file>            print each pipeline's steps and the stage each runs in
 hql repl                   read, evaluate and print, one program at a time
@@ -1086,12 +1097,16 @@ hql config                 show the reporting settings in force and their origin
 hql doctor                 check the semantic-search chain and name what is missing
 ```
 
+Options of `hql` come before the program. Every word after the program is
+the program's own, read with `io.env.argv()`, and a result that is `err(e)`
+exits `1`.
+
 Choose the presentation format of the final result with:
 
 ```bash
-hql run query.hql --to json
-hql run query.hql --to json --compact    # one line per document, as jq -c
-hql run query.hql --to markdown
+hql --to json query.hql
+hql --to json --compact query.hql    # one line per document, as jq -c
+hql --to markdown query.hql
 ```
 
 Name the format of standard input once, so the program need not:
@@ -1103,8 +1118,8 @@ cat events.jsonl | hql --from json 'source(stdin) | map(e => e.kind)'
 Choose how failures are reported:
 
 ```bash
-hql run etl.hql --report collect             # step past failing elements, report them all
-hql run etl.hql --diagnostics-format json    # one JSON document per diagnostic on stderr
+hql --report collect etl.hql             # step past failing elements, report them all
+hql --diagnostics-format json etl.hql    # one JSON document per diagnostic on stderr
 ```
 
 Input and output semantics stay in the language:

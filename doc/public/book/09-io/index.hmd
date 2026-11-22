@@ -67,6 +67,7 @@ Logging and the network are modules of their own, `import logging` and
 | [Logging](logging.hmd) | `Logger`, the five levels, `--log-level`, and logs kept as values |
 | [The network](network.hmd) | `http`, `websocket` and `tcp` with `import net` |
 | [Files and folders](files-and-folders.hmd) | `io.fs`: a `Path`, walking a `Folder`, matching a `Glob`, and an `Entry` |
-| [Environment and arguments](environment.hmd) | `io.env`: environment variables and `--arg` arguments |
+| [Environment and arguments](environment.hmd) | `io.env`: environment variables, `--arg` arguments and positional arguments |
 | [Effects and what a host allows](hosts.hmd) | effectful operations, and what `hql eval`, `hql render` and `hql check` grant |
-| [`hql` on the command line](command-line.hmd) | `hql '<program>'`, `--to`, `--compact` and `--from` |
+| [`hql` on the command line](command-line.hmd) | `hql '<program>'`, `-c`, `--to`, `--compact` and `--from` |
+| [Scripts](scripts.hmd) | `#!`, `hql FILE`, `io.env.argv()`, the exit status, and relative paths in a script |

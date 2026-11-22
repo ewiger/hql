@@ -1,0 +1,15 @@
+<!-- hql reference: std/io/env.argv -->
+# `argv`
+
+In [`std/io/env`](index.hmd).
+
+```hql
+effectful fn argv() : Seq<String>
+```
+
+The invocation's positional arguments, the words after the program
+file or the inline program, in order: `./report.hql 2026 q1` gives
+`["2026", "q1"]`. The program's own path is not among them; it is
+`fs.source_dir()` and the file's name. The running process is
+`io.process` (HQL-0064).
+<!-- hql reference: end -->
