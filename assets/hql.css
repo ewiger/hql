@@ -186,6 +186,71 @@
   opacity: 1;
 }
 
+/* The HMD tab: the sibling project's button in the top bar. It sits among the
+   tabs but is not one — an outlined amber pill, a door to another site rather
+   than a chapter of this one. On hover the pill stretches as the name spells
+   itself out; it is the last tab, so nothing to its right moves. Its markup is
+   in `contrib/mkdocs/overrides/partials/tabs-item.html`. */
+.md-tabs__item:has(> .hmd-tab) {
+  display: flex;
+  align-items: center;
+}
+
+.md-tabs__link.hmd-tab {
+  margin-top: 0;
+  padding: 0.2rem 0.7rem;
+  border: 1.5px solid var(--hql-amber);
+  border-radius: 2rem;
+  color: var(--hql-amber);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  opacity: 1;
+  transition: box-shadow 0.25s ease-out;
+}
+
+.md-tabs__link.hmd-tab:hover,
+.md-tabs__link.hmd-tab:focus-visible {
+  color: var(--hql-amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--hql-amber) 25%, transparent);
+}
+
+.hmd-tab__text {
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* Each lower-case letter is a one-column grid whose column goes from nothing
+   to the letter's width — `fr` tracks animate, `auto` widths do not.
+   Expansion runs left to right, collapse right to left on a shorter delay, so
+   the name spells out slowly and backspaces quickly. */
+.hmd-tab__ghost {
+  display: inline-grid;
+  grid-template-columns: 0fr;
+  opacity: 0;
+  transition: grid-template-columns 0.12s ease-out, opacity 0.12s ease-out;
+  transition-delay: calc((var(--hmd-n) - 1 - var(--hmd-i)) * 30ms);
+}
+
+.hmd-tab__ghost > span {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.md-tabs__link.hmd-tab:hover .hmd-tab__ghost,
+.md-tabs__link.hmd-tab:focus-visible .hmd-tab__ghost {
+  grid-template-columns: 1fr;
+  opacity: 1;
+  transition-delay: calc(var(--hmd-i) * 70ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hmd-tab__ghost {
+    transition: none;
+  }
+}
+
 /* ------------------------------------------------------------------------
    Front page. `contrib/mkdocs/overrides/home.html` wraps it in `.hql-home`,
    so none of this reaches a book page. The page is a stack of bands; a band
