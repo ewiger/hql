@@ -49,7 +49,7 @@ gives a handleable failure as a `Result`, and never ends the process.
 | [advanced child processes](parts/03-advanced-child-processes.hmd) | a child's pipes wired to channels: `stdin_from`, `stdout_to`, `stderr_to`, and `command(…).stderr` |
 | [named pipes](parts/04-named-pipes.hmd) | `fifo(path)` in `io.fs`, and a named pipe handed to a child |
 | [`parallel`](parts/05-parallel.hmd) | the keyword `parallel`: the block, the step, `join = any`, branches against children, and how it runs |
-| [watchdogs](parts/06-watchdog.hmd) | `Watchdog`, a question asked of a child or a block at an interval; a side note on `io.process.monitoring`, samples, idle and reports |
+| [watchdogs](parts/06-watchdog.hmd) | `Watchdog`, a question asked of a child or a block at an interval; a side note on `io.process.monitoring`, measurements, idle and reports |
 | [I/O FAQ](parts/faq.hmd) | the programs that hang, fail or surprise under these rules, and those that read as a mistake and are correct |
 
 ## Relation to other proposals

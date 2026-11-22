@@ -177,7 +177,7 @@ cloud platform shows for a container:
 module io.process.monitoring
 
 /// One reading of a running child, taken by `hql`.
-type Sample {
+type Measurement {
     pid           : Int
     uptime_ms     : Int
     cpu_ms        : Int
@@ -198,8 +198,8 @@ type Sample {
 - Per-process network counters are not available on every platform. A
   measurement the platform does not give is `0`.
 
-A watchdog that reads samples has `ask` take the guarded child's sample,
-`(Sample) -> Bool`, in place of `() -> Bool`.
+A watchdog that reads measurements has `ask` take the guarded child's
+latest measurement, `(Measurement) -> Bool`, in place of `() -> Bool`.
 
 **Idle** is a state the kernel does not report. A child that is idle is
 running, is not a zombie, and moves no bytes: it waits on input that never
@@ -208,7 +208,7 @@ comes, or on a lock. A watchdog asks for it as a question on `idle_ms`:
 ```hql
 from io.process.monitoring import *
 
-not_idle = Watchdog((s: Sample) => s.idle_ms < 60000, every_ms = 60000)
+not_idle = Watchdog((m: Measurement) => m.idle_ms < 60000, every_ms = 60000)
 
 command("server", ["--port", "8080"], watchdog = not_idle).run()
 ```
@@ -224,7 +224,7 @@ hql: watchdog: process 4711 (server) idle for 180 s
 ```
 
 A watchdog built only to report never terminates the child: it reports
-each miss and has no limit of `misses`. The samples themselves are a
+each miss and has no limit of `misses`. The measurements themselves are a
 stream, so a program that keeps them reads them as it reads any endpoint:
-a `tap` of a monitoring endpoint gives a `Stream<Sample>`, which a `sink`
-writes to a file or a metrics endpoint.
+a `tap` of a monitoring endpoint gives a `Stream<Measurement>`, which a
+`sink` writes to a file or a metrics endpoint.
