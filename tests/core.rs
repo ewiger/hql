@@ -899,3 +899,13 @@ fn empty_brackets_are_refused_alike_across_a_line_break() {
 fn none_alone_covers_an_option_of_never() {
     assert_eq!(eval("match none { none => 1 }"), Ok(Value::Int(1)));
 }
+
+#[test]
+fn a_program_may_open_with_an_interpreter_line() {
+    assert_eq!(eval("#!/usr/bin/env hql\n1 + 1").unwrap(), Value::Int(2));
+    assert_eq!(eval("#!x\n\n2 * 3").unwrap(), Value::Int(6));
+    // A diagnostic on the line after `#!` is on line 2, as an editor shows it.
+    let source = "#!/usr/bin/env hql\n1 + true";
+    let span = eval_type_error(source);
+    assert_eq!(source[..span.start].matches('\n').count(), 1);
+}

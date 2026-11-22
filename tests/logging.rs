@@ -110,7 +110,7 @@ fn a_cell_logs_to_its_own_channel_and_saves_only_its_result() {
     std::fs::write(project_config(dir.path()), "").unwrap();
     fs::write(
         dir.path().join("doc.md"),
-        "```hql\nfrom logging import *\nlog = Logger(cell.logs, name = \"r\")\n\
+        "```hql#eval\nfrom logging import *\nlog = Logger(cell.logs, name = \"r\")\n\
          log | info(\"hi\")\n[1, 2] | size\n```\n",
     )
     .unwrap();
@@ -118,7 +118,7 @@ fn a_cell_logs_to_its_own_channel_and_saves_only_its_result() {
     assert_eq!(rendered.trim(), "2");
     fs::write(
         dir.path().join("loud.md"),
-        "```hql\nfrom logging import *\nlog = Logger(stderr, Text, name = \"r\")\n1\n```\n",
+        "```hql#eval\nfrom logging import *\nlog = Logger(stderr, Text, name = \"r\")\n1\n```\n",
     )
     .unwrap();
     refused(

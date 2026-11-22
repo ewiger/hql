@@ -491,7 +491,7 @@ fn render_writes_nothing_when_a_replaced_cell_fails() {
     let directory = tempdir().unwrap();
     let source = directory.path().join("broken.hmd");
     let built = directory.path().join("built.md");
-    std::fs::write(&source, "```hql\ncards | nosuchstep\n```\n").unwrap();
+    std::fs::write(&source, "```hql#eval\ncards | nosuchstep\n```\n").unwrap();
 
     let output = hql(&[
         "--vault",
@@ -771,7 +771,8 @@ fn cli_surface_identifies_hql_and_usage_errors_exit_two() {
             "{version}"
         );
     }
-    for args in [vec![], vec!["eval"], vec!["check"]] {
+    // `hql` alone reads a program, so it is no usage error (HQL-0062).
+    for args in [vec!["eval"], vec!["check"]] {
         assert_eq!(hql(&args).status.code(), Some(2), "{args:?}");
     }
     // A first word that names no command is a program: `hql '<program>'`.
@@ -936,7 +937,7 @@ fn render_runs_one_cell_and_reports_every_cell_as_json() {
     let path = directory.path().join("notes.hmd");
     std::fs::write(
         &path,
-        "```hql id=base\n10\n```\n\n```hql id=double\nbase * 2\n```\n\n```hql id=other\n1 / 0\n```\n",
+        "```hql#eval id=base\n10\n```\n\n```hql#eval id=double\nbase * 2\n```\n\n```hql#eval id=other\n1 / 0\n```\n",
     )
     .unwrap();
     let name = path.to_str().unwrap();
@@ -1078,4 +1079,162 @@ fn boundary_prints_an_endpoints_effective_boundary() {
         "{}",
         stderr(&refused)
     );
+}
+
+/// What `hql` makes of `words`, given whether standard input is a terminal.
+fn defaulted(words: &[&str], terminal: bool) -> Vec<String> {
+    let arguments = std::iter::once("hql")
+        .chain(words.iter().copied())
+        .map(str::to_owned)
+        .collect();
+    hql::cli::with_default_command(arguments, terminal)
+        .into_iter()
+        .skip(1)
+        .collect()
+}
+
+#[test]
+fn a_word_written_as_a_file_runs_and_any_other_is_an_expression() {
+    let directory = tempdir().unwrap();
+    let script = directory.path().join("foo");
+    std::fs::write(&script, "1").unwrap();
+    let script = script.to_str().unwrap();
+    assert_eq!(defaulted(&["foo.hql"], false), ["run", "foo.hql"]);
+    assert_eq!(defaulted(&[script, "a"], false), ["run", script, "--", "a"]);
+    // A `/` alone is no file: `10 / 2` names none.
+    assert_eq!(defaulted(&["10 / 2"], false), ["eval", "10 / 2"]);
+    // A missing `.hql` file runs, so it fails as a missing file.
+    assert_eq!(defaulted(&["missing.hql"], true), ["run", "missing.hql"]);
+    assert_eq!(defaulted(&["-"], true), ["run", "-"]);
+    // Options before the program are `hql`'s.
+    assert_eq!(
+        defaulted(&["--to", "json", "foo.hql", "--to", "text"], false),
+        ["--to", "json", "run", "foo.hql", "--", "--to", "text"]
+    );
+}
+
+#[test]
+fn a_bare_word_stays_an_expression_beside_a_file_of_its_name() {
+    let directory = tempdir().unwrap();
+    std::fs::write(directory.path().join("birds"), "1").unwrap();
+    std::fs::write(directory.path().join("run"), "1").unwrap();
+    let birds = hql_in(directory.path(), &["birds"]);
+    assert!(!birds.status.success());
+    assert!(stderr(&birds).contains("birds"), "{}", stderr(&birds));
+    // A command name wins over a file of that name.
+    assert_eq!(
+        defaulted(&["run", "x.hql", "a"], false),
+        ["run", "x.hql", "--", "a"]
+    );
+    let run = hql_in(directory.path(), &["run"]);
+    assert_eq!(run.status.code(), Some(2), "{}", stderr(&run));
+}
+
+#[test]
+fn dash_c_is_eval_and_both_take_arguments() {
+    assert_eq!(defaulted(&["-c", "1 + 1"], false), ["eval", "1 + 1"]);
+    assert_eq!(
+        defaulted(&["-c", "1", "a", "-b"], false),
+        ["eval", "1", "--", "a", "-b"]
+    );
+    assert_eq!(defaulted(&["1", "a"], false), ["eval", "1", "--", "a"]);
+    assert_eq!(
+        defaulted(&["eval", "1", "a"], false),
+        ["eval", "1", "--", "a"]
+    );
+    let output = hql(&["-c", "1 + 1"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "2\n");
+}
+
+#[test]
+fn no_program_reads_standard_input_or_opens_the_repl() {
+    assert_eq!(defaulted(&[], false), ["run", "-"]);
+    assert_eq!(
+        defaulted(&["--to", "json"], false),
+        ["--to", "json", "run", "-"]
+    );
+    assert_eq!(defaulted(&[], true), ["repl"]);
+    assert_eq!(defaulted(&["--help"], false), ["--help"]);
+    assert_eq!(defaulted(&["--version"], true), ["--version"]);
+    let output = piped(&[], "1 + 1");
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "2\n");
+}
+
+#[test]
+fn a_missing_program_file_fails_as_a_missing_file() {
+    let output = hql(&["missing.hql"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stderr(&output).contains("missing.hql"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(
+        !stderr(&output).contains("parse failure"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn an_executable_script_runs_through_its_interpreter_line() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = tempdir().unwrap();
+    let script = directory.path().join("greet.hql");
+    std::fs::write(
+        &script,
+        "#!/usr/bin/env hql\nimport io.env\n\"hello \" + (env.argv()[0] | unwrap_or(\"world\"))\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let binary = std::path::Path::new(env!("CARGO_BIN_EXE_hql"));
+    let path = format!(
+        "{}:{}",
+        binary.parent().unwrap().display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    let output = Command::new(&script)
+        .arg("ada")
+        .env("PATH", path)
+        .current_dir(directory.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "\"hello ada\"\n");
+}
+
+#[test]
+fn an_err_result_exits_one_and_is_still_printed() {
+    for (program, code, printed) in [
+        ("err(\"x\")", 1, "err(\"x\")\n"),
+        ("ok(1)", 0, "ok(1)\n"),
+        ("[ok(1), err(\"x\")]", 0, "[ok(1), err(\"x\")]\n"),
+    ] {
+        let evaluated = hql(&["eval", program]);
+        assert_eq!(evaluated.status.code(), Some(code), "{program}");
+        assert_eq!(stdout(&evaluated), printed, "{program}");
+        let directory = tempdir().unwrap();
+        let file = directory.path().join("p.hql");
+        std::fs::write(&file, program).unwrap();
+        let run = hql(&["run", file.to_str().unwrap()]);
+        assert_eq!(run.status.code(), Some(code), "run {program}");
+        assert_eq!(stdout(&run), printed, "run {program}");
+    }
+}
+
+#[test]
+fn a_collection_of_strings_is_lines_as_text() {
+    assert_eq!(
+        stdout(&hql(&["--to", "text", "-c", "[\"a\", \"b\"]"])),
+        "a\nb\n"
+    );
+    assert_eq!(stdout(&hql(&["--to", "text", "-c", "[]"])), "");
+    assert_eq!(
+        stdout(&hql(&["--to", "hql", "-c", "[\"a\", \"b\"]"])),
+        "[\"a\", \"b\"]\n"
+    );
+    assert_eq!(stdout(&hql(&["--to", "text", "-c", "[1, 2]"])), "[1, 2]\n");
 }

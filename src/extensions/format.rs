@@ -311,6 +311,15 @@ fn default(value: &Value, format: TypeConstructor) -> Result<String, String> {
         "Json" if graph => by_name("node-link", value, format),
         "Markdown" | "Hmd" | "D2" if graph => by_name("d2", value, format),
         "Mermaid" if graph => by_name("mermaid", value, format),
+        // A collection of strings is its lines (HQL-0062), as `Lines`
+        // frames it: the names a script found, one per line.
+        "Text" | "String" if strings(value) => Ok(value
+            .elements()
+            .unwrap_or_default()
+            .iter()
+            .map(text)
+            .collect::<Vec<_>>()
+            .join("\n")),
         "Text" | "String" => Ok(text(value)),
         // Line framing: one record per line, each a value's text or its
         // compact JSON; a value that is not a collection is one record.
@@ -365,6 +374,17 @@ fn by_name(name: &str, value: &Value, format: TypeConstructor) -> Result<String,
             _,
         ) => Err(refused()),
         _ => Err(format!("no renderer is named `{name}`")),
+    }
+}
+
+/// Whether a value is a list or a set whose elements are all `String`; an
+/// empty one is.
+fn strings(value: &Value) -> bool {
+    match unwrapped(value) {
+        Value::List(values, element) | Value::Set(values, element) => {
+            *element == TypeRef::STR || values.iter().all(|value| matches!(value, Value::Str(_)))
+        }
+        _ => false,
     }
 }
 

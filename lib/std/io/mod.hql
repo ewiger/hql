@@ -235,7 +235,11 @@ fn Path(text: String) : Path
 
 /// `self` with `segment` appended as its last segment, separated by `/`:
 /// `Path("data").join("birds.csv")` is `Path("data/birds.csv")`. Onto
-/// `Path(".")` or `Path("")` it is `Path(segment)`.
+/// `Path(".")` or `Path("")` it is `Path(segment)`. A `segment` with a root,
+/// `/`, a drive root `C:/` or a share, is `Path(segment)` itself:
+/// `working_dir().join("/tmp")` is `Path("/tmp")`, so a path given on the
+/// command line joins to the working directory whether it is relative or
+/// absolute.
 fn join(self: Path, segment: String) : Path
 
 /// `self` without its last segment, `some(Path)`, or `none` for a path of

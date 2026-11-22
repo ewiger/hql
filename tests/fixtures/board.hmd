@@ -11,7 +11,7 @@ cards
 
 ## Closest to bearer tokens
 
-```hql#query
+```hql#eval
 import hmd
 
 cards

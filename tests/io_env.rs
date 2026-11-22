@@ -145,8 +145,8 @@ fn render_reads_no_variable_and_every_argument() {
     let path = directory.path().join("notes.hmd");
     std::fs::write(
         &path,
-        "```hql\nimport io.env\n[env.var(\"OTHER\"), env.arg(\"who\")]\n```\n\n\
-         ```hql\nfrom io.env import vars\nvars() | entries | size\n```\n",
+        "```hql#eval\nimport io.env\n[env.var(\"OTHER\"), env.arg(\"who\")]\n```\n\n\
+         ```hql#eval\nfrom io.env import vars\nvars() | entries | size\n```\n",
     )
     .unwrap();
     let output = hql_in(
@@ -291,4 +291,68 @@ fn io_env_is_imported_not_in_the_prelude() {
         "{}",
         refused.message
     );
+}
+
+/// `program` run from a file, with `words` after the file.
+fn script(config: Option<&str>, program: &str, words: &[&str]) -> Output {
+    let directory = tempfile::tempdir().unwrap();
+    if let Some(config) = config {
+        std::fs::write(project_config(directory.path()), config).unwrap();
+    }
+    let path = directory.path().join("s.hql");
+    std::fs::write(&path, format!("import io.env\n{program}\n")).unwrap();
+    let mut arguments = vec!["run", path.to_str().unwrap()];
+    arguments.extend_from_slice(words);
+    hql_in(directory.path(), &[], &arguments)
+}
+
+#[test]
+fn argv_is_every_word_after_the_program_file() {
+    let output = script(None, "env.argv()", &["a", "--b", "c"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "[\"a\", \"--b\", \"c\"]\n");
+    // An option after the file is the program's, not `hql`'s.
+    let output = script(None, "env.argv()", &["--to", "json"]);
+    assert_eq!(stdout(&output), "[\"--to\", \"json\"]\n");
+    // `--` after the file is the program's too.
+    let output = script(None, "env.argv()", &["--", "x"]);
+    assert_eq!(stdout(&output), "[\"--\", \"x\"]\n");
+    let output = script(None, "env.argv()", &[]);
+    assert_eq!(stdout(&output), "[]\n");
+}
+
+#[test]
+fn argv_is_granted_whatever_the_env_grant_says() {
+    let output = script(Some("env = []\n"), "env.argv()", &["kept"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "[\"kept\"]\n");
+}
+
+#[test]
+fn an_inline_program_takes_positional_arguments() {
+    assert_eq!(standalone(&[], &[], "env.argv()"), "[]");
+    let directory = tempfile::tempdir().unwrap();
+    let program = "import io.env\nenv.argv()";
+    for command in ["eval", "-c"] {
+        let output = hql_in(
+            directory.path(),
+            &[],
+            &["--bare", command, program, "a", "--b"],
+        );
+        assert!(output.status.success(), "{command}: {}", stderr(&output));
+        assert_eq!(stdout(&output), "[\"a\", \"--b\"]\n", "{command}");
+    }
+}
+
+#[test]
+fn named_and_positional_arguments_are_read_apart() {
+    let directory = tempfile::tempdir().unwrap();
+    let program = "import io.env\n[env.arg(\"year\"), env.argv()[0]]";
+    let output = hql_in(
+        directory.path(),
+        &[],
+        &["--bare", "--arg", "year=2026", "-c", program, "q1"],
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "[\"2026\", \"q1\"]\n");
 }

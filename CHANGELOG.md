@@ -8,8 +8,29 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+HQL is a script language ([HQL-0062](doc/proposals/HQL-0062/index.hmd)).
+
 ### Added
 
+- **A program may open with a `#!` line.** A source whose first two bytes
+  are `#!` skips its first line, so an executable file that starts with
+  `#!/usr/bin/env hql` runs as `./todo.hql`. The line still counts as line
+  1 in diagnostics. `#!` anywhere else is a syntax error.
+- **`hql FILE` runs a file.** A first free word that ends in `.hql`, or
+  contains `/` and names a regular file, is `hql run FILE`. Any other word
+  is a program, as before, so `hql '10 / 2'` and `hql birds` still
+  evaluate. A command name wins over a file of that name.
+- **`hql -c '<program>'`** is `hql eval '<program>'`, as `-c` is in Python
+  and Bash.
+- **`hql` with no program** runs standard input when it is not a terminal,
+  `echo '1 + 1' | hql`, and opens the REPL when it is.
+- **Positional arguments, `io.env.argv()`.** The words after a program
+  file or an inline program are the program's own, in order, as a
+  `Seq<String>`: `./todo.hql reading` gives `["reading"]`. They are always
+  granted. The program's own path is not among them.
+- `examples/scripts/`: `todo.hql` and `lsx.hql`, executable scripts. The
+  book's I/O chapter has a page on scripts, with how their relative paths
+  differ from Python, Node and Bash.
 - **Child processes** ([HQL-0064](doc/proposals/HQL-0064/index.hmd)).
   `command(program, args)` of `io.process` names a program and starts
   nothing. `source` and `tap` start it and read its standard output,
@@ -26,6 +47,33 @@ The language continues to be in active development.
   child inherits the variables the `env` grant gives the program.
 - The crate `hql-sys` holds the operating-system calls that need `unsafe`.
   `hql` depends on it and it is published with `hql`.
+
+### Changed
+
+- **A result that is `err(e)` exits `1`.** It is still written on standard
+  output. Only the result itself is tested: `[ok(1), err("x")]` exits `0`.
+  `./check.hql && ./publish.hql` now stops on a failed check.
+- **Every word after the program is the program's.** An option of `hql`
+  written after the program is now one of the program's arguments, so it
+  moves before the program: `hql --to json 'source(stdin, Json)'`, not
+  `hql 'source(stdin, Json)' --to json`.
+- **`Path.join` keeps an absolute segment.** `base.join(segment)` is
+  `segment` when `segment` has a root (`/`, `C:/` or a share), so
+  `fs.working_dir().join(p)` names the folder a user typed, relative or
+  absolute. It was `base//segment`.
+- **A collection of strings presented as text is one string per line.**
+  `hql --to text -c '["a", "b"]'` writes `a` and `b` on two lines, and an
+  empty collection writes nothing. `format(Text)` writes the same.
+  `--to hql`, the default, still writes the literal.
+- `hql` with no word and standard input not a terminal no longer prints the
+  help and exits `2`.
+- **A plain `hql` fence is a code listing.** In a document only a fence
+  marked `hql#eval` or `hql#query` is a cell. `hql render` and `hql check`
+  leave a plain ` ```hql ` fence as written: it does not run and gets no
+  output, and an `id=` on it names nothing. A document whose cells are
+  fenced plain `hql` marks them `hql#eval` instead.
+- **`hql#query` is `hql#eval hidden`.** A query cell runs so that other
+  cells can read its value, and writes no output in any `--emit` mode.
 
 ## [0.7.2] — 2026-11-22
 

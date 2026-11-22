@@ -45,7 +45,7 @@ title: Next meeting
 Notes for the club's next meeting, built from the shelf with
 `hql --vault examples/reading-club render`.
 
-```hql id=books hidden
+```hql#query id=books
 cards | filter(c => c.metadata.category == "book")
 ```
 
@@ -53,7 +53,7 @@ cards | filter(c => c.metadata.category == "book")
 
 The books nobody has finished.
 
-```hql id=unread
+```hql#eval id=unread
 books
 | filter(c => c.metadata.status == "todo")
 | sort(by = c => c.title)
@@ -64,7 +64,7 @@ books
 
 What the shelf holds on the question the club keeps returning to.
 
-```hql id=evidence hidden
+```hql#query id=evidence
 import hmd
 cards | semantic("which unread book suits a reading club") | take(3) | Context("evidence")
 ```
@@ -94,7 +94,7 @@ pick | trace | map(e => e.kind)
 
 ## Remembered
 
-```hql id=note hidden
+```hql#query id=note
 pick | remember("next-meeting-pick")
 ```
 

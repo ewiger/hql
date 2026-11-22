@@ -84,6 +84,7 @@ nav:
                   - Environment and arguments: book/09-io/environment.md
                   - Effects and what a host allows: book/09-io/hosts.md
                   - hql on the command line: book/09-io/command-line.md
+                  - Scripts: book/09-io/scripts.md
               - 10. The type system:
                   - book/10-the-type-system.md
                   - Records: book/10-the-type-system/records.md

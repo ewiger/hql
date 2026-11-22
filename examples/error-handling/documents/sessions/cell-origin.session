@@ -14,4 +14,4 @@ check error[type-mismatch]: addition requires two Int, two Float or two Decimal 
    = cell: 2
 
 $ hql --diagnostics-format json render examples/error-handling/documents/last-cell-type-error.hmd
-{"disposition":"fatal","kind":"type-mismatch","message":"addition requires two Int, two Float or two Decimal operands","origin":"examples/error-handling/documents/last-cell-type-error.hmd#2","phase":"check","severity":"error","span":{"end":163,"start":155}}
+{"disposition":"fatal","kind":"type-mismatch","message":"addition requires two Int, two Float or two Decimal operands","origin":"examples/error-handling/documents/last-cell-type-error.hmd#2","phase":"check","severity":"error","span":{"end":172,"start":164}}

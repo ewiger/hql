@@ -77,9 +77,13 @@ shelf
 ```
 
 ```text
-["Frankenstein", "Dune", "The Hobbit"]
+Frankenstein
+Dune
+The Hobbit
 … 4 more not shown
 ```
+
+A list of strings in text is one string per line.
 
 A list of records in Markdown is a bullet list. A table is a value of its own
 type, `Table`: `Table(xs, columns = [...])` takes one row per record and the

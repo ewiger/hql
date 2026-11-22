@@ -48,9 +48,6 @@ board:
         title: "Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events"
         file: 0075-validation-rules-thresholds-and-events.hmd
     todo:
-      - id: "0084"
-        title: "A plain `hql` fence is a listing: `hql render` runs only `hql#eval` and `hql#query`"
-        file: 0084-a-plain-hql-fence-is-a-listing.hmd
       - id: "0083"
         title: "I/O programs that never end: trace every case"
         file: 0083-io-programs-that-never-end.hmd
@@ -89,6 +86,9 @@ board:
         title: "Documentation states semantics, not intuition"
         file: 0019-documentation-precision.hmd
     done:
+      - id: "0084"
+        title: "A plain `hql` fence is a listing: `hql render` runs only `hql#eval` and `hql#query`"
+        file: 0084-a-plain-hql-fence-is-a-listing.hmd
       - id: "0072"
         title: "Release 0.6.0: fix, finish, tidy, tag"
         file: 0072-release-0.6.0.hmd

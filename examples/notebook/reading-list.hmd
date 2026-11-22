@@ -2,13 +2,13 @@
 
 Built from the vault with `hql --vault examples/reading-club render`.
 
-```hql id=books hidden
+```hql#query id=books
 cards | filter(c => c.metadata.category == "book")
 ```
 
 ## Still to read
 
-```hql id=todo
+```hql#eval id=todo
 books
 | filter(c => c.metadata.status == "todo")
 | sort(by = c => c.title)
@@ -17,6 +17,6 @@ books
 
 ## How far along
 
-```hql
+```hql#eval
 {books: books | size, to_read: todo | size}
 ```
