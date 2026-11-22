@@ -50,7 +50,7 @@ whether the documents end.
 - [`DataTarget`](types/DataTarget.hmd) — What a program writes to: an endpoint written in a format, or a configured endpoint by its id.
 - [`file`](file.hmd) — The `File` at `path`.
 - [`join`](join.hmd) — `self` with `segment` appended as its last segment, separated by `/`: `Path("data").join("birds.csv")` is `Path("data/birds.csv")`.
-- [`parent`](parent.hmd) — `self` without its last segment, `some(Path)`, or `none` for a path of one segment: `Path("a/b").parent()` is `some(Path("a"))`, and `Path("a").parent()` is `none`.
+- [`parent`](parent.hmd) — `self` without its last segment, `some(Path)`, or `none` for a path of one segment or a root: `Path("a/b").parent()` is `some(Path("a"))`, and `Path("a").parent()` is `none`.
 - [`name`](name.hmd) — The last segment of `self`: `Path("data/birds.csv").name()` is `"birds.csv"`.
 - [`stem`](stem.hmd) — The last segment of `self` without its extension: `Path("data/birds.csv").stem()` is `"birds"`.
 - [`extension`](extension.hmd) — The text after the last `.` of the last segment, `some(String)`, or `none` where the segment has none: `Path("a/b.csv").extension()` is `some("csv")`.

@@ -31,6 +31,7 @@ mod nats;
 mod net;
 pub mod package;
 mod parser;
+mod paths;
 mod postgres;
 mod spark;
 mod transaction;

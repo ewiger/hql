@@ -1,0 +1,221 @@
+# HQL-0063: Paths a program reads: `/` between segments on every host
+
+**Status**: implemented in part
+**Created**: 2026-11-22
+**Issues**: [0082](../../issues/0082-windows-paths-a-program-reads.hmd)
+**Source**: the first build and test of `hql` on Windows, at `v0.7.1`; the
+`Path` of [[HQL-0040]], the sorted walk of [[HQL-0020]] and the source
+directory of [[HQL-0059]]
+
+## Abstract
+
+A path a program reads is text with `/` between its segments, on every host.
+The form the host writes a path in, `\` between segments and `\\?\` before a
+canonical path on Windows, is kept inside the runtime and is converted where a
+path becomes a value. One function converts it. A card's path, an entry of a
+listing, `fs.source_dir()`, `fs.working_dir()` and `vault.root` are that text.
+The roots a `Path` knows are `/`, a drive root `C:/` and a share
+`//server/share`, read from the text alone.
+
+## Motivation
+
+[[HQL-0040]] makes a `Path` text and its operations pure: `join`, `parent`,
+`name`, `stem` and `extension` read the text and never the file system, and
+they read `/` as the separator. It does not say what text a path the host
+gives is. On Linux and macOS the host writes `/` too, so the two agreed
+without a rule. On Windows they do not, and one location has three texts:
+
+| Form | Text |
+| --- | --- |
+| as Windows writes it | `D:\a\hql\examples\projects\library\lib\shelf` |
+| canonical | `\\?\D:\a\hql\examples\projects\library\lib\shelf` |
+| as a program reads it | `D:/a/hql/examples/projects/library/lib/shelf` |
+
+The canonical form is what `std::fs::canonicalize` returns on Windows: an
+extended-length path, in which Windows reads `/` as a character of a name and
+not as a separator. It is the host's form and not an escaping error.
+
+The first run of the tests on Windows showed the host's form reaching programs
+in two places ([issue 0082](../../issues/0082-windows-paths-a-program-reads.hmd)):
+
+- A card below a folder had the path `books\a-room-of-ones-own.hmd`, so
+  `cards | filter(c => c.path | starts_with("books/")) | size` was `0` where
+  it is `7` on Linux and macOS. A vault did not read the same on two machines.
+- `fs.source_dir().name` was the whole canonical path, where it is `shelf`
+  elsewhere: the text holds no `/` for `name` to find.
+
+Both are the runtime handing a program the host's text. The rule that was
+missing is stated here, so the next path that becomes a value has one place to
+go through.
+
+## Non-goals
+
+- The text of a path a message names. A diagnostic, `hql context` and an
+  error of the host name a path as the host writes it.
+- Case. Windows and macOS usually read `Books` and `books` as one folder; a
+  `Path` compares by its text, as it does today.
+- Line endings of a card saved on Windows.
+
+## Specification
+
+### 1. The invariant
+
+- A path the runtime gives a program MUST be written with `/` between its
+  segments on every host, and MUST NOT open with `\\?\`. A program, a card and
+  an example are then the same text on every machine, and `Path`'s operations
+  find the segments.
+- A program MUST NOT need a host-specific form to name a file. `file("data/birds.csv")`
+  and `folder("C:/Users/ada/notes")` name the same file on Windows as the
+  host's own spelling does; Windows reads `/` as a separator in every path
+  that does not open with `\\?\`.
+
+### 2. One conversion, at the boundary
+
+- The runtime MUST keep a host path in the host's form, a `PathBuf`, wherever
+  it opens, lists or compares files.
+- A host path MUST become a value through one function, `paths::of`. No other
+  code writes a host path into a `String` a program reads.
+- The conversion is:
+
+```text
+of(path):
+    text = the host's text of path
+    on Windows:
+        "\\?\X:\rest"            ->  "X:\rest"            X a drive letter
+        "\\?\UNC\server\share…"  ->  "\\server\share…"
+        any other "\\?\…"        ->  unchanged
+        then every "\" -> "/"
+    elsewhere:
+        text
+```
+
+| Host path | As a program reads it |
+| --- | --- |
+| `/home/ada/notes` | `/home/ada/notes` |
+| `C:\Users\ada\notes` | `C:/Users/ada/notes` |
+| `\\?\C:\Users\ada\notes` | `C:/Users/ada/notes` |
+| `\\server\share\notes` | `//server/share/notes` |
+| `\\?\UNC\server\share\notes` | `//server/share/notes` |
+
+- An extended-length path that is neither a drive path nor a share, a volume
+  `\\?\Volume{…}\` among them, MUST keep its `\\?\`: without it the text names
+  another place. Its separators are still written `/`.
+- The values that go through `of` are `fs.source_dir()`, `fs.working_dir()`
+  and `vault.root`, and any absolute path a later proposal gives a program.
+
+### 3. A path below a folder is an identity
+
+- The path of an entry below the folder walked, a card's `path` and an
+  `Entry`'s among them, MUST be joined with `/` by the sorted walk itself
+  ([[HQL-0020]]). It names a place in a vault and not a file of the host, and
+  it is what `group`, `unique`, a join and a diagnostic's `source` read; it is
+  the same text wherever the vault is read.
+- The runtime opens such an entry by joining it to its folder's host path,
+  which Windows reads with either separator. Two paths that differ only in
+  their separator compare equal as host paths, so a look-up by path is not
+  changed.
+
+### 4. The roots a `Path` knows
+
+`Path`'s operations read the text alone ([[HQL-0040]]), so these hold on every
+host, a Windows path read on Linux included.
+
+- A path has one of three roots, or none:
+
+| Root | Written | A path one segment below it |
+| --- | --- | --- |
+| the root of a file system | `/` | `/home` |
+| a drive root: a letter, `:` and `/` | `C:/` | `C:/Users` |
+| a share: `//`, a server, `/` and a share | `//server/share` | `//server/share/notes` |
+
+- `parent` of a root MUST be `none`.
+
+- `parent` of a path one segment below a root MUST be the root with its `/`:
+  `Path("C:/Users").parent()` is `some(Path("C:/"))`, as
+  `Path("/home").parent()` is `some(Path("/"))`. `C:` alone names the current
+  folder of a drive on Windows, which is another place.
+- `name` of a root is the empty text. `join` onto a root adds no second `/`.
+- `\` MUST NOT be read as a separator by `Path`'s operations. It is a
+  character a file name may hold on Linux and macOS, and the operations do
+  not ask which host they run on. A path a program writes with `\`,
+  `folder("C:\\data")`, is passed to the host as written and opens the same
+  folder on Windows; `parent` and `name` read it as one segment.
+
+### 5. Paths in messages
+
+- A message MUST name a path as the host writes it, so it can be pasted into
+  the host's own tools. Where the runtime joins a path it reports, it SHOULD
+  join it segment by segment, so one separator is used throughout:
+  `project\.hql\config.toml` and not `project\.hql/config.toml`.
+
+## Backwards Compatibility
+
+Nothing changes on Linux and macOS: `of` returns the host's text there, and
+the walk joined with `/` already.
+
+On Windows no release carried a binary before this one, so no program built
+with one is affected. A program run with a `hql` built from source on Windows
+sees `/` where it saw `\`, which is the repair.
+
+The root rules change one result on every host: `Path("C:/Users").parent()`
+is `C:/` where it was `C:`.
+
+## Security Considerations
+
+The grants of [[HQL-0040]] compare canonical host paths, and still do: the
+containment check canonicalizes both the path asked for and the root, in the
+host's form, and never reads the converted text. Converting for display does
+not widen what a program may open.
+
+## Reference Implementation
+
+- `src/paths.rs`: `of`, the one conversion, and the text operations with the
+  roots of rule 4.
+- `src/walk.rs`: `joined`, the join of the sorted walk.
+- `src/extensions/fs.rs` and `src/evaluation.rs`: the three values read
+  through `of`.
+- `src/context.rs`: the project's configuration file joined segment by
+  segment.
+- `lib/std/io/mod.hql`: the doc string of `parent`, and its reference page.
+- `.github/workflows/ci.yml` and `release.yml`: `windows-latest` beside Linux
+  and macOS, with LF kept at checkout.
+
+Not built yet:
+
+- A rule that keeps the next host path from reaching a program without
+  `of`. Today it is a convention, and the tests on Windows are what notice.
+
+## Test Plan
+
+Unit tests MUST include:
+
+- every row of the table of rule 2, and a volume path that keeps its `\\?\`;
+  the conversion is tested as a function of text, so it runs on every host;
+- every row of the table of rule 4, with `parent`, `name` and `join`.
+
+Integration tests, on Windows as on Linux and macOS:
+
+- `the_cards_start_where_wiki_says_and_their_paths_are_relative_to_it` in
+  `tests/vault.rs`;
+- `walk_is_the_sorted_walk_and_the_vaults_order` and
+  `a_relative_path_resolves_against_the_source_directory_of_its_unit` in
+  `tests/io_fs.rs`;
+- `projects/queries/module-source-dir.hql` in the corpus;
+- the page `doc/public/book/21-a-vault.hmd`, whose
+  `starts_with("books/")` counts seven cards.
+
+```bash
+cargo test --locked
+```
+
+## Open Questions
+
+- Should `Path` gain `is_absolute`, now that it knows its roots?
+- Should a path written into a file a program produces, a lock file or a
+  package manifest, be written in the form of this proposal, so the file is
+  the same on every host?
+
+## Changelog
+
+- 2026-11-22: drafted from issue 0082 and built on `feat/win-bin`: the
+  conversion, the walk's join, the roots and the messages

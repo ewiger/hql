@@ -1,7 +1,9 @@
 # 0082 — On Windows, a path a program reads is not the text HQL reads
 
 Status: doing
-Related: [[HQL-0020]], [[HQL-0040]], [[HQL-0059]],
+Related: [[HQL-0063]], which states the rule; [[HQL-0020]], [[HQL-0040]],
+[[HQL-0059]],
+[`src/paths.rs`](../../src/paths.rs),
 [`src/walk.rs`](../../src/walk.rs),
 [`src/extensions/fs.rs`](../../src/extensions/fs.rs),
 [`src/evaluation.rs`](../../src/evaluation.rs),
@@ -46,11 +48,15 @@ it is `shelf` elsewhere: there is no `/` in that text for `name` to find.
 1. `joined` in `src/walk.rs` joins the paths of the sorted walk with `/` on
    every platform. The vault's documents and `io.fs` both read their order and
    their paths from that one walk.
-2. `paths::of` in `src/walk.rs` is the text of a host path as a program reads
-   it: `/` between the segments, without `\\?\`. `fs.source_dir()`,
-   `fs.working_dir()` and `vault.root` are read through it, so on Windows they
-   are `C:/Users/ada/notes`. Windows opens that text as the same file.
+2. `of` in `src/paths.rs` is the text of a host path as a program reads
+   it: `/` between the segments, without the `\\?\` of a drive path or a
+   share. `fs.source_dir()`, `fs.working_dir()` and `vault.root` are read
+   through it, so on Windows they are `C:/Users/ada/notes`. Windows opens
+   that text as the same file.
 3. A path a message names is left as the host writes it.
+4. `parent`, `name` and `join` know a drive root `C:/` and a share
+   `//server/share` beside `/`: `Path("C:/Users").parent()` was `C:`, the
+   current folder of a drive, and is `C:/`.
 
 ## What keeps it fixed
 
@@ -79,9 +85,10 @@ that holds on both.
 
 ## Open
 
-- A path a program writes itself, `folder("C:\\data")`, is passed to the host
-  as written and is not split by `parent` or `name`. Whether a `Path` built
-  from text should read `\` as a separator on Windows is undecided.
+- A path a program writes itself with `\`, `folder("C:\\data")`, is passed
+  to the host as written and is one segment to `parent` and `name`:
+  [[HQL-0063]] decides that `\` is not a separator, since it is a character
+  of a name on Linux and macOS.
 - A card saved with CRLF line endings has not been run on Windows.
 - Nothing here is confirmed on Windows until the run on `feat/win-bin` is
   green; this card moves to done with the release that carries `hql.exe`.

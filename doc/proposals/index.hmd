@@ -120,3 +120,4 @@ outside this list.
 | HQL-0058 | drafted | AI memory: fused rankings, a written index, and `recall` (reserved; on `feat/ai-ext`) |
 | [HQL-0059](HQL-0059/index.hmd) | implemented in part | HyperMarkdown vaults and HQL project resolution |
 | [HQL-0060](HQL-0060/index.hmd) | implemented in part | One import mechanism for every module: `import m`, `from m import …`, `as` and `except` |
+| [HQL-0063](HQL-0063/index.hmd) | implemented in part | Paths a program reads: `/` between segments on every host, the host's form kept inside the runtime |
