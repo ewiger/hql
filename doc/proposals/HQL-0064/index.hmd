@@ -38,7 +38,9 @@ gives a handleable failure as a `Result`, and never ends the process.
 - HQL evaluates statements in order. A program that writes to a child while
   it reads the child's answers has no way to say so.
 - A child that is running and no longer answers cannot be told from one that
-  works.
+  works. In ETL this is the common fault: a stage that consumes a streaming
+  queue never ends by design, so only its measurements show that it has
+  hung or stopped giving output.
 
 ## The parts
 
