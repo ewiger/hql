@@ -189,6 +189,8 @@ type Measurement {
     stdin_bytes   : Int
     stdout_bytes  : Int
     stderr_bytes  : Int
+    stdin_blocked_ms : Int
+    stdout_idle_ms   : Int
     idle_ms       : Int
 }
 ```

@@ -2,10 +2,12 @@
 
 Companion to [[HQL-0064]]. A program that starts several children wires
 the same things to each: its standard error to a log, a watchdog, and a
-place for what the watchdog finds. This note states who takes a
+place for what the watchdog finds. The case that motivates it is ETL: a
+child that consumes a streaming queue, runs by design without end, and
+hangs or slows while it still runs. This note states who takes a
 `Measurement`, how it reaches a watchdog, where reports go, and how `hql`
-finds a **logical zombie**: a child or a branch that runs and can never
-finish.
+finds a **logical zombie**: a child or a branch that runs and no longer
+does its work.
 
 !!! warning "Design only"
     Nothing in this note is implemented, and [[HQL-0064]] does not deploy
@@ -15,6 +17,10 @@ finish.
     [`parallel`](05-parallel.hmd).
 
 !!! abstract "TL;DR"
+    - **The use case is an unhealthy consumer of a streaming queue.** It
+      never ends by design, so its exit status says nothing. Its
+      measurements say whether it still takes input and still gives
+      output.
     - **`hql` takes every measurement.** It is the parent of every child:
       it counts the bytes on the pipes it holds, and reads the rest from
       the kernel by the child's identifier.
@@ -28,7 +34,59 @@ finish.
       construct.
     - **A logical zombie is found two ways.** A wait that nothing in the
       evaluation can end is certain, and `hql` fails it as `deadlock`. A
-      child that stays idle is suspected, and its watchdog reports it.
+      consumer that stops taking input or stops giving output is
+      suspected, and its watchdog reports it.
+
+## The use case: a consumer of a streaming queue
+
+An ETL stage reads a queue, transforms each message in a child, and
+writes the result on. The queue has no end, so the stage has none: a
+`tap` of a broker, a `sink` to the child, and a second branch that keeps
+the child's output.
+
+```hql
+#!/usr/bin/env hql
+import io.msg.kafka
+from io.process import *
+from io.process.monitoring import *
+
+events   = kafka(topic = "orders.changed", brokers_env = "KAFKA_BROKERS")
+enriched = Channel<String>("enriched")
+log      = Channel<String>("log")
+
+healthy = Watchdog(
+    (m: Measurement) => m.stdin_blocked_ms < 30000 and m.stdout_idle_ms < 60000,
+    every_ms = 10000, misses = some(3), report_to = log,
+)
+
+r = parallel {
+    fed  = tap(events, Json)
+           | sink(command("enrich", stdout_to = enriched, stderr_to = log,
+                          watchdog = healthy), JsonLines)
+    kept = tap(enriched) | sink(file("enriched.jsonl"), Lines)
+}
+```
+
+The child is healthy while it takes the messages `hql` has for it and
+writes what it makes of them. Its process exists in every one of the
+states below, so the kernel tells none of them apart:
+
+| State | What `hql` measures | Field |
+|---|---|---|
+| healthy | input taken, output written | both small |
+| hung on a message: a loop, a lock, a remote call that does not return | `hql` has a message to write; the child does not read it | `stdin_blocked_ms` grows |
+| reads and writes nothing: drops messages, or buffers them without end | the child reads; no output follows | `stdout_idle_ms` grows |
+| slow: falls behind the queue | both move, slowly | none: the broker's consumer lag, which `ask` reads from the broker |
+| waiting for the queue | no message arrives; the child is idle | `idle_ms` grows; `stdin_blocked_ms` is `0` |
+
+- `stdin_blocked_ms` is the time the current write of `hql` to the child's
+  standard input has waited, because the pipe is full. It is `0` when
+  `hql` has nothing to write.
+- `stdout_idle_ms` is the time since the child last wrote a byte to its
+  standard output.
+- A quiet queue is not a fault. The last row is an idle child with no
+  message waiting, and the watchdog above passes it, since neither field
+  grows.
 
 ## Who takes a measurement
 
@@ -45,6 +103,7 @@ be measured.
 | `cpu_ms`, `memory_bytes` | the kernel, by `pid` | `/proc/<pid>/stat`, `/proc/<pid>/statm` | `proc_pid_rusage` |
 | `disk_read`, `disk_written` | the kernel, by `pid` | `/proc/<pid>/io` | `proc_pid_rusage` |
 | `net_received`, `net_sent` | none: no kernel gives these per process | `0` | `0` |
+| `stdin_blocked_ms`, `stdout_idle_ms` | `hql`, from its writes and reads of the pipes | exact | exact |
 | `idle_ms` | `hql`, from the fields above | | |
 
 - `hql` MUST take a measurement of a guarded child every `every_ms`, before
@@ -165,11 +224,16 @@ of its own, and a program with other needs writes another function.
 A **zombie** in the kernel's sense is a child that has exited and whose
 status its parent has not collected. `hql` collects every status, so it
 leaves none. A **logical zombie** is a child or a branch that is running,
-passes the kernel's test that it exists, and can never finish, because
-what it waits for will never happen. The [I/O FAQ](faq.hmd), the section
-"Waiting forever", lists the programs that make one.
+passes the kernel's test that it exists, and no longer does its work. It
+is one of two kinds:
 
-`hql` finds a logical zombie in two ways.
+- **by mistake**: a program that should end and cannot, because what it
+  waits for will never happen. The [I/O FAQ](faq.hmd), the section
+  "Waiting forever", lists the programs that make one.
+- **by design**: a stage that never ends, such as a consumer of a
+  streaming queue, and has stopped taking input or giving output.
+
+`hql` finds the first kind for certain, and a watchdog finds the second.
 
 ### Certain: a wait nothing can end
 
@@ -221,17 +285,25 @@ a channel, and no running branch writes that channel. A child that waits
 on anything else is an external wait, and `hql` does not call it a
 deadlock.
 
-### Suspected: a child that stays idle
+### Suspected: a consumer that no longer works
+
+A consumer of a streaming queue never reaches the certain case: its `tap`
+of the broker is an external wait, so a hung consumer and a healthy one on
+a quiet queue are both waits `hql` cannot rule out. This is the main case,
+and the watchdog's. `hql` does not decide it; the program's question does,
+from the fields of the section "The use case: a consumer of a streaming
+queue". The watchdog reports each miss, and terminates the child only when
+`misses` is given and reached.
 
 A child that waits on a lock, on a remote service, or on an input `hql`
-does not hold cannot be told apart from one that waits correctly for a
-slow input. `hql` does not decide it. A watchdog on `idle_ms` reports it at
+does not hold is the same case: a watchdog on `idle_ms` reports it at
 every interval, as in the example of the section "The boilerplate, written
-once", and terminates it only when `misses` is given and reached.
+once".
 
 | | Certain | Suspected |
 |---|---|---|
 | found by | `hql`, from the waits it holds | a watchdog, from measurements |
+| kind | by mistake | by design, and waits outside `hql` |
 | applies to | branches, and children that wait on `hql` | any guarded child |
 | needs a watchdog | no | yes |
 | result | the evaluation fails with `deadlock` | a report per miss; `unhealthy` at `misses` |
