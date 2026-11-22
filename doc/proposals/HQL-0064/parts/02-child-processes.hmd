@@ -401,6 +401,58 @@ commands = ["git", "wc", "sh"]  # sh -c is permitted
 ```
 - `hql render` MUST grant no program.
 
+### Windows
+
+`hql` runs children on Windows through the Win32 API itself. It needs no
+POSIX layer, no MSYS, Cygwin or WSL, and no shell.
+
+| Unix | Windows |
+|---|---|
+| spawn with `posix_spawn` or `fork` and `exec` | `CreateProcessW` |
+| `program` looked up in `PATH` | the same; `git` finds `git.exe` |
+| one argument vector | one command line, quoted by `hql` from `args` by the rules the Microsoft C runtime parses |
+| a new process group | a **Job Object** that kills its processes when closed |
+| terminate: `SIGTERM` to the group, `SIGKILL` after 5 seconds | a graceful stop, then `TerminateJobObject` after 5 seconds |
+| measurements summed over the group | the Job Object's accounting, for the whole tree |
+
+- `hql` MUST start each child in a new Job Object, closed when `hql`
+  closes. Every process the child starts belongs to the job.
+- The graceful stop MUST send Ctrl-Break to a console child, started
+  with a console process group of its own, and `WM_CLOSE` to each
+  top-level window of a process in the job that has one.
+- A child that `hql` terminated reports the reason of the termination
+  (`timed-out`, `unhealthy`) as on Unix. A child that exits by itself with
+  a non-zero code is `exited`; Windows sets no `signal`.
+- A `program` ending in `.bat` or `.cmd` is run by `cmd.exe`, a shell. The
+  grant MUST refuse it unless `commands` lists both the file and `cmd`.
+- An argument that `hql` cannot quote so that `cmd.exe` reads it as one
+  argument MUST be the evaluation failure `invalid-argument`, which names
+  the argument.
+
+**Implementation.** The crate keeps `#![forbid(unsafe_code)]`. Every call
+into the Win32 API that needs `unsafe`, the Job Object, its accounting,
+`WM_CLOSE`, is in one internal workspace crate, `crates/hql-sys`, on
+`windows-sys`, which exposes a safe API and nothing else. Spawning, pipes
+and console events use `std` and `tokio`, which need no `unsafe` in the
+crate.
+
+**Tests.** CI MUST build and test on Windows beside Linux and macOS. A
+test that needs a child starts the test binary itself, chosen by an
+environment variable, or `hql` on a small script; no test needs `sort`,
+`tr`, `bc` or another Unix tool. The examples of this proposal use those
+tools, and run on Unix.
+
+!!! tip "Windows: a Unix name may be another program"
+    `sort`, `find` and `timeout` are programs of Windows itself, with
+    other options. `command("sort")` on Windows runs `sort.exe` from
+    `System32`. Name a program by its path, or grant it by name in
+    `commands`, to know which one runs.
+
+!!! tip "Windows: a child does not outlive `hql`"
+    The Job Object ends every process in it when `hql` ends, even when
+    `hql` is killed. On Unix a process group outlives an `hql` ended by
+    `SIGKILL`.
+
 ### Purity
 
 - `command` is pure. It builds a value and reaches nothing, as `Path` and

@@ -2,8 +2,9 @@
 
 Companion to [[HQL-0064]]. Each entry is a program that hangs, fails or
 gives a result its author did not expect. Each entry gives what happens,
-the rule behind it, and the program that works. The last section holds the
-opposite case: a program that reads as a mistake and is correct. The rules
+the rule behind it, and the program that works. The section "Reading as a
+mistake, and correct" holds the opposite case, and the section "On
+Windows" the programs that behave differently there. The rules
 are those of the
 companion notes [child processes](02-child-processes.hmd),
 [advanced child processes](03-advanced-child-processes.hmd),
@@ -114,7 +115,7 @@ channel holds with `source(sorted)`.
 ### Why does reading a named pipe wait before the first line?
 
 ```hql
-tap(fifo(Path("/tmp/events")), Lines) | take(1)
+tap(fifo("events"), Lines) | take(1)
 ```
 
 Opening a named pipe for reading waits until some process opens it for
@@ -423,3 +424,65 @@ The channel is the one endpoint where `sink` returning tells the reader
 nothing. A child whose standard input is wired to a channel therefore
 never reads an end of input, which is the entry "Why does `sort` with
 `stdin_from` never answer?" above.
+
+## On Windows
+
+### Why does `command("sort")` reject `-u` on Windows?
+
+```hql
+source(file("names.txt"), Lines) | sink(command("sort", ["-u"]), Lines)
+```
+
+Windows has a `sort.exe` of its own in `System32`, found in `PATH` before
+any other, and it has other options. `find` and `timeout` are the same
+case. Name the program by its path, or install the one the script expects
+and name it so:
+
+```hql
+source(file("names.txt"), Lines) | sink(command("C:/tools/sort.exe", ["-u"]), Lines)
+```
+
+### Why is `command("build.bat")` refused?
+
+A `.bat` or `.cmd` file is run by `cmd.exe`, a shell. The grant refuses it
+unless `commands` lists both the file and `cmd`, as a list without `sh`
+keeps shell text out of a Unix project:
+
+```toml
+commands = ["build.bat", "cmd"]
+```
+
+### Why is `Signal("HUP")` a failure on Windows?
+
+Windows defines `INT`, `TERM` and `KILL` and no other signal. A program
+that reloads on request reads a named pipe or a socket in place of a
+`HUP`:
+
+```hql
+tap(fifo("reload"), Lines)    // one line for each request to reload
+```
+
+### Why does a GUI program take 5 seconds to stop?
+
+A console child receives Ctrl-Break and a GUI child a `WM_CLOSE` to its
+windows. A program that ignores the request, or that shows a dialog such
+as "Save changes?", is ended by the Job Object 5 seconds later.
+
+### Why does a `tap` of a named pipe end after the first writer?
+
+A Windows named pipe joins one writer and one reader. When the writer
+closes, the reader's stream ends, even when a second writer waits to
+open. Read a pipe for each writer, or have the writers write a channel
+of one program.
+
+### Why does `fifo(Path("/tmp/events"))` fail on Windows?
+
+A Windows named pipe lives under `\\.\pipe\`, not in the file system.
+Name the pipe and let `hql` place it: `fifo("events")` is
+`\\.\pipe\events` on Windows and `<temp dir>/events` on Unix.
+
+### Why do `disk_read` and `disk_written` differ from Linux?
+
+Windows counts the bytes of every read and write, pipes included, in its
+I/O accounting. A watchdog question on them holds for one platform: it
+compares the child with its own earlier measurements.

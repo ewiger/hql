@@ -96,15 +96,15 @@ pipe of every child and knows each child's identifier from the spawn, so
 it takes every field of a `Measurement` itself. The child does nothing to
 be measured.
 
-| Field | Taken from | Linux | macOS |
-|---|---|---|---|
-| `pid`, `uptime_ms` | `hql`, at the spawn | the spawn's result, the clock | the same |
-| `stdin_bytes`, `stdout_bytes`, `stderr_bytes` | `hql`, counted on the pipes it writes and reads | exact | exact |
-| `cpu_ms`, `memory_bytes` | the kernel, by `pid` | `/proc/<pid>/stat`, `/proc/<pid>/statm` | `proc_pid_rusage` |
-| `disk_read`, `disk_written` | the kernel, by `pid` | `/proc/<pid>/io` | `proc_pid_rusage` |
-| `net_received`, `net_sent` | none: no kernel gives these per process | `0` | `0` |
-| `stdin_blocked_ms`, `stdout_idle_ms` | `hql`, from its writes and reads of the pipes | exact | exact |
-| `idle_ms` | `hql`, from the fields above | | |
+| Field | Taken from | Linux | macOS | Windows |
+|---|---|---|---|---|
+| `pid`, `uptime_ms` | `hql`, at the spawn | the spawn's result, the clock | the same | the same |
+| `stdin_bytes`, `stdout_bytes`, `stderr_bytes` | `hql`, counted on the pipes it writes and reads | exact | exact | exact |
+| `cpu_ms`, `memory_bytes` | the kernel, by `pid` | `/proc/<pid>/stat`, `/proc/<pid>/statm` | `proc_pid_rusage` | the Job Object's accounting |
+| `disk_read`, `disk_written` | the kernel, by `pid` | `/proc/<pid>/io` | `proc_pid_rusage` | the Job Object's I/O accounting |
+| `net_received`, `net_sent` | none: no kernel gives these per process | `0` | `0` | `0` |
+| `stdin_blocked_ms`, `stdout_idle_ms` | `hql`, from its writes and reads of the pipes | exact | exact | exact |
+| `idle_ms` | `hql`, from the fields above | | | |
 
 - `hql` MUST take a measurement of a guarded child every `every_ms`, before
   it asks the watchdog's question.
@@ -112,10 +112,19 @@ be measured.
   over the child's process group (the section "The child's environment
   and lifetime" of [child processes](02-child-processes.hmd)). A `make`
   whose `cc` compiles is not idle.
+- On Windows the Job Object gives these fields for the whole job in one
+  call, through `crates/hql-sys` (the section "Windows" of
+  [child processes](02-child-processes.hmd)).
 - The byte counts of the standard streams are exact at any moment. The
   fields read from the kernel are as fresh as the last measurement.
 - `idle_ms` is the time since the last measurement in which `cpu_ms` or
   any byte count grew. A child that computes without I/O is not idle.
+
+!!! tip "Windows: disk bytes count every I/O"
+    The I/O accounting of Windows counts the bytes of every read and
+    write, to files, pipes and devices alike. `disk_read` and
+    `disk_written` there include what the child moves on its pipes, so a
+    question on them compares a child with itself, not with Linux.
 
 A child's own state, such as the length of its queue, is not visible from
 outside. A child that reports it writes it to a pipe or serves it on an

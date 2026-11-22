@@ -3,16 +3,18 @@
 Companion to [[HQL-0064]]. A **named pipe**, or FIFO, is a kernel object
 with a path in the file system. One process opens the path and writes, a
 second opens it and reads, and the bytes pass from the first to the
-second without being stored. This note defines the endpoint `fifo(path)`
-of `io.fs`.
+second without being stored. This note defines the endpoint `fifo` of
+`io.fs`, by a name that works on Unix and Windows, or by a path.
 
 !!! warning "Design only"
     Nothing in this note is implemented, and [[HQL-0064]] does not deploy
     it. The declarations are a design direction.
 
 !!! abstract "TL;DR"
-    - **`fifo(path)` is an endpoint**, `Readable` and `Writable` and not
-      `Replayable`, beside `File` and `FileEnd`.
+    - **`fifo(name)` is an endpoint**, `Readable` and `Writable` and not
+      `Replayable`, beside `File` and `FileEnd`. `hql` places the name
+      where the platform keeps named pipes; `fifo(path)` names one at a
+      path.
     - **`tap` reads it** as a stream that ends when every writer has
       closed. **`sink` and `target` write it**, and close it when done.
     - **`source` of it is a type error**, as it is for `file(path).end`.
@@ -36,15 +38,19 @@ process this program did not start.
 ```hql
 module io.fs
 
-/// The named pipe at `path`. Constructing one is pure and opens nothing. A
-/// relative `path` resolves as a file's does. It is live, not
-/// `Replayable`: what is read from it is gone.
+/// A named pipe. Constructing one is pure and opens nothing. `path` is
+/// where this platform finds it, the value a child is given. It is live,
+/// not `Replayable`: what is read from it is gone.
 type Fifo : {Readable, Writable} {
     path : String
 }
 
-/// The `Fifo` at `path`.
-fn fifo(path: String) : Fifo
+/// The named pipe `name`, where this platform keeps named pipes:
+/// `<temp dir>/<name>` on Unix, `\\.\pipe\<name>` on Windows. A `name`
+/// with `/` or `\` is an unrecoverable failure that states it.
+fn fifo(name: String) : Fifo
+
+/// The named pipe at `path`. A relative `path` resolves as a file's does.
 fn fifo(path: Path) : Fifo
 
 /// Makes the named pipe in the file system, readable and writable by this
@@ -57,17 +63,17 @@ effectful fn create(self: Fifo) : Step
 
 ### Reading
 
-- `tap(fifo(path), F)` MUST open the pipe for reading and give each
+- `tap(fifo(name), F)` MUST open the pipe for reading and give each
   document decoded by `F` as it arrives, as a `Stream<T>`.
 - The open MUST wait until a process opens the pipe for writing.
 - The stream MUST end when every process that had the pipe open for
   writing has closed it.
-- `source(fifo(path), F)` MUST be a type error. A `Fifo` is not
+- `source(fifo(name), F)` MUST be a type error. A `Fifo` is not
   `Replayable`: a second read does not give what the first gave.
 
 ### Writing
 
-- `sink(values, fifo(path), F)` MUST open the pipe for writing, write one
+- `sink(values, fifo(name), F)` MUST open the pipe for writing, write one
   document for each value, and close it. `target` MUST do the same with
   one document.
 - The open MUST wait until a process opens the pipe for reading.
@@ -86,8 +92,37 @@ effectful fn create(self: Fifo) : Step
 
 ### Platforms
 
-A named pipe at a path is a Unix object. On Windows every operation on a
-`Fifo` MUST stop evaluation with a failure that states the platform.
+A Unix named pipe is a file-system object that stays until it is
+removed. A Windows named pipe lives under `\\.\pipe\`, outside the file
+system, and exists only while a process holds it open. One process
+creates it, the server, and the other opens it, the client. `hql` hides
+the difference for one writer and one reader.
+
+| | Unix | Windows |
+|---|---|---|
+| `fifo("frames").path` | `<temp dir>/frames` | `\\.\pipe\frames` |
+| `create` | makes the pipe at the path | does nothing: the first open makes it |
+| the first open, read or write | waits for the other side | makes the pipe as its server, and waits for a client |
+| a later open | waits for the other side | opens the pipe as its client |
+| the stream of a `tap` ends | when every writer has closed | when its one writer has closed |
+| after both sides close | the pipe stays at its path | the pipe is gone |
+
+- On Windows, `fifo(path)` MUST be a failure that states the platform
+  unless `path` is under `\\.\pipe\`.
+- On Windows, a second writer while one is open MUST wait until the first
+  closes. The reader's stream has ended by then, so a pipe with several
+  writers in turn is read once for each.
+- On Windows, `create` MUST give a `Step` and make nothing.
+
+!!! tip "Windows: name the pipe, not a path"
+    `fifo("frames")` is the same program on Unix and Windows.
+    `fifo(Path("/tmp/frames"))` is Unix only. A child that takes the pipe
+    as an argument gets `frames.path`, the platform's spelling of it.
+
+!!! tip "Windows: one writer, one reader"
+    A Unix reader sees one stream from several writers at once. A Windows
+    reader sees one writer, and then its stream ends. A program with
+    several writers reads a channel, or a pipe for each writer.
 
 ## Example
 
@@ -96,7 +131,7 @@ A named pipe at a path is a Unix object. On Windows every operation on a
 // reader.hql: each sighting as another process writes it.
 from io.fs import *
 
-inbox = fifo("/tmp/sightings")
+inbox = fifo("sightings")
 inbox.create()
 
 tap(inbox, JsonLines)
@@ -110,7 +145,7 @@ tap(inbox, JsonLines)
 from io.fs import *
 
 [{bird: "wren", count: 3}, {bird: "kite", count: 1}]
-| sink(fifo("/tmp/sightings"), JsonLines)
+| sink(fifo("sightings"), JsonLines)
 ```
 
 ```sh
@@ -131,7 +166,7 @@ takes a path and not standard input:
 from io.fs import *
 from io.process import *
 
-frames = fifo("/tmp/frames")
+frames = fifo("frames")
 frames.create()
 analyse = command("analyse", ["--input", frames.path], timeout_ms = 60000)
 

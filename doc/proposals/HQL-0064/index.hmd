@@ -17,7 +17,7 @@ and gives it its arguments and its exit status. This proposal gives it the
 rest of the process model: its identifier and its signals, in a module
 `io.process`; child processes, as an endpoint `command(program, args)` read
 and written by `source`, `tap`, `target` and `sink`; named pipes, as an
-endpoint `fifo(path)` of `io.fs`; the keyword `parallel`, which runs
+endpoint `fifo(name)` of `io.fs`; the keyword `parallel`, which runs
 branches at the same time and joins them; and watchdogs, which ask a child
 a question at an interval.
 
@@ -46,14 +46,14 @@ gives a handleable failure as a `Result`, and never ends the process.
 
 | Part | Defines |
 | --- | --- |
-| [`io.process`](parts/01-io-process.hmd) | the Unix process model against HQL, the module `io.process`, `Signal`, `signals` and `send`, and the `process` grant |
-| [child processes](parts/02-child-processes.hmd) | `command` against Python's `subprocess`, Haskell's `System.Process` and Rust's `Command`; the five operations; a child's three pipes; failures; lifetime; the `commands` grant |
+| [`io.process`](parts/01-io-process.hmd) | the Unix process model against HQL, the module `io.process`, `Signal`, `signals` and `send`, the `process` grant, and signals on Windows |
+| [child processes](parts/02-child-processes.hmd) | `command` against Python's `subprocess`, Haskell's `System.Process` and Rust's `Command`; the five operations; a child's three pipes; failures; text that is not UTF-8; process groups and lifetime; the `commands` grant; Windows, its Job Objects and `crates/hql-sys` |
 | [advanced child processes](parts/03-advanced-child-processes.hmd) | a child's pipes wired to channels: `stdin_from`, `stdout_to`, `stderr_to`, and `command(…).stderr` |
-| [named pipes](parts/04-named-pipes.hmd) | `fifo(path)` in `io.fs`, and a named pipe handed to a child |
+| [named pipes](parts/04-named-pipes.hmd) | `fifo(name)` and `fifo(path)` in `io.fs`, a named pipe handed to a child, and Windows named pipes |
 | [`parallel`](parts/05-parallel.hmd) | the keyword `parallel`: the block, the step, `join = any`, branches against children, and how it runs |
 | [watchdogs](parts/06-watchdog.hmd) | `Watchdog`, a question asked of a child or a block at an interval; a side note on `io.process.monitoring`, measurements, idle and reports |
 | [boilerplate logging](parts/07-boilerplate-logging.hmd) | the use case, an unhealthy consumer of a streaming queue; who takes a `Measurement` and how it reaches a watchdog; children's standard error, reports and measurements in channels; the wiring written once; logical zombies, certain as `deadlock` and suspected as idle |
-| [I/O FAQ](parts/faq.hmd) | the programs that hang, fail or surprise under these rules, and those that read as a mistake and are correct |
+| [I/O FAQ](parts/faq.hmd) | the programs that hang, fail or surprise under these rules, those that read as a mistake and are correct, and those that behave differently on Windows |
 
 ## Relation to other proposals
 

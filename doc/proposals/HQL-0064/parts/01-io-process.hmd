@@ -163,9 +163,31 @@ process = ["receive", "send"]
 
 ### Platforms
 
-Signals are a Unix mechanism. On Windows `signals` MUST deliver `INT` for
-Ctrl-C and `TERM` for a close request, and no other; `send` MUST give
-`err` with the reason `unsupported`.
+Signals are a Unix mechanism. Windows has console control events and
+process termination in their place, and `hql` maps three signals onto
+them with no POSIX layer.
+
+| Signal | Received on Windows | Sent on Windows |
+|---|---|---|
+| `INT` | Ctrl-C | `err`, `unsupported`: Windows does not deliver Ctrl-C to another process group |
+| `TERM` | Ctrl-Break, closing the console window, logoff, shutdown | to a child of `hql`: its graceful stop, as termination does ([child processes](02-child-processes.hmd), the section "Windows"); to any other process: `err`, `unsupported` |
+| `KILL` | never: no process receives it | `TerminateProcess`, to any process this user may open |
+
+- On Windows, `Signal(name)` MUST define `INT`, `TERM` and `KILL` and no
+  other. `Signal("HUP")` is the failure for a name the platform does not
+  define.
+- `signals` MUST deliver each event of the table as its signal.
+
+!!! tip "Windows: a `TERM` handler has seconds, not minutes"
+    Windows ends a process a few seconds after it delivers a close, logoff
+    or shutdown event, whatever the handler does. A program that reads
+    `signals(Signal("TERM"))` on Windows finishes its cleanup at once.
+    Ctrl-Break has no such limit.
+
+!!! tip "Windows: control a process through a pipe or a socket"
+    Windows has no `HUP` or `USR1`. A program that reloads or reports on
+    request reads a named pipe ([named pipes](04-named-pipes.hmd)) or a
+    socket instead of waiting for a signal, and that works on Unix too.
 
 ## What a signal handler needs that HQL lacks
 
