@@ -8,11 +8,14 @@ Python, Haskell and Rust start one, and defines the operations of
 with the child's pipes wired to channels, and the
 [I/O FAQ](faq.hmd) shows the programs that hang or fail and why.
 
-!!! warning "Design only"
-    Nothing in this note is implemented, and [[HQL-0064]] does not deploy
-    it. The declarations are a design direction. They extend the module of
-    the companion note [`io.process`](01-io-process.hmd) under the rules of
-    the note [pure and effectful](../../HQL-0062/parts/01-pure-and-effectful.hmd) of [[HQL-0062]].
+!!! note "Implemented"
+    This note is implemented on Linux, macOS and Windows, under the rules
+    of the note [pure and effectful](../../HQL-0062/parts/01-pure-and-effectful.hmd)
+    of [[HQL-0062]]. Not yet implemented: the reason `unhealthy`, which
+    needs [watchdogs](06-watchdog.hmd); `command(…).stderr`, of
+    [advanced child processes](03-advanced-child-processes.hmd); on Windows,
+    the graceful stop by Ctrl-Break and `WM_CLOSE`, and the refusal of an
+    argument `cmd.exe` cannot read as one.
 
 !!! abstract "TL;DR"
     - **Python: `subprocess`.** One call starts the program. A shell is one
@@ -366,7 +369,13 @@ A child's lifetime is bounded by the evaluation that started it.
   because a stream was not read to its end, `hql` MUST terminate the child
   and wait for it. Termination is `SIGTERM`, then `SIGKILL` after 5
   seconds.
-- `hql` MUST terminate its children when a signal ends `hql` itself.
+- `hql` MUST terminate its children when a signal ends `hql` itself. On
+  `SIGINT`, `SIGTERM` or `SIGHUP`, `hql` terminates every child still
+  running, as above, and then ends by the same signal, so the process that
+  started `hql` sees it ended by that signal. A terminal's Ctrl-C reaches
+  only `hql`, since each child leads a process group of its own; `hql`
+  passes it on as `SIGTERM`. `SIGKILL` cannot be caught: a child outlives
+  an `hql` it ends.
 
 ```d2
 direction: down
@@ -426,6 +435,9 @@ POSIX layer, no MSYS, Cygwin or WSL, and no shell.
 
 - `hql` MUST start each child in a new Job Object, closed when `hql`
   closes. Every process the child starts belongs to the job.
+- `hql` puts the child in its job after the child starts, so a process the
+  child starts in that moment is not in the job. Where the system refuses
+  a job, terminating the child ends only the child.
 - The graceful stop MUST send Ctrl-Break to a console child, started
   with a console process group of its own, and `WM_CLOSE` to each
   top-level window of a process in the job that has one.

@@ -6,9 +6,10 @@
 reads its arguments and reports an exit status also needs to start other
 programs, talk to them and run two things at once
 
-!!! warning "Design only"
-    Nothing in this proposal is implemented. Every part is a design
-    direction for discussion.
+!!! note "Implemented in part"
+    The companion note [child processes](parts/02-child-processes.hmd) is
+    implemented on Linux, macOS and Windows. Every other part is a design
+    direction, and carries its own "Design only" warning.
 
 ## Abstract
 
@@ -77,3 +78,14 @@ gives a handleable failure as a `Result`, and never ends the process.
   `hql-sys`. Not yet: `io.process` signals, channels wired to a child's
   pipes, named pipes, `parallel`, watchdogs, and the Windows Job Object; on
   Windows a child's `timeout_ms` is not yet enforced
+- 2026-11-22: child processes on every platform. A signal that ends `hql`
+  ends its children first, and `hql` then ends by that signal. On Windows
+  each child runs in a Job Object, so `timeout_ms` and a stream not read
+  to its end end it and what it started. A failure's diagnostic carries
+  the child's standard error as its cause. Not yet: the parts
+  [`io.process`](parts/01-io-process.hmd), [advanced child
+  processes](parts/03-advanced-child-processes.hmd), [named
+  pipes](parts/04-named-pipes.hmd), [`parallel`](parts/05-parallel.hmd),
+  [watchdogs](parts/06-watchdog.hmd) and [boilerplate
+  logging](parts/07-boilerplate-logging.hmd); on Windows the graceful stop
+  by Ctrl-Break and `WM_CLOSE`

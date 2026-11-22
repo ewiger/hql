@@ -39,9 +39,11 @@ HQL is a script language ([HQL-0062](doc/proposals/HQL-0062/index.hmd)).
   `not-permitted`, `exited`, `signalled`, `timed-out` or `invalid-text`.
   `target` and `sink` stop with `closed` when the child stops reading. No
   shell reads the command line.
-- A child runs in a process group of its own. When it is terminated, at its
-  `timeout_ms` or when a stream of its output is not read to its end, the
-  processes it started end with it.
+- A child runs in a process group of its own on Unix and in a Job Object
+  on Windows. When it is terminated, at its `timeout_ms` or when a stream
+  of its output is not read to its end, the processes it started end with
+  it. `SIGINT`, `SIGTERM` or `SIGHUP` to `hql` ends its children first,
+  and then `hql` by the same signal.
 - A project's `.hql/config.toml` lists the programs a run may start with
   `commands = [...]`, and `[command_output] invalid_utf8 = "replace"` turns
   a child's text that is not UTF-8 into U+FFFD; it fails by default. A
@@ -81,6 +83,14 @@ HQL is a script language ([HQL-0062](doc/proposals/HQL-0062/index.hmd)).
   fenced plain `hql` marks them `hql#eval` instead.
 - **`hql#query` is `hql#eval hidden`.** A query cell runs so that other
   cells can read its value, and writes no output in any `--emit` mode.
+
+### Fixed
+
+- **A package built against other dependency layouts is rebuilt.** An
+  installed build records the sizes of the types it exchanges with `hql`.
+  A build of a `[packages] paths` crate whose sizes differ from this
+  `hql`'s is stale and is built again on first use, where it failed to
+  load until `hql package rebuild`.
 
 ## [0.7.2] — 2026-11-22
 
