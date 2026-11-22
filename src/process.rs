@@ -158,6 +158,37 @@ fn executable(spec: &CommandSpec) -> Result<PathBuf, Failure> {
         })
 }
 
+/// The process groups of the children still running, by their leader.
+#[cfg(unix)]
+static LIVE: std::sync::Mutex<std::collections::BTreeSet<u32>> =
+    std::sync::Mutex::new(std::collections::BTreeSet::new());
+
+#[cfg(unix)]
+fn live() -> std::sync::MutexGuard<'static, std::collections::BTreeSet<u32>> {
+    LIVE.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Terminate every child still running and the processes each started:
+/// `SIGTERM` to each group, then `SIGKILL` to every group once its leader
+/// has ended or after [`GRACE`]. For a signal that ends `hql` itself.
+#[cfg(unix)]
+pub(crate) fn end_children() {
+    let groups: Vec<u32> = live().iter().copied().collect();
+    for &group in &groups {
+        stop(group, false);
+    }
+    let deadline = std::time::Instant::now() + GRACE;
+    while std::time::Instant::now() < deadline
+        && !groups.iter().all(|&group| hql_sys::reaped(group))
+    {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    for &group in &groups {
+        stop(group, true);
+    }
+}
+
 /// A started child, with the guard that terminates it at its timeout.
 struct Running {
     child: Child,
@@ -204,6 +235,8 @@ fn start(
             ..Failure::new(reason)
         })
     })?;
+    #[cfg(unix)]
+    live().insert(child.id());
     let timed_out = Arc::new(AtomicBool::new(false));
     let (ended, guard) = match spec.timeout {
         None => (None, None),
@@ -256,6 +289,8 @@ impl Running {
             return Ok(status);
         }
         let status = self.child.wait()?;
+        #[cfg(unix)]
+        live().remove(&self.child.id());
         self.waited = Some(status);
         self.ended = None;
         if let Some(guard) = self.guard.take() {
@@ -319,6 +354,8 @@ impl Running {
 impl Drop for Running {
     fn drop(&mut self) {
         self.terminate();
+        #[cfg(unix)]
+        live().remove(&self.child.id());
     }
 }
 

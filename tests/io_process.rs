@@ -305,3 +305,61 @@ fn a_failed_run_as_the_result_exits_one() {
         stdout(&output)
     );
 }
+
+/// `hql` running a child that records its process group and starts a
+/// process of its own, ended by `signal` once the group is recorded.
+fn ended_by(signal: &str) -> (std::process::ExitStatus, bool) {
+    use std::os::unix::process::ExitStatusExt;
+    let directory = tempfile::tempdir().unwrap();
+    let recorded = directory.path().join("group");
+    let source = format!(
+        "from io.process import *\n\
+         source(command(\"sh\", [\"-c\", \"echo $$ > {}; sleep 30 & sleep 30\"]), Lines)",
+        recorded.display()
+    );
+    let mut hql = Command::new(env!("CARGO_BIN_EXE_hql"))
+        .current_dir(directory.path())
+        .env_clear()
+        .env("PATH", path())
+        .env("HQL_HOME", directory.path().join(".hql-home"))
+        .args(["--bare", "eval", source.as_str()])
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let group = (0..500)
+        .find_map(|_| {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            std::fs::read_to_string(&recorded)
+                .ok()
+                .filter(|text| text.ends_with('\n'))
+        })
+        .expect("the child recorded its group");
+    // Let `sh` start the background `sleep` before the signal.
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    Command::new("kill")
+        .args([format!("-{signal}"), hql.id().to_string()])
+        .status()
+        .unwrap();
+    let status = hql.wait().unwrap();
+    assert!(status.signal().is_some() || status.code().is_some());
+    let gone = (0..100).any(|_| {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        !Command::new("kill")
+            .args(["-0", &format!("-{}", group.trim())])
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap()
+            .success()
+    });
+    (status, gone)
+}
+
+#[test]
+fn a_signal_that_ends_hql_ends_its_children_and_what_they_started() {
+    use std::os::unix::process::ExitStatusExt;
+    for (name, number) in [("TERM", 15), ("INT", 2), ("HUP", 1)] {
+        let (status, gone) = ended_by(name);
+        assert_eq!(status.signal(), Some(number), "{name}: {status:?}");
+        assert!(gone, "{name}: a process of the child's group survived");
+    }
+}
