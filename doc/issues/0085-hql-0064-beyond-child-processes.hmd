@@ -1,0 +1,27 @@
+# 0085 — HQL-0064 beyond child processes
+
+Status: todo
+Related: [[HQL-0064]], [[0083-io-programs-that-never-end|issue 0083]],
+[[0086-a-framed-read-continues-under-collect|issue 0086]]
+
+[[HQL-0064]]'s companion note [child
+processes](../proposals/HQL-0064/parts/02-child-processes.hmd) is
+implemented on Linux, macOS and Windows. This issue carries the other parts,
+in the order below. Each later part uses one before it.
+
+| Order | Part | What is implemented | Builds on |
+| --- | --- | --- | --- |
+| 1 | [`io.process`](../proposals/HQL-0064/parts/01-io-process.hmd) | `pid`, `signals`, `send`, the `process` grant, signals on Windows | the signal thread of the CLI, `hql_sys::EndingSignals` |
+| 2 | [advanced child processes](../proposals/HQL-0064/parts/03-advanced-child-processes.hmd) | `stdin_from`, `stdout_to`, `stderr_to`, `command(…).stderr` | channels, `Running` in `src/process.rs` |
+| 3 | [`parallel`](../proposals/HQL-0064/parts/05-parallel.hmd) | the block, the step `parallel(f, jobs = n)`, `join = any` | 2, for a conversation with a child |
+| 4 | [watchdogs](../proposals/HQL-0064/parts/06-watchdog.hmd) | `Watchdog`, the reason `unhealthy`, `io.process.monitoring` and `Measurement` | 3: a watchdog is a branch |
+| 5 | [boilerplate logging](../proposals/HQL-0064/parts/07-boilerplate-logging.hmd) | `report_to`, `measurements_to`, `supervised`, logical zombies | 2, 3 and 4 |
+| 6 | [named pipes](../proposals/HQL-0064/parts/04-named-pipes.hmd) | `fifo(name)`, `fifo(path)`, Windows named pipes | none |
+
+On Windows, part 02 also needs the graceful stop: Ctrl-Break to a console
+child and `WM_CLOSE` to a windowed one, before `TerminateJobObject`, and
+the refusal of an argument `cmd.exe` cannot read as one.
+
+Each part is done when its examples in `examples/process/` check as
+`valid-now`, its "Design only" warning is replaced, and the changelog of
+[[HQL-0064]] says so.

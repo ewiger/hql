@@ -29,7 +29,7 @@ is a property of the endpoint, not of `tap`.
 | `tap(file("app.log"), Lines)` | at the end of the file | yes |
 | `tap(file("app.log").end, Lines)` | never: it follows what is appended | yes |
 | `tap(Channel<T>(name))` | never: a channel has no end | yes |
-| `tap(command(…), F)` | when the child closes its standard output | design only |
+| `tap(command(…), F)` | when the child closes its standard output | yes |
 | `tap(fifo(path), F)` | when every writer has closed the pipe | design only |
 | `signals(…)` | never | design only |
 
@@ -43,14 +43,14 @@ that explains it.
 
 | Case | Example | FAQ entry | Runs today |
 | --- | --- | --- | --- |
-| a stream that does not end feeds a child that answers only at its end of input | `tap(command("tail", ["-f", "app.log"]), Lines) \| sink(command("sort"), Lines)` | "Why does a `sink` to `sort` never return?" | design only |
+| a stream that does not end feeds a child that answers only at its end of input | `tap(command("tail", ["-f", "app.log"]), Lines) \| sink(command("sort"), Lines)` | "Why does a `sink` to `sort` never return?" | yes |
 | a child's standard input is wired to a channel, which has no end | `source(command("sort", stdin_from = names), Lines)` | "Why does `sort` with `stdin_from` never answer?" | design only |
 | a read and the write that feeds it are two statements, and statements run in order | `answers = tap(bc, Lines) \| take(2)`, then `[…] \| sink(questions)` | "Why does a conversation written as two statements hang?" | hangs today with a file: `t = tap(f.end, Lines)`, a write to `f.end`, then `t \| take(2)` |
 | a branch of a `parallel` block reads a stream that does not end, and the block waits for every branch | `parallel { answers = tap(bc, Lines) … }` | "Why does a `parallel` block with a `tap` never end?" | design only |
 | a channel is tapped after everything was written to it | `tap(sorted)` after the write has returned | "Why does a `tap` of a channel wait after the child has ended?" | yes |
 | a named pipe is opened and no process opens the other end | `tap(fifo(path), Lines)` | "Why does reading a named pipe wait before the first line?" | design only |
 | `source` waits for an end the other side never supplies | `source(stdin, F)` with standard input left open; `source` of a child that never exits | "What else can an operation wait for?" | the first, yes |
-| a writer is held by a full pipe | `sink` or `target` to a child that has stopped reading | "What else can an operation wait for?" | design only |
+| a writer is held by a full pipe | `sink` or `target` to a child that has stopped reading | "What else can an operation wait for?" | yes |
 
 ## Programs that read as a hang and are not
 
