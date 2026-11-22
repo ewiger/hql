@@ -202,6 +202,131 @@ pub fn reaped(pid: u32) -> bool {
     answer != 0
 }
 
+/// A Windows Job Object: the processes a child starts belong to the job
+/// of the child, so ending the job ends them all, as a process group's
+/// signal does on Unix. The job is made to kill its processes when its
+/// last handle closes, which the system does when `hql` ends, however it
+/// ends.
+#[cfg(windows)]
+#[derive(Debug)]
+pub struct Job {
+    handle: windows_sys::Win32::Foundation::HANDLE,
+}
+
+// SAFETY: a job handle is a kernel object's handle, usable from any thread;
+// the calls made through it are thread-safe.
+#[cfg(windows)]
+unsafe impl Send for Job {}
+// SAFETY: as above.
+#[cfg(windows)]
+unsafe impl Sync for Job {}
+
+#[cfg(windows)]
+impl Job {
+    /// A new job that kills its processes when it is closed.
+    ///
+    /// # Errors
+    ///
+    /// The job could not be made, or given that limit.
+    pub fn new() -> std::io::Result<Self> {
+        use windows_sys::Win32::System::JobObjects::{
+            CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+            SetInformationJobObject,
+        };
+        // SAFETY: no attributes and no name are given; the call returns a
+        // handle or null.
+        let handle = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+        if handle.is_null() {
+            return Err(std::io::Error::last_os_error());
+        }
+        let job = Self { handle };
+        // SAFETY: the structure is plain data, zeroed, then given one flag.
+        let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { std::mem::zeroed() };
+        limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        let size = u32::try_from(std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>())
+            .unwrap_or(u32::MAX);
+        // SAFETY: the handle is the job's; the pointer and the size are the
+        // structure's.
+        let set = unsafe {
+            SetInformationJobObject(
+                job.handle,
+                JobObjectExtendedLimitInformation,
+                (&raw const limits).cast(),
+                size,
+            )
+        };
+        if set == 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(job)
+    }
+
+    /// Puts `child` in this job. A process `child` starts before this call
+    /// is not in it.
+    ///
+    /// # Errors
+    ///
+    /// The process could not be assigned to the job.
+    pub fn assign(&self, child: &std::process::Child) -> std::io::Result<()> {
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::System::JobObjects::AssignProcessToJobObject;
+        // SAFETY: both handles are open: the job's, and the child's, which
+        // `child` owns for as long as it is borrowed.
+        let assigned = unsafe { AssignProcessToJobObject(self.handle, child.as_raw_handle()) };
+        if assigned == 0 {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Ends every process of this job.
+    ///
+    /// # Errors
+    ///
+    /// The job could not be terminated.
+    pub fn stop(&self) -> std::io::Result<()> {
+        use windows_sys::Win32::System::JobObjects::TerminateJobObject;
+        // SAFETY: the handle is the job's.
+        if unsafe { TerminateJobObject(self.handle, 1) } == 0 {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[cfg(windows)]
+impl Drop for Job {
+    fn drop(&mut self) {
+        // SAFETY: the handle is the job's, closed once, here.
+        unsafe {
+            windows_sys::Win32::Foundation::CloseHandle(self.handle);
+        }
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::Job;
+
+    #[test]
+    fn a_stopped_job_ends_its_processes() {
+        let job = Job::new().unwrap();
+        let mut child = std::process::Command::new("ping")
+            .args(["-n", "30", "127.0.0.1"])
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        job.assign(&child).unwrap();
+        let started = std::time::Instant::now();
+        job.stop().unwrap();
+        assert!(!child.wait().unwrap().success());
+        assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    }
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::{EndingSignals, Stop, stop_group};
