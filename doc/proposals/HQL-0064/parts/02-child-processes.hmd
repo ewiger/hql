@@ -468,3 +468,131 @@ tools, and run on Unix.
 - `run`, and the four operations of `io` on a `Command`, are effectful. The
   planner keeps them in program order and does not repeat one that has
   completed ([[HQL-0055]]).
+
+## Side note: handling a failed command
+
+!!! note "Side note"
+    This section shows the rules above at work, with the output of each
+    example as `hql` 0.7.2 on this branch gives it. It adds no rule.
+
+### Where the result and the status are
+
+`run` gives the whole outcome of a child as one value. A child that exits
+`0` gives `ok(Output)`:
+
+```hql
+command("printf", ["wren"]).run()
+```
+
+```text
+ok(Output(stdout = "wren", stderr = ""))
+```
+
+Every other end gives `err(CommandFailure)`:
+
+```hql
+command("sh", ["-c", "echo no disk >&2; exit 3"]).run()
+```
+
+```text
+err(CommandFailure(command = command("sh", ["-c", "echo no disk >&2; exit 3"]), reason = "exited", status = 3, signal = none, stdout = "", stderr = "no disk\n"))
+```
+
+`Output` has no `status`: an `ok` is a child that exited `0`. In a
+`CommandFailure`, `reason` says how the child ended, and `status` and
+`signal` are set only where they exist:
+
+| The child | `reason` | `status` | `signal` |
+|---|---|---|---|
+| `sh -c "exit 3"` | `exited` | `3` | `none` |
+| `sh -c "kill -TERM $$"` | `signalled` | `none` | `Signal(name = "TERM", number = 15)` |
+| `nosuchprog` | `not-found` | `none` | `none` |
+| `sleep 5`, `timeout_ms = 200` | `timed-out` | `none` | `none` |
+
+### Handling it
+
+The examples read `birds.txt`, which holds the lines `wren` and `kite`.
+
+A tool that uses a status for an ordinary answer is matched on it. `grep`
+exits `1` when no line matches:
+
+```hql
+match command("grep", ["owl", "birds.txt"]).run() {
+    ok(o) => o.stdout | trim,
+    err(e) given e.status == some(1) => "no owl",
+    err(e) => e.stderr,
+}
+```
+
+This gives `"no owl"`; with `kite` in place of `owl` it gives `"kite"`.
+
+The functions of `result` handle the common cases without a `match`:
+
+| The program | Gives |
+|---|---|
+| `command("grep", ["owl", "birds.txt"]).run() \| map(o => o.stdout) \| unwrap_or("")` | `""` |
+| `command("sh", ["-c", "echo no disk >&2; exit 3"]).run() \| map_err(e => e.reason + ": " + (e.stderr \| trim))` | `err("exited: no disk")` |
+| `command("printf", ["birds.txt"]).run() \| and_then(o => command("wc", ["-l", o.stdout]).run()) \| map(o => o.stdout \| trim)` | `ok("2 birds.txt")` |
+| `command("sh", ["-c", "exit 3"]).run() \| is_ok` | `false` |
+
+`and_then` starts the second command only when the first succeeded, and the
+first failure is the result.
+
+### Not handling it
+
+A failure the program does not handle ends it with exit status `1`, in one
+of two ways.
+
+- **The result is an `err`.** `run`'s `err` is an ordinary value. When it is
+  the program's result, `hql` prints it and exits `1`, by the section "The
+  exit status" of [[HQL-0062]]. The status follows from the result, not
+  from the report mode: `--report strict` and `--report collect` give the
+  same status.
+- **The operation holds no status.** `source`, `tap`, `target` and `sink`
+  give a sequence, a stream and a `Step`, so a failure under them stops
+  evaluation:
+
+  ```hql
+  source(command("sh", ["-c", "echo no disk >&2; exit 3"]), Lines)
+  ```
+
+  ```text
+  execute failure[io-failure]: command `sh`: failed: exited, status 3; its standard error ended with:
+  no disk
+  ```
+
+The output of a command, parsed, keeps the two apart. In
+
+```hql
+command("gh", ["repo", "view", "--json", "name"]).run()
+  | map(o => Data(o.stdout, Json))
+```
+
+a failed `gh` is an `err` the program can match, and text that is not JSON
+is a `malformed-data` failure that stops evaluation, as `Data(text, Json)`
+is for any text. `source(command(…), Json)` stops on either.
+
+### A command among the endpoints
+
+A `Command` is `Replayable` and `Writable`, so `source`, `tap`, `target` and
+`sink` read and write it as they do a `File` or an `Http` endpoint, and a
+failure under them is an `io-failure`, as a file that cannot be read is.
+What a command adds is what a running program has and a file does not:
+
+| | A `File` | A `Command` |
+|---|---|---|
+| A read is | the bytes the file holds | a run of the program: each read starts it once, as each read of `Http` is one request |
+| A read again gives | the same bytes, unless the file changed | a new run, with its effects done again |
+| Success is | every byte read | every byte read, and then an exit with status `0` |
+| Its output is | one stream | two: standard output, read, and standard error, passed on and kept for the failure |
+| A read stopped early, by `take` | closes the file | terminates the child and its process group |
+| A read that does not end | cannot happen | is bounded by `timeout_ms` |
+| A write the reader stops taking | cannot happen | `closed` |
+| What may refuse it | the run's I/O policy | the run's I/O policy, and the `commands` grant, by program |
+
+The exit status is the difference that matters for errors. A file read that
+reached the end succeeded. A child can write complete, valid output and
+then exit `1`, so a read of a command waits for the exit before it ends,
+and only then is the read a success. `run` is the one operation that is a
+command's own: it gives that exit as a value, which the four operations of
+`io` cannot.

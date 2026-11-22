@@ -47,7 +47,7 @@ gives a handleable failure as a `Result`, and never ends the process.
 | Part | Defines |
 | --- | --- |
 | [`io.process`](parts/01-io-process.hmd) | the Unix process model against HQL, the module `io.process`, `Signal`, `signals` and `send`, the `process` grant, and signals on Windows |
-| [child processes](parts/02-child-processes.hmd) | `command` against Python's `subprocess`, Haskell's `System.Process` and Rust's `Command`; the five operations; a child's three pipes; failures; text that is not UTF-8; process groups and lifetime; the `commands` grant; Windows, its Job Objects and `crates/hql-sys` |
+| [child processes](parts/02-child-processes.hmd) | `command` against Python's `subprocess`, Haskell's `System.Process` and Rust's `Command`; the five operations; a child's three pipes; failures; text that is not UTF-8; process groups and lifetime; the `commands` grant; Windows, its Job Objects and `crates/hql-sys`; a side note on handling a failed command, where the result and the status are, and what makes a command a different endpoint |
 | [advanced child processes](parts/03-advanced-child-processes.hmd) | a child's pipes wired to channels: `stdin_from`, `stdout_to`, `stderr_to`, and `command(…).stderr` |
 | [named pipes](parts/04-named-pipes.hmd) | `fifo(name)` and `fifo(path)` in `io.fs`, a named pipe handed to a child, and Windows named pipes |
 | [`parallel`](parts/05-parallel.hmd) | the keyword `parallel`: the block, the step, `join = any`, branches against children, and how it runs |
