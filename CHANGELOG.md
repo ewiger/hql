@@ -8,6 +8,25 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+### Added
+
+- **Child processes** ([HQL-0064](doc/proposals/HQL-0064/index.hmd)).
+  `command(program, args)` of `io.process` names a program and starts
+  nothing. `source` and `tap` start it and read its standard output,
+  `target` and `sink` write its standard input, and `run` waits for it and
+  gives `ok(Output)` or `err(CommandFailure)` with a `reason`: `not-found`,
+  `not-permitted`, `exited`, `signalled`, `timed-out`, `closed` or
+  `invalid-text`. No shell reads the command line.
+- A child runs in a process group of its own. When it is terminated, at its
+  `timeout_ms` or when a stream of its output is not read to its end, the
+  processes it started end with it.
+- A project's `.hql/config.toml` lists the programs a run may start with
+  `commands = [...]`, and `[command_output] invalid_utf8 = "replace"` turns
+  a child's text that is not UTF-8 into U+FFFD; it fails by default. A
+  child inherits the variables the `env` grant gives the program.
+- The crate `hql-sys` holds the operating-system calls that need `unsafe`.
+  `hql` depends on it and it is published with `hql`.
+
 ## [0.7.2] — 2026-11-22
 
 ### Added

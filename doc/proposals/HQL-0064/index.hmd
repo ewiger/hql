@@ -1,6 +1,6 @@
 # HQL-0064: Processes: `io.process`, child processes, pipes, `parallel` and watchdogs
 
-**Status**: drafted
+**Status**: implemented in part
 **Created**: 2026-11-22
 **Source**: design discussion of 2026-11-22 on [[HQL-0062]]: a script that
 reads its arguments and reports an exit status also needs to start other
@@ -71,3 +71,9 @@ gives a handleable failure as a `Result`, and never ends the process.
 ## Changelog
 
 - 2026-11-22: drafted, from the companion notes of [[HQL-0062]]
+- 2026-11-22: implemented in part: the companion note
+  [child processes](parts/02-child-processes.hmd) on Unix, with the
+  `commands` grant and `[command_output] invalid_utf8`, and the crate
+  `hql-sys`. Not yet: `io.process` signals, channels wired to a child's
+  pipes, named pipes, `parallel`, watchdogs, and the Windows Job Object; on
+  Windows a child's `timeout_ms` is not yet enforced

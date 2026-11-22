@@ -92,9 +92,8 @@ type Command : {Replayable, Writable} {
 
 /// `stdin_from` wires the child's standard input to a channel of lines,
 /// and `stdout_to` and `stderr_to` each wire that output pipe to one.
-fn command(program: String, args: Seq<String> = [], *,
-           dir: Option<Path> = none, env: Map<String, String> = {:},
-           timeout_ms: Option<Int> = none,
+fn command(program: String, args: List<String> = [], *, dir: String = "",
+           env: Data = {:}, timeout_ms: Int = 0,
            stdin_from: Option<Channel<String>> = none,
            stdout_to:  Option<Channel<String>> = none,
            stderr_to:  Option<Channel<String>> = none) : Command

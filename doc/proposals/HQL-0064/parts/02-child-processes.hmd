@@ -128,11 +128,8 @@ module io.process
 /// Each read or write starts the program once, as each read of an `Http`
 /// endpoint is one request.
 type Command : {Replayable, Writable} {
-    program    : String
-    args       : List<String>
-    dir        : Option<Path>
-    env        : Map<String, String>
-    timeout_ms : Option<Int>
+    program : String
+    args    : List<String>
 }
 
 /// What a child that exited with status `0` wrote.
@@ -153,11 +150,12 @@ type CommandFailure : DataContract {
 }
 
 /// The command that runs `program` with `args`. `dir` is the child's
-/// working directory, this process's own unless given. `env` is added to
-/// the environment the child inherits.
-fn command(program: String, args: Seq<String> = [], *,
-           dir: Option<Path> = none, env: Map<String, String> = {:},
-           timeout_ms: Option<Int> = none) : Command
+/// working directory, this process's own unless given. `env`, a map of
+/// names to text, is added to the environment the child inherits. A child
+/// still running after `timeout_ms` milliseconds is terminated; `0` sets
+/// no bound.
+fn command(program: String, args: List<String> = [], *, dir: String = "",
+           env: Data = {:}, timeout_ms: Int = 0) : Command
 
 /// Starts the command, writes `input` to its standard input, waits for it
 /// to end, and gives what it wrote.
@@ -288,7 +286,7 @@ A command fails in one of eight ways. `reason` of `CommandFailure` names it.
 | `exited` | the child exited with a status other than `0` | `status` |
 | `signalled` | a signal ended the child | `signal` |
 | `timed-out` | `timeout_ms` passed and `hql` terminated the child | |
-| `closed` | the child closed its standard input before the write ended | |
+| `closed` | the child closed its standard input before a write of `target` or `sink` ended | |
 | `unhealthy` | its watchdog gave up and `hql` terminated the child ([watchdogs](06-watchdog.hmd)) | |
 | `invalid-text` | under `run`, the child wrote bytes that are not UTF-8, and `invalid_utf8` is `fail` | |
 
@@ -297,6 +295,8 @@ A child that does not exit `0` is a failure the program can handle, so
 
 - `run` MUST give `ok(Output)` when the child exits `0`, and
   `err(CommandFailure)` for each failure of the table.
+- `run` MUST judge the child by how it ended. A child that exits without
+  reading its `input` is not `closed`.
 - `source`, `tap`, `target` and `sink` give a sequence, a stream and a
   `Step`, which hold no status. A failure under them MUST stop evaluation
   with an unrecoverable failure that states the command, the reason, the
