@@ -1,0 +1,70 @@
+# HQL-0064: Processes: `io.process`, child processes, pipes, `parallel` and watchdogs
+
+**Status**: drafted
+**Created**: 2026-11-22
+**Source**: design discussion of 2026-11-22 on [[HQL-0062]]: a script that
+reads its arguments and reports an exit status also needs to start other
+programs, talk to them and run two things at once
+
+!!! warning "Design only"
+    Nothing in this proposal is implemented. Every part is a design
+    direction for discussion.
+
+## Abstract
+
+A script is a Unix process. [[HQL-0062]] makes an HQL file runnable as one
+and gives it its arguments and its exit status. This proposal gives it the
+rest of the process model: its identifier and its signals, in a module
+`io.process`; child processes, as an endpoint `command(program, args)` read
+and written by `source`, `tap`, `target` and `sink`; named pipes, as an
+endpoint `fifo(path)` of `io.fs`; the keyword `parallel`, which runs
+branches at the same time and joins them; and watchdogs, which ask a child
+a question at an interval.
+
+Every operation follows the rules of the note
+[pure and effectful](../HQL-0062/parts/01-pure-and-effectful.hmd) of
+[[HQL-0062]]: an effect is declared `effectful`, returns an ordinary value,
+gives a handleable failure as a `Result`, and never ends the process.
+
+## Motivation
+
+- A script cannot run another program. A shell pipeline can call `git`,
+  `kubectl` or `sort`; an HQL script can only be one stage of such a
+  pipeline, fed by a shell around it.
+- A script cannot stop cleanly on `SIGTERM`, and cannot signal another
+  process.
+- A script cannot read a named pipe: `File` is `Replayable`, and a pipe is
+  not.
+- HQL evaluates statements in order. A program that writes to a child while
+  it reads the child's answers has no way to say so.
+- A child that is running and no longer answers cannot be told from one that
+  works.
+
+## The parts
+
+| Part | Defines |
+| --- | --- |
+| [`io.process`](parts/01-io-process.hmd) | the Unix process model against HQL, the module `io.process`, `Signal`, `signals` and `send`, and the `process` grant |
+| [child processes](parts/02-child-processes.hmd) | `command` against Python's `subprocess`, Haskell's `System.Process` and Rust's `Command`; the five operations; a child's three pipes; failures; lifetime; the `commands` grant |
+| [advanced child processes](parts/03-advanced-child-processes.hmd) | a child's pipes wired to channels: `stdin_from`, `stdout_to`, `stderr_to`, and `command(…).stderr` |
+| [named pipes](parts/04-named-pipes.hmd) | `fifo(path)` in `io.fs`, and a named pipe handed to a child |
+| [`parallel`](parts/05-parallel.hmd) | the keyword `parallel`: the block, the step, `join = any`, branches against children, and how it runs |
+| [watchdogs](parts/06-watchdog.hmd) | `Watchdog`, a question asked of a child or a block at an interval |
+| [I/O FAQ](parts/faq.hmd) | the programs that hang, fail or surprise under these rules, and those that read as a mistake and are correct |
+
+## Relation to other proposals
+
+- [[HQL-0062]] keeps `#!`, `hql FILE`, positional arguments, `io.env.argv()`
+  and the exit status. `argv` stays in `io.env`, beside `arg` and `args`.
+- [[HQL-0055]] states which effects are ordered and which rewrites a planner
+  may make. `parallel` changes one rule: effects of two branches are
+  unordered.
+- [[HQL-0033]]: a non-zero exit status of a child is an `err` under `run`.
+- [[HQL-0059]] holds the configuration keys that the grants `process` and
+  `commands` would add.
+- [[0083-io-programs-that-never-end|Issue 0083]] collects every way an I/O
+  program can wait without end.
+
+## Changelog
+
+- 2026-11-22: drafted, from the companion notes of [[HQL-0062]]

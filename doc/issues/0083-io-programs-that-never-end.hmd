@@ -1,10 +1,10 @@
 # 0083 — I/O programs that never end: trace every case
 
 Status: todo
-Related: [[HQL-0062]], its [I/O FAQ](../proposals/HQL-0062/parts/faq.hmd),
-[`parallel`](../proposals/HQL-0062/parts/06-parallel.hmd),
-[child processes](../proposals/HQL-0062/parts/03-child-processes.hmd),
-[named pipes](../proposals/HQL-0062/parts/05-named-pipes.hmd),
+Related: [[HQL-0064]] and [[HQL-0062]], the [I/O FAQ](../proposals/HQL-0064/parts/faq.hmd),
+[`parallel`](../proposals/HQL-0064/parts/05-parallel.hmd),
+[child processes](../proposals/HQL-0064/parts/02-child-processes.hmd),
+[named pipes](../proposals/HQL-0064/parts/04-named-pipes.hmd),
 [[0080-sink-or-target-tap-or-source|issue 0080]],
 `eval_target` and `eval_sink` in `src/extensions/io.rs`
 
@@ -38,7 +38,7 @@ wait for another process, as the cases below show.
 
 ## The cases found so far
 
-Each row names the entry of the [I/O FAQ](../proposals/HQL-0062/parts/faq.hmd)
+Each row names the entry of the [I/O FAQ](../proposals/HQL-0064/parts/faq.hmd)
 that explains it.
 
 | Case | Example | FAQ entry | Runs today |
@@ -91,7 +91,7 @@ grows.
 - **Run-time detection.** When every branch waits on a channel that no
   running branch can write, the runtime can report a deadlock. A wait on
   another process cannot be told from slow work, and is bounded with
-  `timeout_ms` or a [watchdog](../proposals/HQL-0062/parts/07-watchdog.hmd).
+  `timeout_ms` or a [watchdog](../proposals/HQL-0064/parts/06-watchdog.hmd).
 - **Documentation.** The distinction between `file(path)` and
   `file(path).end` under `tap` is what made correct programs read as
   hangs. [[0080-sink-or-target-tap-or-source|Issue 0080]] covers the book;

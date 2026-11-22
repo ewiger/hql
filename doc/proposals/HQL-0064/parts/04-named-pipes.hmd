@@ -1,13 +1,13 @@
-# HQL-0062: named pipes
+# HQL-0064: named pipes
 
-Companion to [[HQL-0062]]. A **named pipe**, or FIFO, is a kernel object
+Companion to [[HQL-0064]]. A **named pipe**, or FIFO, is a kernel object
 with a path in the file system. One process opens the path and writes, a
 second opens it and reads, and the bytes pass from the first to the
 second without being stored. This note defines the endpoint `fifo(path)`
 of `io.fs`.
 
 !!! warning "Design only"
-    Nothing in this note is implemented, and [[HQL-0062]] does not deploy
+    Nothing in this note is implemented, and [[HQL-0064]] does not deploy
     it. The declarations are a design direction.
 
 !!! abstract "TL;DR"
@@ -18,7 +18,7 @@ of `io.fs`.
     - **`source` of it is a type error**, as it is for `file(path).end`.
     - **A named pipe joins two processes that did not start each other.**
       A child and its parent use the child's own pipes
-      ([child processes](03-child-processes.hmd)).
+      ([child processes](02-child-processes.hmd)).
 
 ## Three things called a pipe or a channel
 
@@ -143,7 +143,7 @@ r.report
 ```
 
 The child must read the pipe while the program writes it, so the two are
-branches of a `parallel` block ([`parallel`](06-parallel.hmd)). Written as
+branches of a `parallel` block ([`parallel`](05-parallel.hmd)). Written as
 two statements, the first would wait for the child to end, and the child
 would wait for frames the second statement had not yet written.
 

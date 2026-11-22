@@ -1,16 +1,16 @@
-# HQL-0062: watchdogs
+# HQL-0064: watchdogs
 
-Companion to [[HQL-0062]]. `hql` knows two things about a child it
+Companion to [[HQL-0064]]. `hql` knows two things about a child it
 started: that the process exists, and its exit status once it has ended.
 Neither states whether the child still does its work. A **watchdog** is a
 value that asks the child a question the program defines, at an interval,
 and ends the child when the answers stop.
 
 !!! warning "Design only"
-    Nothing in this note is implemented, and [[HQL-0062]] does not deploy
+    Nothing in this note is implemented, and [[HQL-0064]] does not deploy
     it. The declarations are a design direction. They extend `io.process`
-    and use the companion notes [child processes](03-child-processes.hmd)
-    and [`parallel`](06-parallel.hmd).
+    and use the companion notes [child processes](02-child-processes.hmd)
+    and [`parallel`](05-parallel.hmd).
 
 !!! abstract "TL;DR"
     - **A watchdog asks a question**, an HQL function that gives `Bool`,

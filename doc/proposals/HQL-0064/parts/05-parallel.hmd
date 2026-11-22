@@ -1,13 +1,13 @@
-# HQL-0062: `parallel`
+# HQL-0064: `parallel`
 
-Companion to [[HQL-0062]]. HQL evaluates the statements of a program in
+Companion to [[HQL-0064]]. HQL evaluates the statements of a program in
 order, one after another. A program that writes to a child while it reads
 the child's answers needs two statements to run at once, and HQL has no
 way to write that. This note defines the keyword `parallel`, which states
 that its branches run at the same time and joins them.
 
 !!! warning "Design only"
-    Nothing in this note is implemented, and [[HQL-0062]] does not deploy
+    Nothing in this note is implemented, and [[HQL-0064]] does not deploy
     it. The syntax is a sketch for discussion.
 
 !!! abstract "TL;DR"
@@ -91,7 +91,7 @@ option    = name "=" expression
   writes of one transaction are ordered.
 - A child's lifetime is bounded by the branch that started it: when the
   branch ends, `hql` terminates a child it left running
-  ([child processes](03-child-processes.hmd)).
+  ([child processes](02-child-processes.hmd)).
 
 ### Failure
 
@@ -167,13 +167,13 @@ parallel(join = any) {
 - Each field is then an `Option<T>`: the result of a branch that ended,
   and `none` for one that was cancelled.
 
-This is the step the companion note [`io.process`](02-io-process.hmd)
+This is the step the companion note [`io.process`](01-io-process.hmd)
 found missing: one stream ends another.
 
 ## A conversation
 
 The conversation of the companion note
-[advanced child processes](04-advanced-child-processes.hmd) is two
+[advanced child processes](03-advanced-child-processes.hmd) is two
 branches, one that reads the child and one that writes it:
 
 ```hql
@@ -233,7 +233,7 @@ of the program.
   statuses, and terminates one whose branch has ended. That supervision
   tests only that a child exists and has ended. A question about whether a
   child still does its work is a watchdog's
-  ([watchdogs](07-watchdog.hmd)).
+  ([watchdogs](06-watchdog.hmd)).
 
 ```d2
 direction: down
@@ -252,7 +252,7 @@ child -> hql.a: "report, on stdout"
 ```
 
 The diagram is the example "A named pipe and a child" of the companion
-note [named pipes](05-named-pipes.hmd): two light branches in one process,
+note [named pipes](04-named-pipes.hmd): two light branches in one process,
 and one heavy child beside it.
 
 ## How it runs

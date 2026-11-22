@@ -63,24 +63,9 @@ presentation of the result do not change.
 - An exit status other than `0` and `1` that the program chooses. The status
   is a function of the result, so a later proposal extends it with a type,
   not with an operation.
-- The module `io.process`: the process's identifier, the signals it
-  receives and sends, and child processes. The companion note
-  [`io.process`](parts/02-io-process.hmd) defines it as a design direction
-  and lists what else a Unix process has that HQL lacks. The companion
-  note [child processes](parts/03-child-processes.hmd) defines how a
-  script starts another program, against Python's `subprocess`, Haskell's
-  `System.Process` and Rust's `Command`, and the companion note
-  [advanced child processes](parts/04-advanced-child-processes.hmd) wires
-  a child's pipes to channels. The companion note
-  [named pipes](parts/05-named-pipes.hmd) defines `fifo(path)` in `io.fs`,
-  and the [I/O FAQ](parts/faq.hmd) shows the programs that hang or fail
-  under these rules, and why.
-  `argv` is in `io.env`, beside `arg` and `args`.
-- Running two statements at the same time. The companion note
-  [`parallel`](parts/06-parallel.hmd) defines the keyword `parallel`, a
-  block of branches that run together and are joined, and the companion
-  note [watchdogs](parts/07-watchdog.hmd) defines a value that asks a
-  child a question at an interval. Both are design directions.
+- Processes: `io.process` and signals, child processes, named pipes, the
+  keyword `parallel` and watchdogs. [[HQL-0064]] specifies them. `argv` is
+  in `io.env`, beside `arg` and `args`, and stays here.
 - A Windows launcher. `#!` is a Unix convention; on Windows `hql FILE` is
   the whole of this proposal.
 - Changing `hql eval`, `hql run` or any other command when it is named,
@@ -381,6 +366,6 @@ cargo test --locked lexer
 - 2026-11-21: drafted
 - 2026-11-22: the exit status as a function of the result; `exit(n)` a
   non-goal
-- 2026-11-22: companion notes on pure and effectful operations, on
-  `io.process`, on child processes, on a child's pipes and channels, on
-  named pipes, on `parallel` and on watchdogs
+- 2026-11-22: a companion note on pure and effectful operations
+- 2026-11-22: processes, pipes, `parallel` and watchdogs moved to
+  [[HQL-0064]]

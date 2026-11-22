@@ -1,13 +1,13 @@
-# HQL-0062: I/O FAQ
+# HQL-0064: I/O FAQ
 
-Companion to [[HQL-0062]]. Each entry is a program that hangs, fails or
+Companion to [[HQL-0064]]. Each entry is a program that hangs, fails or
 gives a result its author did not expect. Each entry gives what happens,
 the rule behind it, and the program that works. The last section holds the
 opposite case: a program that reads as a mistake and is correct. The rules
 are those of the
-companion notes [child processes](03-child-processes.hmd),
-[advanced child processes](04-advanced-child-processes.hmd),
-[named pipes](05-named-pipes.hmd) and [`parallel`](06-parallel.hmd).
+companion notes [child processes](02-child-processes.hmd),
+[advanced child processes](03-advanced-child-processes.hmd),
+[named pipes](04-named-pipes.hmd) and [`parallel`](05-parallel.hmd).
 
 !!! warning "Design only"
     Nothing in this note is implemented. The programs use the design
@@ -82,7 +82,7 @@ answers = tap(bc, Lines) | take(2)
 Statements run in order. The first reads answers to questions the second
 has not written yet, so it never ends, and the second never runs. The read
 and the write go in two branches of a `parallel` block, as in the example
-"A conversation" of [advanced child processes](04-advanced-child-processes.hmd).
+"A conversation" of [advanced child processes](03-advanced-child-processes.hmd).
 
 ### Why does a `parallel` block with a `tap` never end?
 
@@ -191,7 +191,7 @@ command("ls", txt)
 
 A program that needs shell text runs a shell, and the project grants it by
 name, as the section "The grant" of
-[child processes](03-child-processes.hmd) states:
+[child processes](02-child-processes.hmd) states:
 
 ```hql
 command("sh", ["-c", "ls *.txt"])

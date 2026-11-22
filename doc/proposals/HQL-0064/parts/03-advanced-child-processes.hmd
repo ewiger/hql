@@ -1,14 +1,14 @@
-# HQL-0062: advanced child processes: the child's pipes and channels
+# HQL-0064: advanced child processes: the child's pipes and channels
 
-Companion to [[HQL-0062]], and the continuation of the companion note
-[child processes](03-child-processes.hmd). That note gives a child one
+Companion to [[HQL-0064]], and the continuation of the companion note
+[child processes](02-child-processes.hmd). That note gives a child one
 **primary pipe**, the one the starting operation reads or writes, and
 sends the two **secondary** pipes to fixed places. This note wires a
 secondary pipe to a channel, so a program reads a child's standard error
 as values, writes and reads one child, and holds a conversation with one.
 
 !!! warning "Design only"
-    Nothing in this note is implemented, and [[HQL-0062]] does not deploy
+    Nothing in this note is implemented, and [[HQL-0064]] does not deploy
     it. The declarations are a design direction.
 
 !!! abstract "TL;DR"
@@ -26,7 +26,7 @@ as values, writes and reads one child, and holds a conversation with one.
       `source` of the channel.
     - **A conversation** wires standard input to a channel with
       `stdin_from` and taps standard output, in two branches of a
-      `parallel` block ([`parallel`](06-parallel.hmd)). Statements run in
+      `parallel` block ([`parallel`](05-parallel.hmd)). Statements run in
       order, so a write and a read of one running child need two
       branches.
     - **A wired standard input has no end of input.** A child that reads
@@ -136,7 +136,7 @@ err -> later
   when the child starts, then each value as it is written, each followed
   by a line terminator.
 - A pipe that is not wired MUST go where the companion note
-  [child processes](03-child-processes.hmd) sends it.
+  [child processes](02-child-processes.hmd) sends it.
 
 ### Primary and wired
 
@@ -252,7 +252,7 @@ r.answers
 ```
 
 The read and the write are two branches of a `parallel` block
-([`parallel`](06-parallel.hmd)). Written as two statements they would run
+([`parallel`](05-parallel.hmd)). Written as two statements they would run
 in order: the read would wait for answers to questions not yet written.
 
 `bc` answers each line as it reads it, so it needs no end of input. It is

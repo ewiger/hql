@@ -1,14 +1,14 @@
-# HQL-0062: `io.process`, signals, and the Unix process model
+# HQL-0064: `io.process`, signals, and the Unix process model
 
-Companion to [[HQL-0062]]. A script is a Unix process. This note compares
+Companion to [[HQL-0064]]. A script is a Unix process. This note compares
 what a Unix process can do with what an HQL program can do today, defines
 the module `io.process` for the process's identity and its signals, and
 names the module each remaining piece belongs to.
 
 !!! warning "Design only"
-    Nothing in this note is implemented, and [[HQL-0062]] does not deploy
+    Nothing in this note is implemented, and [[HQL-0064]] does not deploy
     it. The declarations are a design direction, written under the rules of
-    the companion note [pure and effectful](01-pure-and-effectful.hmd).
+    the note [pure and effectful](../../HQL-0062/parts/01-pure-and-effectful.hmd) of [[HQL-0062]].
 
 !!! abstract "TL;DR"
     - **`io.env` keeps the invocation**: `var`, `vars`, `arg`, `args` and
@@ -177,7 +177,7 @@ and end neither early.
 
 What is missing is a way to run two pipelines at the same time and end
 both when one ends. It is not a Unix pipe, and it reaches nothing outside
-the evaluation. The companion note [`parallel`](06-parallel.hmd) defines
+the evaluation. The companion note [`parallel`](05-parallel.hmd) defines
 it as `parallel(join = any) { … }`, with this program as its example. A
 program whose only stream is `signals`, as the example above, needs no
 such construct.
@@ -197,7 +197,7 @@ that owns the outside state it reaches, not to `io.process`.
 | Piece | Shape | Module |
 |---|---|---|
 | a child process | an endpoint, `{Readable, Writable}`: a write goes to its standard input, a read comes from its standard output, and its exit status is a `Result` | `io.process` |
-| a named pipe | an endpoint, `{Readable, Writable}` and not `Replayable`, beside `File` and `FileEnd`, defined in the companion note [named pipes](05-named-pipes.hmd) | `io.fs` |
+| a named pipe | an endpoint, `{Readable, Writable}` and not `Replayable`, beside `File` and `FileEnd`, defined in the companion note [named pipes](04-named-pipes.hmd) | `io.fs` |
 | a Unix domain socket | an endpoint, `{Readable, Writable}`, beside `Tcp` | `io.net` |
 | a listening socket | a `Stream` of connections, each an endpoint | `io.net` |
 | UDP | an endpoint whose documents are datagrams | `io.net` |
@@ -205,4 +205,4 @@ that owns the outside state it reaches, not to `io.process`.
 
 A child process is the largest of these. With it a script replaces a shell
 pipeline, and without it a script is only ever one stage of one. The
-companion note [child processes](03-child-processes.hmd) defines it.
+companion note [child processes](02-child-processes.hmd) defines it.
