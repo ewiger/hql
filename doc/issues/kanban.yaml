@@ -70,9 +70,6 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.hmd
     doing:
-      - id: "0082"
-        title: "On Windows, a path a program reads is not the text HQL reads"
-        file: 0082-windows-paths-a-program-reads.hmd
       - id: "0077"
         title: "The knowledge base is hyper-markdown"
         file: 0077-docs-to-hmd.hmd

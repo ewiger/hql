@@ -2,7 +2,7 @@
 
 **Status**: implemented in part
 **Created**: 2026-11-22
-**Issues**: [0082](../../issues/0082-windows-paths-a-program-reads.hmd)
+**Issues**: [0082](../../issues/archive/0082-windows-paths-a-program-reads.hmd)
 **Source**: the first build and test of `hql` on Windows, at `v0.7.1`; the
 `Path` of [[HQL-0040]], the sorted walk of [[HQL-0020]] and the source
 directory of [[HQL-0059]]
@@ -36,7 +36,7 @@ extended-length path, in which Windows reads `/` as a character of a name and
 not as a separator. It is the host's form and not an escaping error.
 
 The first run of the tests on Windows showed the host's form reaching programs
-in two places ([issue 0082](../../issues/0082-windows-paths-a-program-reads.hmd)):
+in two places ([issue 0082](../../issues/archive/0082-windows-paths-a-program-reads.hmd)):
 
 - A card below a folder had the path `books\a-room-of-ones-own.hmd`, so
   `cards | filter(c => c.path | starts_with("books/")) | size` was `0` where

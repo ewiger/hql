@@ -1,13 +1,13 @@
 # 0082 — On Windows, a path a program reads is not the text HQL reads
 
-Status: doing
+Status: done
 Related: [[HQL-0063]], which states the rule; [[HQL-0020]], [[HQL-0040]],
 [[HQL-0059]],
-[`src/paths.rs`](../../src/paths.rs),
-[`src/walk.rs`](../../src/walk.rs),
-[`src/extensions/fs.rs`](../../src/extensions/fs.rs),
-[`src/evaluation.rs`](../../src/evaluation.rs),
-[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
+[`src/paths.rs`](../../../src/paths.rs),
+[`src/walk.rs`](../../../src/walk.rs),
+[`src/extensions/fs.rs`](../../../src/extensions/fs.rs),
+[`src/evaluation.rs`](../../../src/evaluation.rs),
+[`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)
 
 A path value in HQL is text with `/` between its segments: `join`, `parent`,
 `name`, `stem` and `extension` read that text alone and never ask the host. On
@@ -90,5 +90,4 @@ that holds on both.
   [[HQL-0063]] decides that `\` is not a separator, since it is a character
   of a name on Linux and macOS.
 - A card saved with CRLF line endings has not been run on Windows.
-- The tests pass on `windows-latest` on `feat/win-bin`; this card moves to
-  done with the release that carries `hql.exe`.
+- Released in 0.7.2, the first release with `hql.exe`.
