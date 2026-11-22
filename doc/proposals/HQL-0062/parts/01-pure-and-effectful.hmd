@@ -1,0 +1,268 @@
+# HQL-0062: pure and effectful, and how a program reaches the outside
+
+Companion to [[HQL-0062]]. A script reads its arguments, reads and writes
+files, and reports a status to the process that ran it. Each of these is an
+interaction with state outside the evaluation. This note records how HQL
+admits such interactions, the three other languages the design was measured
+against, and the rules a new I/O operation follows.
+
+The exit status is the case that forced the comparison, so the note ends
+with it.
+
+!!! abstract "TL;DR"
+    - **Four approaches are compared** on four points: whether an effect
+      shows in the declaration, whether it is in the type, whether a failure
+      is a value, and where the exit status comes from.
+    - **Python: an effect is unmarked.** Rejected, because planning, host
+      grants and errors as values all need to know which steps have effects.
+    - **Haskell: an effect is a type.** HQL takes the principle that an
+      effect cannot be hidden, and failure as a value. It does not take
+      `IO a`, because `env.argv() | map(f)` would no longer check, and HQL
+      has no `Monad` trait or `do` notation.
+    - **Rust: the result gives the status.** HQL takes `main` returning a
+      value, and `Result`. It does not take unmarked effects or
+      `process::exit`.
+    - **HQL: `effectful`.** Purity is a two-valued marking that is not part
+      of the type. A user function's purity is derived, evaluation and
+      planning read it, and grants are a separate control. HQL gives up two
+      things: a signature does not say which effect, and a function cannot
+      be generic over purity.
+    - **The exit status.** `exit(n)` fails these rules for three reasons, so
+      the program's result gives the status.
+    - **A new I/O operation follows six rules**, including no `sys` module
+      and outside events arriving as a `Stream`.
+
+## The four approaches
+
+| | An effect is visible in the declaration | An effect is in the type | A failure is a value | The exit status comes from |
+|---|---|---|---|---|
+| Python | no | no | no, an exception | a call, `sys.exit(n)` |
+| Haskell | yes | yes, `IO a` | yes, `Either e a` | a call, `exitWith`, typed `IO a` |
+| Rust | no | no | yes, `Result<T, E>` | the value `main` returns |
+| HQL | yes, `effectful fn` | no | yes, `Result<T, E>` | the program's result |
+
+HQL takes the marking from Haskell, the result-as-status from Rust, and
+nothing from Python.
+
+## Python: an effect is unmarked
+
+```python
+import sys
+
+def year():
+    if len(sys.argv) < 2:
+        sys.exit(2)
+    return sys.argv[1]
+```
+
+- Any function may read or write anything. `year()` reads a global and may
+  end the process, and its signature says neither.
+- `sys.exit(n)` raises `SystemExit`. The exit is an exception that travels
+  up the call stack, and any `except` on the way can stop it.
+- A failure is an exception too, so a function has two ways out: its return
+  value and a raise.
+
+HQL does not take this approach.
+
+- **Planning needs the marking.** A pipeline's pure steps may be fused,
+  split, reordered, run at the source or left unrun when nothing reads them
+  ([[pipes]]). Each of these is correct only for a step known to be pure.
+  With unmarked effects every step is a possible effect, and none of them
+  may be moved.
+- **A host needs to know which operations have an effect.** `hql render`
+  evaluates a document someone else wrote, and grants it no environment
+  variable. A grant is attached to operations declared effectful, and
+  unmarked effects leave nothing to attach it to.
+- **A second way out contradicts [[HQL-0033]].** A recoverable failure in
+  HQL is a `Result`, and a `match` handles it. An exception would be a
+  failure that no type states.
+
+## Haskell: an effect is a type
+
+```haskell
+main :: IO ()
+main = do
+  args <- getArgs
+  case args of
+    []      -> exitWith (ExitFailure 2)
+    (y : _) -> putStrLn y
+```
+
+- A function is pure by construction. `getArgs :: IO [String]` is not a
+  list of strings. It is a value that describes the action of reading them.
+- Actions are sequenced with the monad operations, `>>=` or `do`. Only
+  `main`, of type `IO ()`, is run.
+- The type of every function that performs an effect, or calls one that
+  does, ends in `IO`. The effect cannot be hidden.
+- `exitWith :: ExitCode -> IO a` is an action. It is implemented by throwing
+  an `ExitCode` exception inside `IO`.
+
+HQL takes the principle and not the mechanism.
+
+- **Taken: the effect is stated where the operation is declared, and it
+  cannot be hidden.** A function that calls an effectful operation is
+  effectful, as a Haskell function that calls `getArgs` has `IO` in its
+  type.
+- **Taken: a failure is a value.** `Result<T, E>` is `Either e a`.
+- **Not taken: `IO a` as a type.** With it, `env.argv()` would have the type
+  `IO<Seq<String>>`, and `env.argv() | map(f)` would not check, because the
+  input of `map` is a sequence and not an action. Every pipeline that
+  touches a file would need a sequencing notation between its steps. HQL
+  has no `Monad` trait and no `do` notation, and a pipeline, `a | b | c`, is
+  already its sequencing form.
+- **Not taken: `exitWith`.** It is typed, and it is still a jump out of the
+  evaluation by exception.
+
+## Rust: the result gives the status
+
+```rust
+fn main() -> Result<(), String> {
+    let year = std::env::args().nth(1).ok_or("usage: report YEAR")?;
+    println!("{year}");
+    Ok(())
+}
+```
+
+- An effect is unmarked, as in Python. `std::env::args()` and `println!` are
+  ordinary calls.
+- A failure is a value, `Result<T, E>`, and `?` passes an `Err` to the
+  caller.
+- `main` returns a value, and the `Termination` trait turns that value into
+  the exit status: `Ok(())` is `0`, and `Err(e)` prints `e` and is `1`.
+- `std::process::exit(n)` exists as well. It ends the process at once, and
+  no destructor of a value still in scope runs.
+
+HQL takes the second half.
+
+- **Taken: the program's result gives the exit status.** No operation sets
+  it. The section "The exit status" of [[HQL-0062]] is this rule.
+- **Taken: a failure is a value**, as in Haskell.
+- **Not taken: unmarked effects**, for the reasons given under Python.
+- **Not taken: `process::exit`.** It is the operation `main`'s return value
+  makes unnecessary.
+
+## HQL: `effectful`
+
+An **effect** is an observable interaction with state outside the
+evaluation: a read of a file, of the environment or of the clock, a write to
+an endpoint, a log line, a random draw. The companion note of [[HQL-0055]],
+[effects and what they constrain](../../HQL-0055/parts/02-effects.hmd),
+lists every operation that has one.
+
+**Purity** is a marking of an operation, with two values. `fn` declares a
+pure operation and `effectful fn` an effectful one:
+
+```hql
+fn join(self: Path, segment: String) : Path
+effectful fn argv() : Seq<String>
+effectful fn sink<T, F : Format>(values: Iterable<T>, endpoint: Writable, format: Type<F>) : Step
+```
+
+- **The marking is not part of the type.** `argv()` has the type
+  `Seq<String>`, and its value is an ordinary sequence that any step
+  accepts: `env.argv() | map(p => folder(p))` checks.
+- **A declaration in `lib/` states the marking, and binding checks it.** An
+  extension whose own marking differs from the declaration is refused
+  ([[extensions]]).
+- **A user function's purity is derived.** It is pure only if every call in
+  its body is pure. The checker records, for each function, the effectful
+  operations its body reaches.
+- **Evaluation reads the marking.** A pure branch of a bound `fork` that no
+  later statement reads is not run. An effectful branch runs whether it is
+  read or not ([[pipes]]).
+- **Planning reads the marking.** Pure steps admit rewrites that preserve
+  their results. Two effects the program orders happen in that order, an
+  effect is a barrier to reordering, and a completed effect is not repeated
+  ([[HQL-0055]]).
+
+A **grant** is a second and separate control. The marking states that an
+operation has an effect. A grant states whether this host permits it.
+`env.var(name)` is effectful everywhere; it gives a value only where the
+project's `env` grant covers `name`, and `hql render` grants no variable
+([[HQL-0041]]).
+
+```d2
+direction: down
+
+declaration: "declaration in lib/\nfn or effectful fn"
+checker: "checker\nderives each function's purity"
+planner: "planner\nrewrites pure steps,\nkeeps effects in order"
+host: "host grant\npermits or refuses the effect"
+run: "evaluation\nperforms the effect"
+
+declaration -> checker
+checker -> planner
+planner -> host
+host -> run
+```
+
+!!! note "What HQL gives up"
+    The marking is binary and is not a type, so a signature does not state
+    which effect an operation has, and a function cannot be generic over
+    purity. HQL accepts that: the planner and the host need to know that a
+    step has an effect, and the grant, not the type, names which.
+
+## The exit status under these rules
+
+An `exit(n)` operation would be declared `effectful fn exit(status: Int)`.
+It fails three of the rules above.
+
+- **It gives no value.** Every other effectful operation returns one: the
+  data it read, or a `Step` that records the write. `exit` ends the
+  evaluation, so no step follows it and its type describes nothing.
+- **It breaks the order of effects.** A `sink` that runs before `exit` in
+  program order may not have finished writing when the process ends.
+- **It is a third way to fail.** HQL has two: an `err` value, which a
+  program handles, and an unrecoverable failure, which stops evaluation
+  ([[HQL-0033]]). `exit` would be a failure the program chooses that no
+  `match` can handle.
+
+The status is therefore not an effect of the program. The evaluation
+produces a result, and `hql` exits after it:
+
+```d2
+direction: down
+
+program: "program"
+evaluation: "evaluation\npure and effectful steps"
+result: "result\nthe value of the last expression"
+present: "hql presents the result"
+status: "hql exits\n1 for err(e), 0 otherwise"
+
+program -> evaluation
+evaluation -> result
+result -> present
+present -> status
+```
+
+```hql
+#!/usr/bin/env hql
+import io.env
+
+ok(env.argv()[0]) given env.argv() != []
+otherwise err("usage: report.hql YEAR")
+```
+
+The program's result type is `Result<String, String>`. The type states that
+the program can exit `1`, and the checker has verified both branches before
+anything runs.
+
+## The rules for a new I/O operation
+
+- **It is declared `effectful`**, in the module that owns the outside state
+  it reaches. The process, the host and the file system are under `io`:
+  `io.env`, `io.fs`, `io.net`. There is no separate `sys` module, because
+  it would name the same boundary a second time.
+- **It returns an ordinary value.** No type wraps the result of an
+  effectful operation.
+- **A failure the program can handle is a `Result`.** The operation does
+  not stop evaluation for a condition a caller could act on.
+- **A grant narrows it** wherever the host did not choose what the
+  operation exposes. `argv()` needs no grant, because the invocation wrote
+  the arguments; `var(name)` needs one.
+- **It does not end the process or leave the evaluation.** What the process
+  reports to its caller is derived from the result.
+- **An event from outside arrives as a source.** A value that the outside
+  produces over time is a `Stream<T>` read with `tap`. Signals are a design
+  direction under this rule, a `Stream` of signal values, and no proposal
+  specifies them.

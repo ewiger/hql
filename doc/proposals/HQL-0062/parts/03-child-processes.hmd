@@ -1,0 +1,345 @@
+# HQL-0062: child processes
+
+Companion to [[HQL-0062]]. A **child process** is another program that a
+script starts, writes to, reads from and waits for. This note compares how
+Python, Haskell and Rust start one, and defines the operations of
+`io.process` that do it in HQL. The companion note
+[advanced child processes](04-advanced-child-processes.hmd) continues it
+with the child's pipes wired to channels.
+
+!!! warning "Design only"
+    Nothing in this note is implemented, and [[HQL-0062]] does not deploy
+    it. The declarations are a design direction. They extend the module of
+    the companion note [`io.process`](02-io-process.hmd) under the rules of
+    the companion note [pure and effectful](01-pure-and-effectful.hmd).
+
+!!! abstract "TL;DR"
+    - **Python: `subprocess`.** One call starts the program. A shell is one
+      argument away, and a non-zero exit status is ignored unless the
+      caller asks for an exception. HQL takes neither.
+    - **Haskell: `System.Process`.** The process is described by a value,
+      `CreateProcess`, before it is run. HQL takes that. It does not take
+      the four handles the run gives back, or the two sets of functions
+      that differ in whether a failure throws.
+    - **Rust: `std::process::Command`.** A value describes the process,
+      arguments are a list that no shell reads, and the exit status is a
+      value. HQL takes all three.
+    - **HQL: `command`.** A `Command` is a pure value and an endpoint, read
+      and written by the four operations of `io`: `source` waits for the
+      child and gives everything it wrote, `tap` gives it as it arrives,
+      `target` and `sink` write its standard input. `run` waits and gives a
+      `Result`.
+    - **Two rules are HQL's own.** A non-zero exit status is a failure, and
+      a child's lifetime is bounded by the evaluation that started it.
+
+## The four approaches
+
+| | The process is a value before it runs | A shell reads the command | A non-zero exit status is | A child still running at the end is |
+|---|---|---|---|---|
+| Python | no | when `shell=True` | ignored, or an exception with `check=True` | left running |
+| Haskell | yes, `CreateProcess` | with `shell`, not with `proc` | an exception or a value, by the function called | left running |
+| Rust | yes, `Command` | never | a value, `ExitStatus` | left running |
+| HQL | yes, `Command` | never | a failure | terminated |
+
+## Python: `subprocess`
+
+```python
+import subprocess
+
+done = subprocess.run(["git", "log", "--format=%an"],
+                      capture_output=True, text=True, check=True)
+authors = done.stdout.splitlines()
+```
+
+- `run` starts the program, waits for it, and gives a `CompletedProcess`
+  with the status and what was captured. `Popen` starts it without
+  waiting, and gives an object whose pipes the caller reads and writes.
+- With `shell=True` the command is one string and `/bin/sh` reads it. A
+  value from outside the program that is pasted into that string is run as
+  shell text.
+- A non-zero status is ignored by default. `check=True` raises
+  `CalledProcessError`.
+- A `Popen` whose two pipes are read and written by hand deadlocks when
+  either fills. `communicate()` exists to avoid that.
+
+HQL does not take the shell argument, the ignored status or the exception.
+
+## Haskell: `System.Process`
+
+```haskell
+import System.Process
+
+main :: IO ()
+main = do
+  out <- readCreateProcess (proc "git" ["log", "--format=%an"]) ""
+  mapM_ putStrLn (lines out)
+```
+
+- `proc` and `shell` each give a `CreateProcess`, a record that describes
+  the process: the program, its arguments, its directory, its environment
+  and what each standard stream is connected to. Building one starts
+  nothing.
+- `createProcess` runs it and gives four values: three `Maybe Handle`, one
+  for each standard stream, and a `ProcessHandle`.
+- `readProcess` throws an exception on a non-zero status.
+  `readProcessWithExitCode` gives the status as a value instead. The caller
+  chooses failure handling by choosing the function.
+
+HQL takes the description as a value. It does not take the four handles,
+which a caller must each close, or the pairs of functions.
+
+## Rust: `std::process::Command`
+
+```rust
+use std::process::Command;
+
+fn main() -> std::io::Result<()> {
+    let out = Command::new("git").args(["log", "--format=%an"]).output()?;
+    if out.status.success() {
+        print!("{}", String::from_utf8_lossy(&out.stdout));
+    }
+    Ok(())
+}
+```
+
+- `Command` is a value built in steps: `new`, `arg`, `env`, `current_dir`,
+  `stdin`. Nothing runs until `spawn`, `status` or `output`.
+- Arguments are a list. No shell reads them, so an argument that holds a
+  space or a `;` is one argument.
+- `output()` waits and gives `Output`: the status, standard output and
+  standard error. `spawn()` gives a `Child` whose streams the caller reads
+  and writes.
+- The `Err` of these calls states that the program did not start. A
+  non-zero status is not an `Err`. It is an `ExitStatus` inside `Ok`, and
+  the caller tests `success()`.
+- A `Child` that is dropped is not killed and not waited for.
+
+HQL takes the value, the argument list and the status as a value. It
+differs on the last two points, as the rules below state.
+
+## HQL: `command`
+
+```hql
+module io.process
+
+/// A program to run, with its arguments. Constructing one starts nothing.
+/// Read, it is the child's standard output; written, its standard input.
+/// Each read or write starts the program once, as each read of an `Http`
+/// endpoint is one request.
+type Command : {Replayable, Writable} {
+    program    : String
+    args       : List<String>
+    dir        : Option<Path>
+    env        : Map<String, String>
+    timeout_ms : Option<Int>
+}
+
+/// What a child that exited with status `0` wrote.
+type Output {
+    stdout : String
+    stderr : String
+}
+
+/// Why a command did not succeed. `stdout` and `stderr` hold what the
+/// child wrote before it ended.
+type CommandFailure : DataContract {
+    command : Command
+    reason  : String
+    status? : Int
+    signal? : Signal
+    stdout  : String
+    stderr  : String
+}
+
+/// The command that runs `program` with `args`. `dir` is the child's
+/// working directory, this process's own unless given. `env` is added to
+/// the environment the child inherits.
+fn command(program: String, args: Seq<String> = [], *,
+           dir: Option<Path> = none, env: Map<String, String> = {:},
+           timeout_ms: Option<Int> = none) : Command
+
+/// Starts the command, writes `input` to its standard input, waits for it
+/// to end, and gives what it wrote.
+effectful fn run(self: Command, input: String = "") : Result<Output, CommandFailure>
+```
+
+`source`, `tap`, `target` and `sink` need no declaration of their own.
+`Command` is `Replayable` and `Writable`, so the four operations of `io`
+accept it.
+
+### The five operations
+
+| Operation | The child's standard input | The child's standard output | `hql` waits for the child | Gives |
+|---|---|---|---|---|
+| `source(c, F)` | closed | read to its end, decoded by `F` | yes | `Seq<T>`, every document |
+| `tap(c, F)` | closed | read as it arrives, decoded by `F` | no | `Stream<T>` |
+| `target(v, c, F)` | `v` as one document, then closed | this process's standard output | yes | `Step` |
+| `sink(vs, c, F)` | each of `vs` as a document, then closed | this process's standard output | yes | `Step` |
+| `c.run(input)` | `input`, then closed | captured | yes | `Result<Output, CommandFailure>` |
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+git = command("git", ["log", "--format=%an"])
+
+// source: wait for git to end, then every line it wrote.
+authors = source(git, Lines)
+authors | distinct | size
+
+// tap: each line as git writes it. The first 10 end the read.
+tap(git, Lines) | take(10)
+
+// target: one document on the child's standard input.
+{name: "wren", count: 3} | target(command("jq", [".count"]), Json)
+
+// sink: one document for each value.
+["b", "a"] | sink(command("sort"), Lines)
+
+// run: wait, and handle the failure.
+match git.run() {
+    ok(out) => out.stdout,
+    err(e)  => fmt("git failed: {}", e.stderr),
+}
+```
+
+- `source(c, F)` MUST start the child, read its standard output to its end,
+  wait for it, and give every document decoded by `F` as a `Seq<T>`.
+- `tap(c, F)` MUST start the child and give each document as it arrives,
+  as a `Stream<T>`.
+- `target(v, c, F)` MUST start the child, write `v` encoded by `F` as one
+  document, close the child's standard input, and wait.
+- `sink(vs, c, F)` MUST do the same with one document for each value.
+- `run` MUST start the child, write `input`, close the child's standard
+  input, read its standard output and standard error to their ends, and
+  wait.
+- Each operation on one `Command` value MUST start one child. Two `source`
+  calls are two runs of the program.
+
+### The child's three pipes
+
+A child has three pipes: standard input, standard output and standard
+error. The operation that starts the child reads or writes one of them,
+its **primary pipe**. The other two are **secondary**.
+
+| Operation | Primary pipe | Secondary pipes |
+|---|---|---|
+| `source`, `tap` of `c` or `c.stdout` | standard output | standard input, standard error |
+| `source`, `tap` of `c.stderr` | standard error | standard input, standard output |
+| `target`, `sink` | standard input | standard output, standard error |
+| `run` | none: it writes `input` and captures both outputs | none |
+
+- A secondary standard input MUST be closed when the child starts, so the
+  child reads an empty input.
+- A secondary standard output MUST go to this process's standard output.
+- A secondary standard error MUST go to this process's standard error.
+- `hql` MUST read every output pipe as the child writes it. A child MUST
+  NOT block on a full pipe that the program has not yet read.
+
+A secondary pipe is given another destination by wiring it to a channel,
+and standard error is made the primary pipe of a read with the field
+`stderr`, `tap(command(…).stderr, F)`.
+Both are defined in the companion note
+[advanced child processes](04-advanced-child-processes.hmd).
+
+### The command line
+
+- The child MUST receive `program` and `args` as written. No shell reads
+  them: no word is split, no `*` is expanded and no `$NAME` is replaced.
+- A `program` without `/` MUST be looked up in `PATH`. A relative `program`
+  with `/` MUST resolve against the directory of the source unit that names
+  it, as every path does ([[HQL-0059]]).
+- A script that needs a shell names it: `command("sh", ["-c", line])`.
+
+### Failures
+
+A command fails in one of seven ways. `reason` of `CommandFailure` names it.
+
+| `reason` | The failure | Set beside it |
+|---|---|---|
+| `not-found` | no program of that name, in `PATH` or at the path | |
+| `not-permitted` | the file is not executable by this user | |
+| `exited` | the child exited with a status other than `0` | `status` |
+| `signalled` | a signal ended the child | `signal` |
+| `timed-out` | `timeout_ms` passed and `hql` terminated the child | |
+| `closed` | the child closed its standard input before the write ended | |
+| `unhealthy` | its watchdog gave up and `hql` terminated the child ([watchdogs](07-watchdog.hmd)) | |
+
+A child that does not exit `0` is a failure the program can handle, so
+`run` gives it as a `Result` ([[HQL-0033]]).
+
+- `run` MUST give `ok(Output)` when the child exits `0`, and
+  `err(CommandFailure)` for each failure of the table.
+- `source`, `tap`, `target` and `sink` give a sequence, a stream and a
+  `Step`, which hold no status. A failure under them MUST stop evaluation
+  with an unrecoverable failure that states the command, the reason, the
+  status and the last lines of the child's standard error. A program that
+  handles the failure uses `run`.
+- A document of the child's output that `F` does not decode is a failure of
+  the format, as it is for a file, and not a `CommandFailure`.
+- A command the grant refuses is a forbidden effect, an unrecoverable
+  failure, under every operation.
+- A program whose last expression is `command(…).run()` exits `1` when the
+  child fails, by the section "The exit status" of [[HQL-0062]].
+
+!!! note "Where this differs from Rust"
+    Rust gives a non-zero status inside `Ok`, and the caller tests
+    `success()`. HQL gives it as `err`, so the output of a failed child is
+    reached only through a `match` or `map_err`. A tool that uses a
+    non-zero status for an ordinary answer, as `grep` uses `1` for no
+    match, is handled by matching `e.status`.
+
+### The child's environment and lifetime
+
+A child's lifetime is bounded by the evaluation that started it.
+
+- The child MUST inherit the environment variables this program is granted
+  by `env`, and no other. A child would otherwise read what the `env` grant
+  withholds from the program ([[HQL-0041]]).
+- When `timeout_ms` passes, `hql` MUST terminate the child.
+- When the evaluation ends with a child still running, on a failure or
+  because a stream was not read to its end, `hql` MUST terminate the child
+  and wait for it. Termination is `SIGTERM`, then `SIGKILL` after 5
+  seconds.
+- `hql` MUST terminate its children when a signal ends `hql` itself.
+
+```d2
+direction: down
+
+value: "command(program, args)\na pure value"
+grant: "commands grant\npermits or refuses the program"
+start: "source, tap, target, sink or run\nstarts the child"
+child: "child process\nreads stdin, writes stdout and stderr"
+end: "the child ends"
+ok: "exit 0\nthe value, or ok(Output)"
+err: "any other end\nevaluation stops, or err(CommandFailure)"
+
+value -> grant
+grant -> start
+start -> child
+child -> end
+end -> ok
+end -> err
+```
+
+### The grant
+
+Starting a program gives a script every right of the user who runs it, so
+a grant names the programs. It is a top-level key of `hql.toml`, beside
+`env` and `process` ([[HQL-0059]]):
+
+```toml
+commands = ["git", "kubectl"]
+```
+
+- Absent, a run MUST grant every program. Stated, it grants the programs
+  it lists, each matched against `program` as written, and no other.
+- `hql render` MUST grant no program.
+
+### Purity
+
+- `command` is pure. It builds a value and reaches nothing, as `Path` and
+  `tcp` do.
+- `run`, and the four operations of `io` on a `Command`, are effectful. The
+  planner keeps them in program order and does not repeat one that has
+  completed ([[HQL-0055]]).

@@ -1,0 +1,158 @@
+# HQL-0062: watchdogs
+
+Companion to [[HQL-0062]]. `hql` knows two things about a child it
+started: that the process exists, and its exit status once it has ended.
+Neither states whether the child still does its work. A **watchdog** is a
+value that asks the child a question the program defines, at an interval,
+and ends the child when the answers stop.
+
+!!! warning "Design only"
+    Nothing in this note is implemented, and [[HQL-0062]] does not deploy
+    it. The declarations are a design direction. They extend `io.process`
+    and use the companion notes [child processes](03-child-processes.hmd)
+    and [`parallel`](06-parallel.hmd).
+
+!!! abstract "TL;DR"
+    - **A watchdog asks a question**, an HQL function that gives `Bool`,
+      where the kernel can only say that a process exists.
+    - **It is patient.** It waits `wait_ms` for each answer and acts only
+      after `misses` wrong or missing answers in a row.
+    - **It is a value.** `Watchdog(ask, …)` builds one, and a `Command` or
+      a `parallel` block takes it as the argument `watchdog`.
+    - **When it gives up, `hql` terminates what it guards.** A command
+      fails with the reason `unhealthy`; a block is cancelled.
+
+## A signal and a question
+
+| | The kernel, with a signal | A watchdog |
+|---|---|---|
+| asks | does this process exist | a question the program writes |
+| a blocked process | exists, so it passes | does not answer, so it misses |
+| waits for the answer | no | `wait_ms` |
+| tolerates a wrong answer | no | `misses` in a row |
+| acts by | ending the process at once, with `SIGKILL` | terminating it: `SIGTERM`, then `SIGKILL` after 5 seconds |
+
+A health check of a service is the same idea: a request to `/health` that
+the service must answer, where a process table only lists that it runs.
+
+## `Watchdog`
+
+```hql
+module io.process
+
+/// A question asked at an interval, and how long to tolerate no answer.
+type Watchdog {
+    ask      : () -> Bool
+    every_ms : Int
+    wait_ms  : Int
+    misses   : Int
+    grace_ms : Int
+}
+
+/// The watchdog that calls `ask` every `every_ms`. An answer of `false`,
+/// a failure inside `ask`, and no answer within `wait_ms` are each a
+/// miss. After `misses` in a row it gives up. The first question is asked
+/// `grace_ms` after the start.
+fn Watchdog(ask: () -> Bool, *, every_ms: Int = 5000, wait_ms: Int = 2000,
+            misses: Int = 3, grace_ms: Int = 0) : Watchdog
+```
+
+`Watchdog` is pure: it builds a value and asks nothing. `ask` is an
+ordinary HQL function and MAY be effectful, so a question is anything a
+program can compute: a request to an endpoint, a second command, the age
+of a file.
+
+### Guarding a command
+
+`command` takes the watchdog as a named argument:
+
+```hql
+#!/usr/bin/env hql
+from io.net import *
+from io.process import *
+
+healthy = Watchdog(
+    () => (source(http("http://localhost:8080/health"), Json) | one).status == "ok",
+    every_ms = 5000, misses = 3, grace_ms = 10000,
+)
+
+match command("server", ["--port", "8080"], watchdog = healthy).run() {
+    ok(out) => "server ended",
+    err(e)  => fmt("server ended: {}", e.reason),
+}
+```
+
+- From the start of the child, `hql` MUST call `ask` every `every_ms`,
+  first after `grace_ms`, for as long as the child runs.
+- An answer of `true` MUST set the count of misses to `0`.
+- An answer of `false`, an unrecoverable failure inside `ask`, and no
+  answer within `wait_ms` MUST each add one miss. A question still
+  unanswered after `wait_ms` is cancelled.
+- At `misses` in a row, `hql` MUST terminate the child. The command then
+  fails with the reason `unhealthy`: `err(CommandFailure)` under `run`,
+  and an unrecoverable failure under `source`, `tap`, `target` and `sink`.
+- When the child ends for any other reason, the watchdog MUST stop. It
+  never changes the result of a child that ended by itself.
+- The questions run beside the operation that reads or writes the child,
+  as a branch of a `parallel` block runs beside its siblings. The program
+  writes no `parallel` for it.
+
+A question may be a second command:
+
+```hql
+ready = Watchdog(() => match command("pg_isready", ["-q"]).run() {
+    ok(out) => true,
+    err(e)  => false,
+})
+```
+
+### Guarding a block
+
+`parallel` takes the same value, and it then guards every branch:
+
+```hql
+r = parallel(watchdog = healthy) {
+    served  = command("server", ["--port", "8080"]).run()
+    queries = tap(file("queries.jsonl"), JsonLines)
+              | sink(http("http://localhost:8080/query", method = "POST"), JsonLines)
+}
+```
+
+- At `misses` in a row, `hql` MUST cancel every branch of the block, and
+  the block fails with an unrecoverable failure that states the watchdog
+  gave up.
+- When the block ends, the watchdog MUST stop.
+
+```d2
+direction: down
+
+start: "the child starts"
+grace: "wait grace_ms"
+ask: "call ask()"
+answer: "true within wait_ms?"
+reset: "misses = 0"
+miss: "misses + 1"
+limit: "misses in a row reached?"
+sleep: "wait every_ms"
+kill: "terminate the child\nreason: unhealthy"
+
+start -> grace
+grace -> ask
+ask -> answer
+answer -> reset: "yes"
+answer -> miss: "no"
+miss -> limit
+limit -> kill: "yes"
+limit -> sleep: "no"
+reset -> sleep
+sleep -> ask
+```
+
+## What a watchdog does not do
+
+- It does not restart what it ended. A program that restarts a command
+  retries its `run` ([[HQL-0033]]).
+- It does not outlive the evaluation. A watchdog guards a child or a block
+  of this program, for as long as that runs.
+- It does not replace `timeout_ms`, which bounds how long a child may run.
+  A watchdog bounds how long a child may go without answering.

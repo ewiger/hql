@@ -1,0 +1,295 @@
+# HQL-0062: advanced child processes: the child's pipes and channels
+
+Companion to [[HQL-0062]], and the continuation of the companion note
+[child processes](03-child-processes.hmd). That note gives a child one
+**primary pipe**, the one the starting operation reads or writes, and
+sends the two **secondary** pipes to fixed places. This note wires a
+secondary pipe to a channel, so a program reads a child's standard error
+as values, writes and reads one child, and holds a conversation with one.
+
+!!! warning "Design only"
+    Nothing in this note is implemented, and [[HQL-0062]] does not deploy
+    it. The declarations are a design direction.
+
+!!! abstract "TL;DR"
+    - **A channel is an endpoint of values, held in memory** for one
+      evaluation. `target` and `sink` append, `source` gives what it holds
+      now, `tap` gives what is written next.
+    - **A secondary pipe is wired to a `Channel<String>`** with the
+      `stdin_from`, `stdout_to` and `stderr_to` arguments of `command`.
+      Each line is one value.
+    - **Standard error becomes the primary pipe of a read** with the field
+      `stderr`: `tap(command(…).stderr, Lines)`. `command(…)` alone reads
+      standard output, as `command(…).stdout` does.
+    - **One child is written and read** by writing its primary pipe and
+      wiring its standard output with `stdout_to`: `sink` to it, then
+      `source` of the channel.
+    - **A conversation** wires standard input to a channel with
+      `stdin_from` and taps standard output, in two branches of a
+      `parallel` block ([`parallel`](06-parallel.hmd)). Statements run in
+      order, so a write and a read of one running child need two
+      branches.
+    - **A wired standard input has no end of input.** A child that reads
+      to the end of its input is written with `sink`, `target` or `run`.
+
+## How a channel works
+
+A **channel**, `Channel<T>(name)`, is an endpoint of values of type `T`,
+held in memory for one execution scope: a program run, or one cell of a
+document. It is declared in `io` and takes no format, because it holds
+values and not bytes.
+
+```hql
+c = Channel<Int>("nums")
+1 | target(c)
+[2, 3] | sink(c)
+source(c)
+```
+
+```text
+[1, 2, 3]
+```
+
+- **`target(v, c)` appends one value, and `sink(vs, c)` appends each
+  value.** Values are read in the order they were written.
+- **`source(c)` gives what the channel holds now**, as a `Seq<T>`. Reading
+  does not consume: two reads give the same values.
+- **`tap(c)` gives only what is written after it**, as a `Stream<T>`.
+- **One name is one channel** within a scope. Two constructions of
+  `Channel<String>("errors")` are the same channel.
+- **A channel stays inside the evaluation.** Writing one reaches nothing
+  outside, so a rendered document may write it.
+
+A channel is the destination for a secondary pipe because of these
+properties. The lines a child writes become values a later statement
+reads, with `source` once the child has ended and with `tap` while it
+runs.
+
+## Wiring a pipe to a channel
+
+`Command` has two fields that name its output pipes, as `File` has `end`,
+and `command` takes three more named arguments that wire a pipe to a
+channel:
+
+```hql
+module io.process
+
+/// One output pipe of a command, as an endpoint to read: reading it
+/// starts the command and reads that pipe.
+type CommandOutput : Replayable {
+    command : Command
+}
+
+type Command : {Replayable, Writable} {
+    // … the fields of the companion note, and:
+    stdout : CommandOutput   // command(…).stdout reads standard output
+    stderr : CommandOutput   // command(…).stderr reads standard error
+}
+
+/// `stdin_from` wires the child's standard input to a channel of lines,
+/// and `stdout_to` and `stderr_to` each wire that output pipe to one.
+fn command(program: String, args: Seq<String> = [], *,
+           dir: Option<Path> = none, env: Map<String, String> = {:},
+           timeout_ms: Option<Int> = none,
+           stdin_from: Option<Channel<String>> = none,
+           stdout_to:  Option<Channel<String>> = none,
+           stderr_to:  Option<Channel<String>> = none) : Command
+```
+
+```hql
+cc = command("cc", ["-Wall", "main.c"])
+
+tap(cc, Lines)          // standard output
+tap(cc.stdout, Lines)   // standard output, written out
+tap(cc.stderr, Lines)   // standard error
+```
+
+```d2
+direction: down
+
+program: "the program\nstatements and pipelines"
+in: "Channel<String>\nwired to stdin"
+child: "child process"
+out: "primary pipe\nstdout, read by source or tap"
+err: "Channel<String>\nwired to stderr"
+later: "a later statement\nsource(c) or tap(c)"
+
+program -> in: "sink, target"
+in -> child: "each value, one line"
+child -> out: "documents"
+child -> err: "each line, one value"
+out -> program
+err -> later
+```
+
+### What a wired pipe carries
+
+- A pipe MUST be wired to a `Channel<String>`. A channel of another
+  element type is a type error.
+- For each line the child writes to a wired output pipe, `hql` MUST append
+  one `String` to the channel, without the line terminator.
+- To a wired standard input, `hql` MUST write each value the channel holds
+  when the child starts, then each value as it is written, each followed
+  by a line terminator.
+- A pipe that is not wired MUST go where the companion note
+  [child processes](03-child-processes.hmd) sends it.
+
+### Primary and wired
+
+- `source` and `tap` of a `Command` MUST read its standard output, as
+  `source` and `tap` of its `stdout` do.
+- `source` and `tap` of a command's `stderr` MUST start the command and
+  read its standard error. Standard output is then secondary: it goes to
+  its channel when wired, and to this process's standard output when not.
+- A `CommandOutput` is `Replayable` and not `Writable`. `target` or `sink`
+  to one is a type error; a child is written through the `Command`.
+- A pipe MUST NOT be both primary and wired. `source` or `tap` of an
+  output pipe that is wired, and `target` or `sink` to a command whose
+  standard input is wired, is an evaluation failure, `invalid-argument`,
+  that names the pipe.
+- Under `run`, a wired output pipe MUST go to its channel, and its field of
+  `Output` and of `CommandFailure` is empty. `run` with a non-empty `input`
+  on a command whose standard input is wired is the same evaluation
+  failure.
+
+### When the channel holds the lines
+
+- When `source`, `target`, `sink` or `run` returns, the child has ended,
+  and each wired output channel MUST hold every line the child wrote to
+  that pipe.
+- While a `tap` is being read, the child is running. In another branch of
+  a `parallel` block, `source(c)` of a wired channel gives the lines that
+  have arrived, and `tap(c)` gives each as it arrives.
+- Lines of one pipe MUST be appended in the order the child wrote them.
+  Two pipes wired to one channel are appended in the order their lines
+  reach `hql`, which the kernel does not fix between two pipes.
+- One channel MAY be wired to pipes of several commands.
+
+### The end of input
+
+- A wired standard input MUST stay open until the child ends or `hql`
+  terminates it. A channel has no end, so the child never reads an end of
+  input.
+- A child that reads to the end of its input before it answers, as `sort`
+  does, MUST be written through its primary pipe, with `sink`, `target` or
+  `run`. Each closes standard input when its values are written.
+
+## Examples
+
+### Standard error as values
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+errors = Channel<String>("errors")
+build = command("make", ["all"], stderr_to = errors)
+
+lines = source(build, Lines)
+{built: size(lines), warnings: source(errors) | filter(l => l.contains("warning"))}
+```
+
+`source(build, Lines)` returns when `make` has ended, so `source(errors)`
+holds every line of its standard error.
+
+### Standard error as the primary pipe
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+// Each warning as the compiler writes it. Its standard output goes to
+// this script's standard output.
+tap(command("cc", ["-Wall", "main.c"]).stderr, Lines)
+| filter(l => l.contains("warning"))
+| sink(stdout, Text)
+```
+
+### One child, written and read
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+sorted = Channel<String>("sorted")
+
+["wren", "avocet", "kite"] | sink(command("sort", stdout_to = sorted), Lines)
+source(sorted)
+```
+
+```text
+["avocet", "kite", "wren"]
+```
+
+Standard input is the primary pipe, so `sink` closes it and `sort` reads
+its end of input. `sink` returns when `sort` has ended.
+
+### A conversation
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+questions = Channel<String>("questions")
+bc = command("bc", ["-l"], stdin_from = questions)
+
+r = parallel {
+    answers = tap(bc, Lines) | take(2)
+    asked   = ["2 + 2", "10 / 4"] | sink(questions)
+}
+r.answers
+```
+
+```text
+["4", "2.50000000000000000000"]
+```
+
+The read and the write are two branches of a `parallel` block
+([`parallel`](06-parallel.hmd)). Written as two statements they would run
+in order: the read would wait for answers to questions not yet written.
+
+`bc` answers each line as it reads it, so it needs no end of input. It is
+still running after `take(2)`, and `hql` terminates it when its branch
+ends.
+
+### One channel for several children
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+errors = Channel<String>("errors")
+repos = ["hql", "hypermarkdown"]
+
+logs = repos | flat_map(r => source(command("git", ["log", "--oneline"],
+                                            dir = Path(r), stderr_to = errors), Lines))
+{commits: size(logs), errors: source(errors)}
+```
+
+### Two children in a row
+
+Two children are joined by an HQL pipeline, not by a channel. Each child
+is read or written through its primary pipe, and the second receives its
+end of input:
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+tap(command("git", ["log", "--format=%an"]), Lines)
+| sink(command("sort", ["-u"]), Lines)
+```
+
+## Which form for which need
+
+| The program needs | It writes |
+|---|---|
+| everything a child wrote | `source(c, F)` |
+| each document as the child writes it | `tap(c, F)` |
+| to give a child its input | `target(v, c, F)`, `sink(vs, c, F)` |
+| the status and standard error of a child that may fail | `c.run()` |
+| standard error beside standard output | `stderr_to = channel` |
+| standard error instead of standard output | `source(c.stderr, F)`, `tap(c.stderr, F)` |
+| the output of a child it wrote to | `stdout_to = channel`, then `sink` |
+| a conversation with a child | `stdin_from = channel`, and `tap` in a `parallel` block |
+| one child's output as another's input | `tap(a, F) \| sink(b, F)` |

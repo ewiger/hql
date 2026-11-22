@@ -1,0 +1,166 @@
+# HQL-0062: named pipes
+
+Companion to [[HQL-0062]]. A **named pipe**, or FIFO, is a kernel object
+with a path in the file system. One process opens the path and writes, a
+second opens it and reads, and the bytes pass from the first to the
+second without being stored. This note defines the endpoint `fifo(path)`
+of `io.fs`.
+
+!!! warning "Design only"
+    Nothing in this note is implemented, and [[HQL-0062]] does not deploy
+    it. The declarations are a design direction.
+
+!!! abstract "TL;DR"
+    - **`fifo(path)` is an endpoint**, `Readable` and `Writable` and not
+      `Replayable`, beside `File` and `FileEnd`.
+    - **`tap` reads it** as a stream that ends when every writer has
+      closed. **`sink` and `target` write it**, and close it when done.
+    - **`source` of it is a type error**, as it is for `file(path).end`.
+    - **A named pipe joins two processes that did not start each other.**
+      A child and its parent use the child's own pipes
+      ([child processes](03-child-processes.hmd)).
+
+## Three things called a pipe or a channel
+
+| | Carries | Lives | Joins |
+|---|---|---|---|
+| `Channel<T>` | values of type `T` | in memory, for one evaluation | two statements of one program |
+| a child's pipe | bytes, read in a format | while the child runs | a program and the child it started |
+| a named pipe | bytes, read in a format | at a path, until it is removed | any two processes that open the path |
+
+A named pipe is what the first two cannot be: a meeting point for a
+process this program did not start.
+
+## `fifo`
+
+```hql
+module io.fs
+
+/// The named pipe at `path`. Constructing one is pure and opens nothing. A
+/// relative `path` resolves as a file's does. It is live, not
+/// `Replayable`: what is read from it is gone.
+type Fifo : {Readable, Writable} {
+    path : String
+}
+
+/// The `Fifo` at `path`.
+fn fifo(path: String) : Fifo
+fn fifo(path: Path) : Fifo
+
+/// Makes the named pipe in the file system, readable and writable by this
+/// user. A named pipe already at the path is left as it is.
+effectful fn create(self: Fifo) : Step
+```
+
+`tap`, `sink` and `target` need no declaration of their own. `Fifo` is
+`Readable` and `Writable`, so the operations of `io` accept it.
+
+### Reading
+
+- `tap(fifo(path), F)` MUST open the pipe for reading and give each
+  document decoded by `F` as it arrives, as a `Stream<T>`.
+- The open MUST wait until a process opens the pipe for writing.
+- The stream MUST end when every process that had the pipe open for
+  writing has closed it.
+- `source(fifo(path), F)` MUST be a type error. A `Fifo` is not
+  `Replayable`: a second read does not give what the first gave.
+
+### Writing
+
+- `sink(values, fifo(path), F)` MUST open the pipe for writing, write one
+  document for each value, and close it. `target` MUST do the same with
+  one document.
+- The open MUST wait until a process opens the pipe for reading.
+- A write after the last reader has closed the pipe MUST stop evaluation
+  with an unrecoverable failure that names the path.
+
+### The path
+
+- Reading and writing MUST NOT make the pipe. A path that does not exist
+  is a failure that names it, as it is for a file read.
+- A path that exists and is not a named pipe MUST be a failure under
+  `tap`, `sink`, `target` and `create`.
+- `create` of a path that is already a named pipe MUST do nothing.
+- `hql` MUST NOT remove a named pipe. It outlives the evaluation, which is
+  what lets a second process find it.
+
+### Platforms
+
+A named pipe at a path is a Unix object. On Windows every operation on a
+`Fifo` MUST stop evaluation with a failure that states the platform.
+
+## Example
+
+```hql
+#!/usr/bin/env hql
+// reader.hql: each sighting as another process writes it.
+from io.fs import *
+
+inbox = fifo("/tmp/sightings")
+inbox.create()
+
+tap(inbox, JsonLines)
+| filter(s => s.count > 1)
+| sink(stdout, JsonLines)
+```
+
+```hql
+#!/usr/bin/env hql
+// writer.hql
+from io.fs import *
+
+[{bird: "wren", count: 3}, {bird: "kite", count: 1}]
+| sink(fifo("/tmp/sightings"), JsonLines)
+```
+
+```sh
+./reader.hql &
+./writer.hql     # reader prints {"bird":"wren","count":3}, then ends
+```
+
+The reader ends because the writer was the only process with the pipe
+open for writing, and it closed it.
+
+## A named pipe and a child
+
+A program hands a child a named pipe as an argument, where the child
+takes a path and not standard input:
+
+```hql
+#!/usr/bin/env hql
+from io.fs import *
+from io.process import *
+
+frames = fifo("/tmp/frames")
+frames.create()
+analyse = command("analyse", ["--input", frames.path], timeout_ms = 60000)
+
+r = parallel {
+    report = source(analyse, JsonLines)
+    sent   = tap(file("frames.jsonl"), JsonLines) | sink(frames, JsonLines)
+}
+r.report
+```
+
+The child must read the pipe while the program writes it, so the two are
+branches of a `parallel` block ([`parallel`](06-parallel.hmd)). Written as
+two statements, the first would wait for the child to end, and the child
+would wait for frames the second statement had not yet written.
+
+Three parties take part: the `hql` process, the kernel's pipe and the
+child.
+
+1. Both branches start. `report` starts the child and waits for its
+   standard output. `sent` opens the pipe for writing, which waits for a
+   reader.
+2. The child opens the pipe for reading. Both opens return.
+3. `sent` reads each frame from the file as a stream and writes it to the
+   pipe. The child reads each as it arrives.
+4. `sent` closes the pipe and ends. The child reads its end of input,
+   writes its report and exits `0`.
+5. `report` gives the report as a `Seq`. Every branch has ended, so the
+   block ends.
+
+A child that never opens the pipe leaves `sent` waiting. `timeout_ms`
+ends that: the child is terminated, `report` fails, and the failure
+cancels `sent`.

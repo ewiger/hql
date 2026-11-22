@@ -1,0 +1,294 @@
+# HQL-0062: `parallel`
+
+Companion to [[HQL-0062]]. HQL evaluates the statements of a program in
+order, one after another. A program that writes to a child while it reads
+the child's answers needs two statements to run at once, and HQL has no
+way to write that. This note defines the keyword `parallel`, which states
+that its branches run at the same time and joins them.
+
+!!! warning "Design only"
+    Nothing in this note is implemented, and [[HQL-0062]] does not deploy
+    it. The syntax is a sketch for discussion.
+
+!!! abstract "TL;DR"
+    - **Statements run in order.** `parallel` is the one construct that
+      runs two of them at once.
+    - **`parallel { a = …, b = … }` runs named branches at the same time**
+      and gives the record of their results, as `fork` does. The block
+      ends when every branch has ended: that is the join.
+    - **`xs | parallel(f, jobs = 4)` runs one function over many
+      elements**, at most `jobs` at once, and keeps the input's order. It
+      is GNU `parallel` and `xargs -P` as a pipeline step.
+    - **`parallel(join = any) { … }` ends at the first branch that ends**
+      and cancels the others.
+    - **What runs at once is syntax. How it runs is host configuration**:
+      tasks, threads or processes, chosen in `[execution]`.
+    - **Pure steps need no keyword.** The planner already may run them in
+      parallel ([[pipes]]).
+
+## What runs at once today
+
+| | Runs at the same time | Written as |
+|---|---|---|
+| two statements | never | |
+| the branches of `fork` | no: each branch is a pipeline over one input | `xs \| fork { a = …, b = … }` |
+| adjacent pure elementwise steps | when the backend splits work | nothing: the planner decides |
+| two children joined by one pipeline | yes: they are two processes | `tap(a, F) \| sink(b, F)` |
+| a child and the pipeline that reads it | yes | `tap(c, F) \| …` |
+
+The last two rows are the only parallelism a script has today, and both
+are inside one pipeline. Everything in this note is about the first row.
+
+## The block: `parallel { … }`
+
+```hql
+r = parallel {
+    commits = source(command("git", ["log", "--oneline"]), Lines)
+    issues  = source(http("https://example.org/issues.json"), Json)
+}
+{commits: size(r.commits), issues: size(r.issues)}
+```
+
+The syntax is `fork`'s, without an input:
+
+```text
+parallel [ "(" option { "," option } ")" ] "{" branch { separator branch } "}"
+branch    = name "=" expression
+separator = line break | ","
+option    = name "=" expression
+```
+
+- Each branch is an expression. A branch continues over lines that open
+  with `|`, as a branch of `fork` does.
+- `hql` MUST start every branch before it waits for any.
+- The block MUST end when every branch has ended. Its value is the record
+  of the branches' results, `{a: A, b: B}`, each field typed by its own
+  branch. `{ a, b } = parallel { … }` binds the branches by name.
+- A branch whose result is a `Stream<T>` MUST be read to its end inside
+  the branch, and its field is a `List<T>`. The join is the point where a
+  stream becomes a batch.
+- The statement after the block MUST run after the block has ended.
+
+### What a branch may read
+
+- A branch MAY read any binding made before the block. A value is
+  immutable, so two branches that read one binding do not interfere.
+- A branch MUST NOT read a binding another branch of the same block makes.
+  It is a check error that names both branches.
+- Two branches communicate through an endpoint: a `Channel<T>`, a child's
+  pipes or a named pipe.
+
+### Effects
+
+`parallel` changes one rule of [[HQL-0055]] and no other.
+
+- Effects of two branches MUST be treated as unordered. The program states
+  that by writing `parallel`.
+- Effects within one branch MUST keep their order.
+- Two branches that write one channel append in the order their writes
+  reach it.
+- A `parallel` block inside a `with transaction` scope MUST be refused. The
+  writes of one transaction are ordered.
+- A child's lifetime is bounded by the branch that started it: when the
+  branch ends, `hql` terminates a child it left running
+  ([child processes](03-child-processes.hmd)).
+
+### Failure
+
+- An `err` is a value. A branch whose result is `err(e)` has ended, and
+  its field holds the `err`. No other branch is affected.
+- An unrecoverable failure in one branch MUST cancel every other branch of
+  the block, and the block fails with it.
+- **Cancelling** a branch stops its evaluation at its next read or write
+  and terminates the children it started.
+
+## The step: `xs | parallel(f, jobs = n)`
+
+GNU `parallel` and `xargs -P` run one command for each input line, several
+at a time:
+
+```sh
+ls *.log | parallel -j 4 gzip {}
+```
+
+The step form is the same operation over values:
+
+```hql
+#!/usr/bin/env hql
+from io.fs import *
+from io.process import *
+
+folder(working_dir()) | glob(Glob("*.log"))
+| parallel(e => command("gzip", [e.name]).run(), jobs = 4)
+```
+
+```hql
+/// `f` of each element, at most `jobs` at the same time. The results are
+/// in the order of the input.
+effectful fn parallel<T, U>(self: Seq<T>, f: T -> U, *, jobs: Int = 4) : List<U>
+```
+
+| GNU `parallel` | HQL |
+|---|---|
+| `-j 4` | `jobs = 4` |
+| `-k`, keep the input's order | always |
+| `{}`, the argument | the parameter of `f` |
+| `--joblog`, the status of each job | the result: `List<Result<Output, CommandFailure>>` |
+| `--timeout` | `command(…, timeout_ms = …)` |
+| `--halt now,fail=1` | an unrecoverable failure cancels the rest |
+
+- `parallel(f)` MUST give the results in the order of the input, whatever
+  order the calls end in.
+- At most `jobs` calls of `f` MUST be running at one time.
+- `f` MAY be effectful. Effects of two calls are unordered, as effects of
+  two branches are.
+- A pure `f` gives the value `map(f)` gives. `map` is then the step to
+  write, and the planner decides whether it runs in parallel.
+- The failure rules of the block apply, each call being one branch.
+
+## The first to end: `join = any`
+
+`join` states when the block ends. `all`, the default, waits for every
+branch. `any` waits for the first.
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+// Follow the log until SIGTERM arrives.
+parallel(join = any) {
+    lines = tap(file("app.log").end, Lines) | sink(stdout, Text)
+    stop  = signals(Signal("TERM")) | take(1)
+}
+```
+
+- With `join = any`, the block MUST end when one branch ends, and `hql`
+  MUST cancel the others.
+- Each field is then an `Option<T>`: the result of a branch that ended,
+  and `none` for one that was cancelled.
+
+This is the step the companion note [`io.process`](02-io-process.hmd)
+found missing: one stream ends another.
+
+## A conversation
+
+The conversation of the companion note
+[advanced child processes](04-advanced-child-processes.hmd) is two
+branches, one that reads the child and one that writes it:
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+questions = Channel<String>("questions")
+bc = command("bc", ["-l"], stdin_from = questions)
+
+r = parallel {
+    answers = tap(bc, Lines) | take(2)
+    asked   = ["2 + 2", "10 / 4"] | sink(questions)
+}
+r.answers
+```
+
+```text
+["4", "2.50000000000000000000"]
+```
+
+```d2
+direction: down
+
+before: "statements before the block\nrun in order"
+start: "parallel {\nevery branch starts"
+a: "branch answers\ntap(bc) | take(2)"
+b: "branch asked\nsink(questions)"
+join: "}\nevery branch has ended"
+after: "the statement after the block\nreads r.answers"
+
+before -> start
+start -> a
+start -> b
+a -> join
+b -> join
+join -> after
+```
+
+## Branches, children and the one parent
+
+A branch and a child are different things, and neither is a Unix `fork`
+of the program.
+
+| | What it is | Started by | Cost |
+|---|---|---|---|
+| the `hql` process | the one process that evaluates the program | the user, or `#!` | |
+| a branch | a unit of evaluation inside the `hql` process | `parallel` | light: no new process under `tasks` or `threads` |
+| a child | another program, a process of its own | `source`, `tap`, `target`, `sink` or `run` of a `Command` | heavy: a process, with its own memory |
+
+- The program is never duplicated. A child runs the program a `Command`
+  names, started by the runtime with the kernel's spawn operation. HQL's
+  `fork` is a fan-out of one value to several pipelines ([[pipes]]), not
+  the system call.
+- `hql` MUST be the parent of every child, whichever branch started it.
+  A branch does not own a process; it waits on the pipes of one.
+- `hql` supervises its children: it reads their pipes, collects their exit
+  statuses, and terminates one whose branch has ended. That supervision
+  tests only that a child exists and has ended. A question about whether a
+  child still does its work is a watchdog's
+  ([watchdogs](07-watchdog.hmd)).
+
+```d2
+direction: down
+
+hql: "hql process\nthe one parent" {
+  direction: down
+  a: "branch report\nwaits on the child's stdout"
+  b: "branch sent\nwrites the named pipe"
+}
+fifo: "named pipe\na kernel object at a path"
+child: "child process\nanalyse --input /tmp/frames"
+
+hql.b -> fifo: "frames"
+fifo -> child: "frames"
+child -> hql.a: "report, on stdout"
+```
+
+The diagram is the example "A named pipe and a child" of the companion
+note [named pipes](05-named-pipes.hmd): two light branches in one process,
+and one heavy child beside it.
+
+## How it runs
+
+What runs at the same time changes what a program does, so it is syntax.
+How the branches are run changes only how fast, so it is host
+configuration, as the choice of backend is ([[pipes]]):
+
+```toml
+[execution]
+parallel = "tasks"       # tasks | threads | processes
+```
+
+| `parallel` | A branch is | Suited to | Limit |
+|---|---|---|---|
+| `tasks` | a task of the runtime, many on one thread | branches that wait: children, sockets, pipes | a branch that computes holds the others up |
+| `threads` | an operating-system thread | branches that compute | one thread for each running branch |
+| `processes` | a worker `hql` process | isolation: a branch that crashes does not end the others | values cross by serialization, and a `Channel` is not shared |
+
+- `tasks` MUST be the default. A script's branches mostly wait for a child
+  or an endpoint.
+- Every backend MUST run the branches of a block at the same time. A
+  conversation with a child does not end otherwise, so this is not an
+  optimization a backend may skip. A backend that cannot MUST refuse the
+  program.
+- The value of a block whose branches do not communicate MUST NOT depend
+  on the setting.
+- Under `processes`, a branch that reads or writes a `Channel` MUST be
+  refused.
+
+The reference implementation has the pieces in Rust: `tokio`, already an
+optional dependency of the crate, for `tasks` and for child processes;
+`std::thread::scope` or `rayon` for `threads`; and worker processes
+started as children for `processes`.
+
+## Backwards Compatibility
+
+`parallel` becomes a reserved word. A program that binds or calls the name
+`parallel` no longer parses.
