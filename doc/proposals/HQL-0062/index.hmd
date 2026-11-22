@@ -1,6 +1,6 @@
 # HQL-0062: HQL as a script language: `#!`, `hql FILE` and the script's arguments
 
-**Status**: drafted
+**Status**: implemented
 **Created**: 2026-11-21
 **Source**: design discussion of 2026-11-21: a `.hql` file that starts with
 `#!/usr/bin/env hql`, made executable and run as `./foo.hql`, fails twice
@@ -301,6 +301,10 @@ chmod +x lsx.hql
   path of an existing file, which does not occur in practice.
 - `hql run FILE extra` and `hql eval PROGRAM extra` were usage errors; they
   now pass `extra` to the program.
+- An option of `hql` written after the program, `hql 'source(stdin)' --to
+  json` or `hql run q.hql --to json`, was read by `hql`. It is now a word of
+  the program's, so the option moves before it: `hql --to json
+  'source(stdin)'`.
 - `-c` was an unknown option, a usage error.
 - `base.join(segment)` with an absolute `segment` gave `base//segment`, a
   path that names nothing intended; it now gives `segment`.
@@ -412,3 +416,4 @@ cargo test --locked lexer
   of strings, relative paths kept beside the script; a companion note
   against other script languages, and one on relative paths in a script
   and in a cell
+- 2026-11-22: implemented
