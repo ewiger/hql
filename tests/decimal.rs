@@ -87,14 +87,14 @@ fn json_carries_the_digits_through_a_read_and_a_write() {
                  {\"item\": \"tea\", \"amount\": 0.10}\n";
     let program = format!("{PAYMENT}source(stdin, Json) | Payment");
     assert_eq!(
-        piped(&[&program, "--to", "json", "--compact"], input),
+        piped(&["--to", "json", "--compact", &program], input),
         "{\"amount\":1234567890.123456789012345,\"item\":\"bond\"}\n\
          {\"amount\":0.10,\"item\":\"tea\"}\n"
     );
     let total =
         format!("{PAYMENT}source(stdin, Json) | Payment | map(p => p.amount) | take(2) | sum");
     assert_eq!(
-        piped(&[&total, "--to", "json"], input),
+        piped(&["--to", "json", &total], input),
         "1234567890.223456789012345\n"
     );
     // Read as a Float, the same number is the nearest binary float.
@@ -107,12 +107,12 @@ fn yaml_carries_the_digits_through_a_read_and_a_write() {
     let input = "item: tea\namount: 0.10\n";
     let program = format!("{PAYMENT}source(stdin, Yaml) | Payment");
     assert_eq!(
-        piped(&[&program, "--to", "yaml"], input),
+        piped(&["--to", "yaml", &program], input),
         "---\namount: 0.10\nitem: tea\n"
     );
     let long = "item: bond\namount: 1234567890.123456789012345\n";
     assert_eq!(
-        piped(&[&program, "--to", "json", "--compact"], long),
+        piped(&["--to", "json", "--compact", &program], long),
         "{\"amount\":1234567890.123456789012345,\"item\":\"bond\"}\n"
     );
 }
@@ -131,7 +131,7 @@ fn csv_carries_the_digits_through_a_read_and_a_write() {
     );
     let output = Command::new(env!("CARGO_BIN_EXE_hql"))
         .current_dir(directory.path())
-        .args([program.as_str(), "--to", "csv"])
+        .args(["--to", "csv", program.as_str()])
         .stdin(Stdio::null())
         .output()
         .unwrap();
