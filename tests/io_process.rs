@@ -342,15 +342,33 @@ fn ended_by(signal: &str) -> (std::process::ExitStatus, bool) {
         .unwrap();
     let status = hql.wait().unwrap();
     assert!(status.signal().is_some() || status.code().is_some());
-    let gone = (0..100).any(|_| {
+    let group = group.trim().to_owned();
+    // A process of the group that has not ended. A zombie has: it waits only
+    // for the parent it passed to when `hql` ended to collect it.
+    let running = || -> Vec<String> {
+        let listed = Command::new("ps")
+            .args(["-A", "-o", "pgid=,pid=,stat=,comm="])
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&listed.stdout)
+            .lines()
+            .filter(|line| {
+                let mut fields = line.split_whitespace();
+                fields.next() == Some(group.as_str())
+                    && !fields.nth(1).is_some_and(|stat| stat.starts_with('Z'))
+            })
+            .map(str::to_owned)
+            .collect()
+    };
+    let gone = (0..200).any(|_| {
         std::thread::sleep(std::time::Duration::from_millis(10));
-        !Command::new("kill")
-            .args(["-0", &format!("-{}", group.trim())])
-            .stderr(std::process::Stdio::null())
-            .status()
-            .unwrap()
-            .success()
+        running().is_empty()
     });
+    assert!(
+        gone,
+        "{signal}: still running in group {group}: {:?}",
+        running()
+    );
     (status, gone)
 }
 
