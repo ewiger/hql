@@ -63,16 +63,18 @@ fn sessions() -> Vec<Session> {
 }
 
 /// Run the binary with its standard error joined to its standard output,
-/// so the two are read in the order written.
+/// so the two are read in the order written: both are one file, which a
+/// shell is not needed for, and a shell on Windows rewrites the quotes of
+/// an argument.
 fn run(arguments: &[String], input: &str) -> (String, i32) {
-    let mut child = Command::new("sh")
-        .arg("-c")
-        .arg("\"$0\" \"$@\" 2>&1")
-        .arg(env!("CARGO_BIN_EXE_hql"))
+    use std::io::{Read, Seek, SeekFrom};
+    let mut written = tempfile::tempfile().unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_hql"))
         .args(arguments)
         .current_dir(root())
         .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
+        .stdout(written.try_clone().unwrap())
+        .stderr(written.try_clone().unwrap())
         .spawn()
         .unwrap();
     child
@@ -81,11 +83,11 @@ fn run(arguments: &[String], input: &str) -> (String, i32) {
         .unwrap()
         .write_all(input.as_bytes())
         .unwrap();
-    let output = child.wait_with_output().unwrap();
-    (
-        String::from_utf8(output.stdout).unwrap(),
-        output.status.code().unwrap_or(-1),
-    )
+    let status = child.wait().unwrap();
+    let mut output = String::new();
+    written.seek(SeekFrom::Start(0)).unwrap();
+    written.read_to_string(&mut output).unwrap();
+    (output, status.code().unwrap_or(-1))
 }
 
 /// What a session prints, and what its transcript says it prints.
@@ -210,6 +212,8 @@ fn sessions_are_described_and_indexed() {
 
 #[test]
 fn valid_sessions_print_their_transcripts() {
+    // Every mismatch is gathered, so one run names all of them.
+    let mut wrong = Vec::new();
     for session in sessions() {
         if session.metadata["status"] != "valid-now" {
             continue;
@@ -222,8 +226,14 @@ fn valid_sessions_print_their_transcripts() {
         } else {
             (printed, expected)
         };
-        assert_eq!(printed, expected, "{}", session.path.display());
+        if printed != expected {
+            wrong.push(format!(
+                "{}: prints\n{printed}\nand its transcript says\n{expected}",
+                session.path.display()
+            ));
+        }
     }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n----\n"));
 }
 
 /// A proposed session is a design input: the day it passes, this test names
