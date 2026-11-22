@@ -36,8 +36,9 @@ HQL is a script language ([HQL-0062](doc/proposals/HQL-0062/index.hmd)).
   nothing. `source` and `tap` start it and read its standard output,
   `target` and `sink` write its standard input, and `run` waits for it and
   gives `ok(Output)` or `err(CommandFailure)` with a `reason`: `not-found`,
-  `not-permitted`, `exited`, `signalled`, `timed-out`, `closed` or
-  `invalid-text`. No shell reads the command line.
+  `not-permitted`, `exited`, `signalled`, `timed-out` or `invalid-text`.
+  `target` and `sink` stop with `closed` when the child stops reading. No
+  shell reads the command line.
 - A child runs in a process group of its own. When it is terminated, at its
   `timeout_ms` or when a stream of its output is not read to its end, the
   processes it started end with it.
@@ -47,6 +48,12 @@ HQL is a script language ([HQL-0062](doc/proposals/HQL-0062/index.hmd)).
   child inherits the variables the `env` grant gives the program.
 - The crate `hql-sys` holds the operating-system calls that need `unsafe`.
   `hql` depends on it and it is published with `hql`.
+- **A diagnostic carries its causes.** `causes` holds the failures below
+  the one `message` states, nearest first, and the text report writes each
+  as `= caused by:`. A child's failure gives the last lines of its standard
+  error as its cause, and an HTTP request that does not connect gives the
+  errors of the connection: `connection failed`, caused by `Connect error`,
+  caused by `Connection refused`.
 
 ### Changed
 

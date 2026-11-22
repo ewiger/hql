@@ -113,7 +113,15 @@ fn failure(url: &str, error: ureq::Error, response: Duration) -> String {
                 ureq::ErrorKind::ConnectionFailed => format!("{url}: {}", unreached(io, CONNECT)),
                 _ => format!("{url}: {}", silent(response)),
             },
-            _ => format!("{url}: {transport}"),
+            // The kind is the failure; ureq's detail and the errors below
+            // it are its causes.
+            _ => {
+                let mut message = format!("{url}: {}", transport.kind().to_string().to_lowercase());
+                if let Some(detail) = transport.message() {
+                    message = crate::diagnostics::caused(message, detail);
+                }
+                crate::diagnostics::caused_by_sources(message, &transport)
+            }
         },
     }
 }
