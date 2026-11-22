@@ -7052,7 +7052,7 @@ whether the documents end.</p>
 <li><a href="types/DataTarget/"><code>DataTarget</code></a> — What a program writes to: an endpoint written in a format, or a configured endpoint by its id.</li>
 <li><a href="file/"><code>file</code></a> — The <code>File</code> at <code>path</code>.</li>
 <li><a href="join/"><code>join</code></a> — <code>self</code> with <code>segment</code> appended as its last segment, separated by <code>/</code>: <code>Path("data").join("birds.csv")</code> is <code>Path("data/birds.csv")</code>.</li>
-<li><a href="parent/"><code>parent</code></a> — <code>self</code> without its last segment, <code>some(Path)</code>, or <code>none</code> for a path of one segment: <code>Path("a/b").parent()</code> is <code>some(Path("a"))</code>, and <code>Path("a").parent()</code> is <code>none</code>.</li>
+<li><a href="parent/"><code>parent</code></a> — <code>self</code> without its last segment, <code>some(Path)</code>, or <code>none</code> for a path of one segment or a root: <code>Path("a/b").parent()</code> is <code>some(Path("a"))</code>, and <code>Path("a").parent()</code> is <code>none</code>.</li>
 <li><a href="name/"><code>name</code></a> — The last segment of <code>self</code>: <code>Path("data/birds.csv").name()</code> is <code>"birds.csv"</code>.</li>
 <li><a href="stem/"><code>stem</code></a> — The last segment of <code>self</code> without its extension: <code>Path("data/birds.csv").stem()</code> is <code>"birds"</code>.</li>
 <li><a href="extension/"><code>extension</code></a> — The text after the last <code>.</code> of the last segment, <code>some(String)</code>, or <code>none</code> where the segment has none: <code>Path("a/b.csv").extension()</code> is <code>some("csv")</code>.</li>

@@ -6980,8 +6980,10 @@
 <div class="highlight"><pre><span></span><code>fn parent(self: Path) : Option&lt;Path&gt;
 </code></pre></div>
 <p><code>self</code> without its last segment, <code>some(Path)</code>, or <code>none</code> for a path of
-one segment: <code>Path("a/b").parent()</code> is <code>some(Path("a"))</code>, and
-<code>Path("a").parent()</code> is <code>none</code>.</p>
+one segment or a root: <code>Path("a/b").parent()</code> is <code>some(Path("a"))</code>, and
+<code>Path("a").parent()</code> is <code>none</code>. A root is <code>/</code>, a drive root <code>C:/</code> or a
+share <code>//server/share</code>, on every host: <code>Path("C:/Users").parent()</code> is
+<code>some(Path("C:/"))</code>.</p>
 <!-- hql reference: end -->
 
 
