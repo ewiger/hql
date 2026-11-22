@@ -49,7 +49,7 @@ board:
         file: 0075-validation-rules-thresholds-and-events.hmd
     todo:
       - id: "0083"
-        title: "I/O programs that never end: trace every case (reserved; on feat/io-process)"
+        title: "I/O programs that never end: trace every case"
         file: 0083-io-programs-that-never-end.hmd
       - id: "0082"
         title: "A plain `hql` fence is a listing: `hql render` runs only `hql#eval` and `hql#query`"
