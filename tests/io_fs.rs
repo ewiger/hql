@@ -531,6 +531,16 @@ fn io_fs_is_imported_and_not_in_the_prelude() {
 fn a_relative_path_resolves_against_the_source_directory_of_its_unit() {
     let root = tempdir().unwrap();
     let root = fs::canonicalize(root.path()).unwrap();
+    // A path as a program reads it: `/` between its segments, and on Windows
+    // without the `\\\\?\\` a canonical path opens with.
+    let text = |path: std::path::PathBuf| {
+        let text = path.display().to_string();
+        if cfg!(windows) {
+            text.trim_start_matches(r"\\?\").replace('\\', "/")
+        } else {
+            text
+        }
+    };
     let repo = root.join("repo");
     fs::create_dir_all(repo.join(".hql")).unwrap();
     fs::create_dir_all(repo.join("lib/shelf")).unwrap();
@@ -568,9 +578,9 @@ fn a_relative_path_resolves_against_the_source_directory_of_its_unit() {
         written.trim(),
         format!(
             "[{:?}, {:?}, from the module, from the job, {:?}]",
-            repo.join("jobs").display().to_string(),
-            repo.join("lib/shelf").display().to_string(),
-            root.join("elsewhere").display().to_string()
+            text(repo.join("jobs")),
+            text(repo.join("lib/shelf")),
+            text(root.join("elsewhere"))
         )
     );
 }

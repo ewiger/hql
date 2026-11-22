@@ -95,7 +95,7 @@ hql builtins
 ```
 
 ```text
-math (std 0.7.1, prelude)
+math (std 0.7.2, prelude)
   abs
     Int | abs() -> Int
     Float | abs() -> Float

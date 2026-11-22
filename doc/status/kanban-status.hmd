@@ -54,7 +54,7 @@ then the archive.
 | todo    | 7      |
 | doing   | 4      |
 | done    | 1      |
-| archive | 62     |
+| archive | 63     |
 <!-- /hql:output -->
 
 ## Board
@@ -109,6 +109,7 @@ issues
 <!-- hql:output hash=b0018109fe7b status=ok -->
 | id   | title                                                                                 |
 | ---- | ------------------------------------------------------------------------------------- |
+| 0082 | On Windows, a path a program reads is not the text HQL reads                          |
 | 0079 | HQL reads cards from the vault root, not the namespace root                           |
 | 0078 | Packages: `hql-extensions`, `hql package`, and the `ml` extension                     |
 | 0076 | `parse_date` and its peers read ISO text without a pattern                            |

@@ -750,7 +750,11 @@ impl Selected {
     /// The project configuration file of a project root.
     #[must_use]
     pub fn config_file(&self) -> PathBuf {
-        self.root.join(PROJECT_CONFIG)
+        // Segment by segment, so the path is written with the host's
+        // separator throughout where a report names it.
+        PROJECT_CONFIG
+            .split('/')
+            .fold(self.root.clone(), |path, segment| path.join(segment))
     }
 }
 

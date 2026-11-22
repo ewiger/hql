@@ -565,7 +565,7 @@ impl Value {
             Self::Hit(hit) => Some(Key::Scored(-hit.score, hit.name())),
             // A path by its segments compared in turn: the sorted walk's order.
             Self::Record(record) if record.ty == TypeRef::PATH => match record.field("text") {
-                Some(Self::Str(text)) => Some(Key::text(&crate::walk::paths::order_key(text))),
+                Some(Self::Str(text)) => Some(Key::text(&crate::paths::order_key(text))),
                 _ => None,
             },
             _ => None,

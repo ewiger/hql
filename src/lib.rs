@@ -40,6 +40,7 @@ mod net;
 use unavailable::net;
 pub mod package;
 mod parser;
+mod paths;
 pub mod playground;
 #[cfg(feature = "native")]
 mod postgres;

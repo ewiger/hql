@@ -23,9 +23,15 @@ impl Sandbox {
         sandbox
     }
 
-    /// The canonical root, so paths compare as the binary prints them.
+    /// The canonical root, so paths compare as the binary prints them. On
+    /// Windows a canonical path opens with `\\\\?\\`, which the binary's
+    /// working directory does not carry.
     fn root(&self) -> PathBuf {
-        fs::canonicalize(self.dir.path()).unwrap()
+        let root = fs::canonicalize(self.dir.path()).unwrap();
+        match root.to_str().and_then(|text| text.strip_prefix(r"\\?\")) {
+            Some(plain) if cfg!(windows) => PathBuf::from(plain),
+            _ => root,
+        }
     }
 
     fn tree(&self) -> PathBuf {
@@ -37,7 +43,7 @@ impl Sandbox {
     }
 
     fn system_config(&self) -> PathBuf {
-        self.root().join("etc/hql/config.toml")
+        self.root().join(below("etc/hql/config.toml"))
     }
 
     fn write(&self, path: &Path, text: &str) {
@@ -65,6 +71,12 @@ impl Sandbox {
     fn run(&self, cwd: &Path, args: &[&str]) -> Output {
         self.command(cwd, args).output().unwrap()
     }
+}
+
+/// `text`, written with `/`, as a path below another: the platform's
+/// separator between its segments, as the binary prints a path it joined.
+fn below(text: &str) -> PathBuf {
+    text.split('/').collect()
 }
 
 fn stdout(output: &Output) -> String {
@@ -115,8 +127,8 @@ fn a_program_file_anchors_discovery_wherever_hql_is_run_from() {
     let sandbox = Sandbox::new();
     let vault = sandbox.tree().join("a");
     fs::create_dir_all(vault.join(".hmd")).unwrap();
-    std::fs::write(vault.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
-    let script = vault.join("b/c/script.hql");
+    std::fs::write(vault.join(below(".hmd/config.toml")), "wiki = \".\"\n").unwrap();
+    let script = vault.join(below("b/c/script.hql"));
     sandbox.write(&script, "cards | count\n");
     sandbox.write(&vault.join("note.hmd"), "# Note\n");
     let elsewhere = sandbox.tree().join("elsewhere");
@@ -131,7 +143,7 @@ fn a_program_file_anchors_discovery_wherever_hql_is_run_from() {
     );
     assert_eq!(
         field(&report, "anchor"),
-        vault.join("b/c").display().to_string()
+        vault.join(below("b/c")).display().to_string()
     );
     assert_eq!(field(&report, "cwd"), elsewhere.display().to_string());
 
@@ -151,11 +163,11 @@ fn a_project_and_a_vault_are_found_apart_and_the_nearest_project_wins() {
     let sandbox = Sandbox::new();
     let outer = sandbox.tree();
     fs::create_dir_all(outer.join(".hmd")).unwrap();
-    std::fs::write(outer.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
-    sandbox.write(&outer.join(".hql/config.toml"), "");
+    std::fs::write(outer.join(below(".hmd/config.toml")), "wiki = \".\"\n").unwrap();
+    sandbox.write(&outer.join(below(".hql/config.toml")), "");
     let inner = outer.join("inner");
-    sandbox.write(&inner.join(".hql/config.toml"), "");
-    sandbox.write(&inner.join("src/program.hql"), "1\n");
+    sandbox.write(&inner.join(below(".hql/config.toml")), "");
+    sandbox.write(&inner.join(below("src/program.hql")), "1\n");
     let report = ok(&sandbox.run(&outer, &["context", "inner/src/program.hql"]));
     assert_eq!(field(&report, "mode"), "project");
     assert!(
@@ -173,7 +185,7 @@ fn a_project_and_a_vault_are_found_apart_and_the_nearest_project_wins() {
 #[test]
 fn the_hql_home_is_never_a_project() {
     let sandbox = Sandbox::new();
-    sandbox.write(&sandbox.home().join(".hql/config.toml"), "");
+    sandbox.write(&sandbox.home().join(below(".hql/config.toml")), "");
     let code = sandbox.home().join("code");
     fs::create_dir_all(&code).unwrap();
     let report = ok(&sandbox.run(&code, &["context"]));
@@ -186,7 +198,7 @@ fn bare_suppresses_discovery_and_conflicts_with_a_named_project() {
     let sandbox = Sandbox::new();
     let vault = sandbox.tree();
     fs::create_dir_all(vault.join(".hmd")).unwrap();
-    std::fs::write(vault.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::write(vault.join(below(".hmd/config.toml")), "wiki = \".\"\n").unwrap();
     sandbox.write(&vault.join("note.hmd"), "# Note\n");
     let report = ok(&sandbox.run(&vault, &["--bare", "context"]));
     assert_eq!(field(&report, "mode"), "bare");
@@ -211,16 +223,16 @@ fn bare_suppresses_discovery_and_conflicts_with_a_named_project() {
 fn an_explicit_project_keeps_the_anchor_of_the_file() {
     let sandbox = Sandbox::new();
     let repo = sandbox.tree().join("repo");
-    sandbox.write(&repo.join(".hql/config.toml"), "");
-    sandbox.write(&repo.join("src/jobs/.hql/config.toml"), "");
-    sandbox.write(&repo.join("src/jobs/report.hql"), "1\n");
+    sandbox.write(&repo.join(below(".hql/config.toml")), "");
+    sandbox.write(&repo.join(below("src/jobs/.hql/config.toml")), "");
+    sandbox.write(&repo.join(below("src/jobs/report.hql")), "1\n");
     let report = ok(&sandbox.run(
         &sandbox.tree(),
         &[
             "--project",
             repo.to_str().unwrap(),
             "context",
-            repo.join("src/jobs/report.hql").to_str().unwrap(),
+            repo.join(below("src/jobs/report.hql")).to_str().unwrap(),
         ],
     ));
     assert_eq!(
@@ -229,7 +241,7 @@ fn an_explicit_project_keeps_the_anchor_of_the_file() {
     );
     assert_eq!(
         field(&report, "anchor"),
-        repo.join("src/jobs").display().to_string()
+        repo.join(below("src/jobs")).display().to_string()
     );
 
     let unmarked = sandbox.run(&sandbox.tree(), &["--project", ".", "context"]);
@@ -270,9 +282,9 @@ fn bare_hql_imports_modules_from_the_hql_home_and_hql_path() {
     let sandbox = Sandbox::new();
     let vault = sandbox.tree();
     fs::create_dir_all(vault.join(".hmd")).unwrap();
-    std::fs::write(vault.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::write(vault.join(below(".hmd/config.toml")), "wiki = \".\"\n").unwrap();
     sandbox.write(
-        &sandbox.home().join(".hql/modules/greet.hql"),
+        &sandbox.home().join(below(".hql/modules/greet.hql")),
         &module("greet", "fn one() : Int = 1"),
     );
     let shared = sandbox.root().join("shared");
@@ -301,7 +313,7 @@ fn bare_hql_imports_modules_from_the_hql_home_and_hql_path() {
     assert!(
         report.contains(&format!(
             "  {} (the HQL home)",
-            sandbox.home().join(".hql/modules").display()
+            sandbox.home().join(below(".hql/modules")).display()
         )),
         "{report}"
     );
@@ -324,20 +336,20 @@ fn user_configuration_contributes_in_every_mode_and_names_its_files() {
         "[modules]\nroots = [\"lib\"]\n",
     );
     sandbox.write(
-        &hql_home.join("lib/units.hql"),
+        &hql_home.join(below("lib/units.hql")),
         &module("units", "fn km(m: Int) : Int = m / 1000"),
     );
     let project = sandbox.tree().join("project");
     sandbox.write(
-        &project.join(".hql/config.toml"),
+        &project.join(below(".hql/config.toml")),
         "[modules]\nroots = [\"src\"]\n",
     );
     sandbox.write(
-        &project.join("src/local.hql"),
+        &project.join(below("src/local.hql")),
         &module("local", "fn base() : Int = 5000"),
     );
     sandbox.write(
-        &project.join("jobs/job.hql"),
+        &project.join(below("jobs/job.hql")),
         "import units\nimport local\nunits.km(local.base())\n",
     );
     let run = |args: &[&str]| {
@@ -347,7 +359,7 @@ fn user_configuration_contributes_in_every_mode_and_names_its_files() {
             .output()
             .unwrap()
     };
-    let job = project.join("jobs/job.hql");
+    let job = project.join(below("jobs/job.hql"));
     assert_eq!(ok(&run(&["run", job.to_str().unwrap()])), "5\n");
 
     let report = ok(&run(&["context", job.to_str().unwrap()]));
@@ -366,7 +378,7 @@ fn user_configuration_contributes_in_every_mode_and_names_its_files() {
         ),
         format!(
             "  {} (the project's .hql/config.toml)",
-            project.join(".hql/config.toml").display()
+            project.join(below(".hql/config.toml")).display()
         ),
         format!("  {} (user configuration)", hql_home.join("lib").display()),
         format!(
@@ -381,11 +393,14 @@ fn user_configuration_contributes_in_every_mode_and_names_its_files() {
 #[test]
 fn a_malformed_user_configuration_fails_every_run_naming_the_file() {
     let sandbox = Sandbox::new();
-    sandbox.write(&sandbox.home().join(".hql/config.toml"), "[modules\n");
+    sandbox.write(
+        &sandbox.home().join(below(".hql/config.toml")),
+        "[modules\n",
+    );
     let output = sandbox.run(&sandbox.tree(), &["1"]);
     assert_eq!(output.status.code(), Some(1));
     assert!(
-        stderr(&output).contains(".hql/config.toml"),
+        stderr(&output).contains(&below(".hql/config.toml").display().to_string()),
         "{}",
         stderr(&output)
     );
@@ -394,20 +409,20 @@ fn a_malformed_user_configuration_fails_every_run_naming_the_file() {
 /// A user configuration with two contexts, one binding a project that is
 /// also a vault.
 fn with_contexts(sandbox: &Sandbox) -> PathBuf {
-    let production = sandbox.root().join("srv/production");
+    let production = sandbox.root().join(below("srv/production"));
     fs::create_dir_all(production.join(".hmd")).unwrap();
-    std::fs::write(production.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
-    sandbox.write(&production.join(".hql/config.toml"), "");
+    std::fs::write(production.join(below(".hmd/config.toml")), "wiki = \".\"\n").unwrap();
+    sandbox.write(&production.join(below(".hql/config.toml")), "");
     sandbox.write(&production.join("note.hmd"), "# Note\n");
     sandbox.write(
-        &sandbox.home().join(".hql/lib/units.hql"),
+        &sandbox.home().join(below(".hql/lib/units.hql")),
         &module("units", "fn km(m: Int) : Int = m / 1000"),
     );
     sandbox.write(
-        &sandbox.home().join(".hql/config.toml"),
+        &sandbox.home().join(below(".hql/config.toml")),
         &format!(
             "# my contexts\n\n[context.work.modules]\nroots = [\"lib\"]\n\n\
-             [context.production]\nproject = \"{}\"\n",
+             [context.production]\nproject = '{}'\n",
             production.display()
         ),
     );
@@ -418,7 +433,7 @@ fn with_contexts(sandbox: &Sandbox) -> PathBuf {
 fn contexts_are_listed_selected_and_shown() {
     let sandbox = Sandbox::new();
     let production = with_contexts(&sandbox);
-    let config = sandbox.home().join(".hql/config.toml");
+    let config = sandbox.home().join(below(".hql/config.toml"));
     let tree = sandbox.tree();
 
     let none = sandbox.run(&tree, &["config", "current-context"]);
@@ -549,7 +564,7 @@ fn a_context_selected_for_one_invocation_binds_its_project() {
 fn user_settings_sit_below_the_project_and_the_environment() {
     let sandbox = Sandbox::new();
     sandbox.write(
-        &sandbox.home().join(".hql/config.toml"),
+        &sandbox.home().join(below(".hql/config.toml")),
         "[report]\nlevel = \"error\"\nmode = \"collect\"\n[execution]\nbackend = \"localhost\"\n",
     );
     let tree = sandbox.tree();
@@ -580,7 +595,7 @@ fn user_settings_sit_below_the_project_and_the_environment() {
 
     let project = tree.join("project");
     sandbox.write(
-        &project.join(".hql/config.toml"),
+        &project.join(below(".hql/config.toml")),
         "[report]\nlevel = \"debug\"\n",
     );
     let shown = ok(&sandbox.run(&project, &["config"]));
@@ -590,7 +605,7 @@ fn user_settings_sit_below_the_project_and_the_environment() {
     );
 
     sandbox.write(
-        &sandbox.home().join(".hql/config.toml"),
+        &sandbox.home().join(below(".hql/config.toml")),
         "[execution]\nbackend = \"threads\"\n",
     );
     let refused = sandbox.run(&tree, &["1"]);
@@ -608,16 +623,16 @@ fn a_host_supplies_the_vault_and_keeps_the_user_configuration() {
     let sandbox = Sandbox::new();
     let outer = sandbox.tree();
     fs::create_dir_all(outer.join(".hmd")).unwrap();
-    std::fs::write(outer.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::write(outer.join(below(".hmd/config.toml")), "wiki = \".\"\n").unwrap();
     let hosted = outer.join("hosted");
     sandbox.write(&hosted.join("note.hmd"), "# Note\n");
     sandbox.write(&outer.join("other.hmd"), "# Other\n");
     sandbox.write(
-        &sandbox.home().join(".hql/config.toml"),
+        &sandbox.home().join(below(".hql/config.toml")),
         "[modules]\nroots = [\"lib\"]\n",
     );
     sandbox.write(
-        &sandbox.home().join(".hql/lib/units.hql"),
+        &sandbox.home().join(below(".hql/lib/units.hql")),
         &module("units", "fn km(m: Int) : Int = m / 1000"),
     );
     let environment = Environment {

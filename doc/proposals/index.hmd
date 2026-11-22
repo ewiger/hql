@@ -122,4 +122,5 @@ outside this list.
 | [HQL-0060](HQL-0060/index.hmd) | implemented in part | One import mechanism for every module: `import m`, `from m import …`, `as` and `except` |
 | [HQL-0061](HQL-0061/index.hmd) | implemented in part | A browser playground: `hql` compiled to WebAssembly |
 | [HQL-0062](HQL-0062/index.hmd) | drafted | HQL as a script language: `#!`, `hql FILE` and the script's arguments |
+| [HQL-0063](HQL-0063/index.hmd) | implemented in part | Paths a program reads: `/` between segments on every host, the host's form kept inside the runtime |
 | [HQL-0064](HQL-0064/index.hmd) | drafted | Processes: `io.process`, child processes, pipes, `parallel` and watchdogs |

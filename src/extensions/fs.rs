@@ -12,10 +12,11 @@ use crate::diagnostics::Diagnostic;
 use crate::execution::Arg as TypedArg;
 use crate::glob::{self, Glob};
 use crate::io::{self, Listing};
+use crate::paths;
 use crate::time::Time;
 use crate::traversal::Traversal;
 use crate::types::{Record, TypeRef, Value};
-use crate::walk::{self, Kind, Links, Listed, Stat, Walk, paths};
+use crate::walk::{self, Kind, Links, Listed, Stat, Walk};
 use std::ops::Range;
 use std::path::Path;
 use std::sync::Arc;
@@ -146,7 +147,7 @@ fn eval_folder(
 
 /// The source directory of the running unit (HQL-0059).
 fn eval_source_dir(_: &mut dyn EvalCx, _: Value, _: &[TypedArg], _: Range<usize>) -> Result<Value> {
-    Ok(path_value(&io::source_directory().display().to_string()))
+    Ok(path_value(&paths::of(&io::source_directory())))
 }
 
 /// The directory `hql` was started in.
@@ -162,7 +163,7 @@ fn eval_working_dir(
             format!("the working directory cannot be read: {error}"),
         )
     })?;
-    Ok(path_value(&cwd.display().to_string()))
+    Ok(path_value(&paths::of(&cwd)))
 }
 
 fn eval_glob_of(

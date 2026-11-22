@@ -51,7 +51,7 @@ with it and its extension is compiled into it. There are two.
 
 "The standard library" is another name for the `std` package, and
 [[book#part-iv-the-standard-library|Part IV]] is its guide. `hql builtins` names the package beside
-each module, `collections (std 0.7.1, prelude)`
+each module, `collections (std 0.7.2, prelude)`
 ([[13-working-with-hql|chapter 13]]).
 
 ## Installable packages

@@ -218,10 +218,12 @@ fn a_field_may_be_named_require_or_validate() {
 
 #[test]
 fn a_decoded_stream_is_checked_one_document_at_a_time() {
+    // Written into a string literal of the program, where `\\` opens an escape.
     let sightings = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/examples/structural/sightings.jsonl"
-    );
+    )
+    .replace('\\', "/");
     let source = format!(
         "type Sighting : DataContract = {{\n    species: String\n    require species != \"wren\"\n}}\n\
          source(file(\"{sightings}\"), Json) | Sighting | map(s => s.species) | List"
@@ -276,10 +278,12 @@ fn a_constructor_checks_a_parents_rule() {
 
 #[test]
 fn a_decoded_stream_is_validated_one_document_at_a_time() {
+    // Written into a string literal of the program, where `\\` opens an escape.
     let sightings = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/examples/structural/sightings.jsonl"
-    );
+    )
+    .replace('\\', "/");
     let source = format!(
         "type Sighting : DataContract = {{\n    species: String\n    require species != \"wren\" as no_wrens\n}}\n\
          results = source(file(\"{sightings}\"), Json) | validate(Sighting)\n\

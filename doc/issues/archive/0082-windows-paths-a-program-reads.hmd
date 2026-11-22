@@ -1,0 +1,93 @@
+# 0082 — On Windows, a path a program reads is not the text HQL reads
+
+Status: done
+Related: [[HQL-0063]], which states the rule; [[HQL-0020]], [[HQL-0040]],
+[[HQL-0059]],
+[`src/paths.rs`](../../../src/paths.rs),
+[`src/walk.rs`](../../../src/walk.rs),
+[`src/extensions/fs.rs`](../../../src/extensions/fs.rs),
+[`src/evaluation.rs`](../../../src/evaluation.rs),
+[`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)
+
+A path value in HQL is text with `/` between its segments: `join`, `parent`,
+`name`, `stem` and `extension` read that text alone and never ask the host. On
+Linux and macOS the host writes a path the same way, so nothing converted one.
+HQL 0.7.1 was never built or tested on Windows, and the first run there, on
+`windows-latest` at `v0.7.1`, showed two places where the host's text reached a
+program unconverted.
+
+## A card's path was joined with `\`
+
+The sorted walk joined a folder and an entry with the platform's separator, so
+a card below a folder had the path `books\a-room-of-ones-own.hmd`:
+
+```hql
+cards | filter(c => c.path | starts_with("books/")) | size
+```
+
+With `--vault examples/reading-club` this is `7` on Linux and macOS and was `0`
+on Windows. The same text is a diagnostic's `source`, and is what `group`,
+`unique` and a join hash for a card, so a vault did not read the same on two
+machines.
+
+## A canonical path kept its `\\?\`
+
+`fs.source_dir()` is the canonical directory of the running unit, and Windows
+opens a canonical path with `\\?\`. In a module under `lib\shelf`:
+
+```hql
+fs.source_dir().name
+```
+
+was the whole of `\\?\D:\a\hql\hql\examples\projects\library\lib\shelf`, where
+it is `shelf` elsewhere: there is no `/` in that text for `name` to find.
+`fs.working_dir()` and `vault.root` were written with `\` in the same way.
+
+## The fix
+
+1. `joined` in `src/walk.rs` joins the paths of the sorted walk with `/` on
+   every platform. The vault's documents and `io.fs` both read their order and
+   their paths from that one walk.
+2. `of` in `src/paths.rs` is the text of a host path as a program reads
+   it: `/` between the segments, without the `\\?\` of a drive path or a
+   share. `fs.source_dir()`, `fs.working_dir()` and `vault.root` are read
+   through it, so on Windows they are `C:/Users/ada/notes`. Windows opens
+   that text as the same file.
+3. A path a message names is left as the host writes it.
+4. `parent`, `name` and `join` know a drive root `C:/` and a share
+   `//server/share` beside `/`: `Path("C:/Users").parent()` was `C:`, the
+   current folder of a drive, and is `C:/`.
+
+## What keeps it fixed
+
+`ci.yml` tests on `windows-latest` beside Linux and macOS, and `release.yml`
+tests `x86_64-pc-windows-msvc` before it packages `hql.exe`. Checkout keeps LF
+there, since fixtures and reference pages are compared byte for byte. These
+tests failed on Windows before the fix and name the two defects:
+
+- `walk::tests::a_folder_is_followed_at_once_by_what_it_holds_in_name_order`,
+  in `src/walk.rs`.
+- `the_cards_start_where_wiki_says_and_their_paths_are_relative_to_it`, in
+  `tests/vault.rs`.
+- `walk_is_the_sorted_walk_and_the_vaults_order` and
+  `a_relative_path_resolves_against_the_source_directory_of_its_unit`, in
+  `tests/io_fs.rs`.
+- `projects/queries/module-source-dir.hql`, run by `tests/corpus.rs`.
+- The page `doc/public/book/21-a-vault.hmd`, run by `tests/book.rs`: the
+  `starts_with("books/")` count above.
+
+Eleven more tests failed for a reason of their own, not the binary's: they
+wrote a Windows path into a string literal of a program or of a TOML file,
+where `\` opens an escape, or compared a path with text written for Unix.
+`tests/context.rs`, `tests/structural.rs`, `tests/transactions.rs`,
+`tests/sessions.rs` and `tests/book.rs` now write and compare paths in a form
+that holds on both.
+
+## Open
+
+- A path a program writes itself with `\`, `folder("C:\\data")`, is passed
+  to the host as written and is one segment to `parent` and `name`:
+  [[HQL-0063]] decides that `\` is not a separator, since it is a character
+  of a name on Linux and macOS.
+- A card saved with CRLF line endings has not been run on Windows.
+- Released in 0.7.2, the first release with `hql.exe`.

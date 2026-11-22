@@ -145,7 +145,7 @@ fn below<E: From<io::Error>>(
     visit: &mut dyn FnMut(Listed) -> Result<bool, E>,
 ) -> Result<bool, E> {
     for listed in entries(&root.join(prefix), walk)? {
-        let relative = prefix.join(&listed.relative);
+        let relative = joined(prefix, &listed.relative);
         let folder = listed.stat.kind == Kind::Folder;
         if !visit(Listed {
             relative: relative.clone(),
@@ -160,108 +160,17 @@ fn below<E: From<io::Error>>(
     Ok(true)
 }
 
-/// A `Path`'s text, read as segments separated by `/`: what `join`,
-/// `parent`, `name`, `stem` and `extension` compute, from the text alone.
-pub(crate) mod paths {
-    /// The text without trailing separators, the root `/` kept.
-    fn trimmed(text: &str) -> &str {
-        let trimmed = text.trim_end_matches('/');
-        if trimmed.is_empty() && text.starts_with('/') {
-            "/"
-        } else {
-            trimmed
-        }
-    }
-
-    /// `text` with `segment` appended after a `/`; onto `.` or an empty
-    /// path, `segment` alone.
-    pub(crate) fn join(text: &str, segment: &str) -> String {
-        let base = trimmed(text);
-        match base {
-            "" | "." => segment.to_owned(),
-            "/" => format!("/{segment}"),
-            _ => format!("{base}/{segment}"),
-        }
-    }
-
-    /// `text` without its last segment, or `None` for one segment.
-    pub(crate) fn parent(text: &str) -> Option<&str> {
-        let base = trimmed(text);
-        match base.rfind('/') {
-            _ if base == "/" => None,
-            Some(0) => Some("/"),
-            Some(at) => Some(&base[..at]),
-            None => None,
-        }
-    }
-
-    /// The last segment of `text`.
-    pub(crate) fn name(text: &str) -> &str {
-        let base = trimmed(text);
-        if base == "/" {
-            return "";
-        }
-        base.rsplit('/').next().unwrap_or(base)
-    }
-
-    /// Where the extension's `.` is in the last segment: after its first
-    /// character, so `.env` has none.
-    fn dot(name: &str) -> Option<usize> {
-        name.rfind('.').filter(|at| *at > 0)
-    }
-
-    /// The last segment without its extension.
-    pub(crate) fn stem(text: &str) -> &str {
-        let name = name(text);
-        dot(name).map_or(name, |at| &name[..at])
-    }
-
-    /// The text after the last `.` of the last segment.
-    pub(crate) fn extension(text: &str) -> Option<&str> {
-        let name = name(text);
-        dot(name).map(|at| &name[at + 1..])
-    }
-
-    /// The order key of a path: its segments compared in turn, each by its
-    /// text. A separator below every character a segment holds makes the
-    /// text order of the key that order.
-    pub(crate) fn order_key(text: &str) -> String {
-        text.split('/')
-            .filter(|segment| !segment.is_empty() && *segment != ".")
-            .collect::<Vec<_>>()
-            .join("\u{0}")
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn each_operation_reads_the_text_alone() {
-            assert_eq!(join("data", "birds.csv"), "data/birds.csv");
-            assert_eq!(join("data/", "birds.csv"), "data/birds.csv");
-            assert_eq!(join(".", "a"), "a");
-            assert_eq!(join("/", "a"), "/a");
-            assert_eq!(parent("a/b"), Some("a"));
-            assert_eq!(parent("a/b/"), Some("a"));
-            assert_eq!(parent("a"), None);
-            assert_eq!(parent("/a"), Some("/"));
-            assert_eq!(parent("/"), None);
-            assert_eq!(name("data/birds.csv"), "birds.csv");
-            assert_eq!(stem("data/birds.csv"), "birds");
-            assert_eq!(stem("archive.tar.gz"), "archive.tar");
-            assert_eq!(extension("a/b.csv"), Some("csv"));
-            assert_eq!(extension("a/.env"), None);
-            assert_eq!(extension("a/b"), None);
-            assert_eq!(stem(".env"), ".env");
-        }
-
-        #[test]
-        fn paths_order_by_their_segments() {
-            let mut texts = vec!["a-b", "a/b", "a", "./a/c"];
-            texts.sort_by_key(|text| order_key(text));
-            assert_eq!(texts, ["a", "a/b", "./a/c", "a-b"]);
-        }
+/// `name` below `prefix`, with `/` between them on every platform. A path
+/// below the folder walked is an identity a program reads as text: a card's
+/// `path` is the same text wherever its vault is read.
+fn joined(prefix: &Path, name: &Path) -> PathBuf {
+    if cfg!(windows) && !prefix.as_os_str().is_empty() {
+        let mut text = prefix.as_os_str().to_os_string();
+        text.push("/");
+        text.push(name);
+        PathBuf::from(text)
+    } else {
+        prefix.join(name)
     }
 }
 

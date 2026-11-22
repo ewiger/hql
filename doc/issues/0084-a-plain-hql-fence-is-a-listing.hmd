@@ -1,4 +1,4 @@
-# 0082 — A plain `hql` fence is a listing: `hql render` runs only `hql#eval` and `hql#query`
+# 0084 — A plain `hql` fence is a listing: `hql render` runs only `hql#eval` and `hql#query`
 
 Status: todo
 Related: the fence kinds were decided

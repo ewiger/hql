@@ -239,8 +239,10 @@ fn Path(text: String) : Path
 fn join(self: Path, segment: String) : Path
 
 /// `self` without its last segment, `some(Path)`, or `none` for a path of
-/// one segment: `Path("a/b").parent()` is `some(Path("a"))`, and
-/// `Path("a").parent()` is `none`.
+/// one segment or a root: `Path("a/b").parent()` is `some(Path("a"))`, and
+/// `Path("a").parent()` is `none`. A root is `/`, a drive root `C:/` or a
+/// share `//server/share`, on every host: `Path("C:/Users").parent()` is
+/// `some(Path("C:/"))`.
 fn parent(self: Path) : Option<Path>
 
 /// The last segment of `self`: `Path("data/birds.csv").name()` is

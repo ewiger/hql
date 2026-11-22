@@ -1182,6 +1182,8 @@ fn a_write_outside_the_participants_under_several_attempts_is_warned() {
     let (dir, vault) = configured();
     seeded_ledger(&vault);
     let audit = dir.path().join("audit.jsonl");
+    // Written into a string literal of the program, where `\\` opens an escape.
+    let shown = audit.display().to_string().replace('\\', "/");
     let head = format!(
         "from logging import *\n{ACCOUNT}type Note {{ n : Int }}\n\
          accounts = configured(\"accounts\")\n\
@@ -1194,7 +1196,7 @@ fn a_write_outside_the_participants_under_several_attempts_is_warned() {
              [Account(id = 1, owner = \"ada\", balance = 250)] | target(accounts)\n\
              tx.retry()\n\
          }}",
-        audit.display()
+        shown
     );
     // The file is written on each of the three attempts, and warned once.
     let (value, warnings) = warned(
@@ -1208,7 +1210,7 @@ fn a_write_outside_the_participants_under_several_attempts_is_warned() {
             format!(
                 "effect: `sink` to `file(\"{}\").end` runs on every attempt of the scope and is \
                  not rolled back",
-                audit.display()
+                shown
             ),
             "effect: `info` to `log` runs on every attempt of the scope and is not rolled back"
                 .to_owned(),

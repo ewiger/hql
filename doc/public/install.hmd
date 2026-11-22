@@ -27,8 +27,8 @@ If you'd rather not install Rust at all, download a ready-made binary instead.
 ## Ready-made binaries
 
 Every [release](https://github.com/ewiger/hql/releases) has a binary for
-Linux and for macOS. Download the archive for your machine, unpack it, and
-move `hql` somewhere on your `PATH`:
+Linux, for macOS and for Windows. Download the archive for your machine,
+unpack it, and move `hql` somewhere on your `PATH`:
 
 === "macOS, Apple silicon"
 
@@ -51,11 +51,26 @@ move `hql` somewhere on your `PATH`:
     sudo mv hql-*-x86_64-unknown-linux-gnu/hql /usr/local/bin/
     ```
 
+=== "Windows, x86_64"
+
+    ```powershell
+    tar -xzf (Get-Item hql-*-x86_64-pc-windows-msvc.tar.gz)
+    ```
+
+    Then move `hql.exe` from the unpacked folder to a folder on your `PATH`.
+
 Each archive has a `.sha256` file next to it. To check the download, run
 this before you unpack it:
 
 ```sh
 shasum -a 256 -c hql-*.tar.gz.sha256    # on Linux: sha256sum -c
+```
+
+On Windows, `Get-FileHash` prints the digest to compare with the one in the
+file:
+
+```powershell
+Get-FileHash (Get-Item hql-*.tar.gz)
 ```
 
 ## The newest code
