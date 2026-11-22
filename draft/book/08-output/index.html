@@ -2134,6 +2134,8 @@
       
         
       
+        
+      
     
     
     
@@ -2586,6 +2588,34 @@
     
   
     hql on the command line
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../09-io/scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts
   
 
     
@@ -7255,9 +7285,12 @@ options. <code>limit</code> keeps the first <code>n</code> elements and says how
 | map(title)
 | format(Text, limit = 3)
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>["Frankenstein", "Dune", "The Hobbit"]
+<div class="highlight"><pre><span></span><code>Frankenstein
+Dune
+The Hobbit
 … 4 more not shown
 </code></pre></div>
+<p>A list of strings in text is one string per line.</p>
 <p>A list of records in Markdown is a bullet list. A table is a value of its own
 type, <code>Table</code>: <code>Table(xs, columns = [...])</code> takes one row per record and the
 columns in the order written, and every format writes it as a table, a pipe

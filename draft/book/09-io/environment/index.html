@@ -2034,6 +2034,8 @@
       
         
       
+        
+      
     
     
     
@@ -2493,6 +2495,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#positional-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Positional arguments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#missing-values-and-conversion" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2577,6 +2590,34 @@
     
   
     hql on the command line
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts
   
 
     
@@ -7132,6 +7173,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#positional-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Positional arguments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#missing-values-and-conversion" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7183,8 +7235,9 @@
 
 <h1 id="environment-and-arguments">Environment and arguments<a class="headerlink" href="#environment-and-arguments" title="Permanent link">&para;</a></h1>
 <p>The <code>io.env</code> module reads the invocation that runs a program: its
-<strong>environment variables</strong> and its <strong>arguments</strong>, the <code>--arg name=value</code> pairs
-of the command line. A program imports it, <code>import io.env</code>, and reaches it as
+<strong>environment variables</strong>, its <strong>named arguments</strong>, the <code>--arg name=value</code>
+pairs of the command line, and its <strong>positional arguments</strong>, the words after
+the program. A program imports it, <code>import io.env</code>, and reaches it as
 <code>env</code>: <code>env.arg(…)</code>. <code>from io.env import *</code> binds <code>arg</code> and the
 rest without the module's name. Each
 operation reads a value fixed for the whole evaluation, so a
@@ -7220,6 +7273,19 @@ Usage: hql [OPTIONS] &lt;COMMAND&gt;
 
 For more information, try '--help'.
 </code></pre></div>
+<h2 id="positional-arguments">Positional arguments<a class="headerlink" href="#positional-arguments" title="Permanent link">&para;</a></h2>
+<p><code>env.argv()</code> is every word after the program, in order, a <code>Seq&lt;String&gt;</code>.
+This program runs as <code>hql -c '…' 2026 q1</code>:</p>
+<!-- run: novault -- 2026 q1 -->
+<div class="highlight"><pre><span></span><code>import io.env
+
+env.argv()
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>["2026", "q1"]
+</code></pre></div>
+<p>The words come after a program file, <code>hql report.hql 2026 q1</code>, and after an
+inline program, <code>hql -c '…' 2026 q1</code>. The program's own path is not among
+them. <a href="../scripts/">scripts</a> puts them to work in a script.</p>
 <h2 id="missing-values-and-conversion">Missing values and conversion<a class="headerlink" href="#missing-values-and-conversion" title="Permanent link">&para;</a></h2>
 <p>An argument the invocation does not pass is <code>none</code>, and the program supplies
 its default:</p>
@@ -7282,7 +7348,8 @@ limit()
 <div class="highlight"><pre><span></span><code>limit is Effectful: it uses `arg`
 Int
 </code></pre></div>
-<p>Arguments are always granted: the invocation wrote them. The environment is
+<p>Named and positional arguments are always granted: the invocation wrote
+them. The environment is
 read through a <strong>grant</strong> the host fixes before evaluation:</p>
 <table>
 <thead>

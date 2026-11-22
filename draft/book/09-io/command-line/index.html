@@ -16,7 +16,7 @@
         <link rel="prev" href="../hosts/">
       
       
-        <link rel="next" href="../../10-the-type-system/">
+        <link rel="next" href="../scripts/">
       
       
         
@@ -2034,6 +2034,8 @@
       
         
       
+        
+      
     
     
     
@@ -2570,10 +2572,49 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#a-program-in-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A program in a file
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7142,6 +7183,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#a-program-in-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A program in a file
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -7162,7 +7214,9 @@
 <h1 id="hql-on-the-command-line"><code>hql</code> on the command line<a class="headerlink" href="#hql-on-the-command-line" title="Permanent link">&para;</a></h1>
 <p>With <code>source</code> and <code>sink</code>, <code>hql</code> is a structured-data tool for the shell. A
 first argument that names no command is a program, so <code>hql '&lt;program&gt;'</code> is
-<code>hql eval '&lt;program&gt;'</code>:</p>
+<code>hql eval '&lt;program&gt;'</code>, and <code>hql -c '&lt;program&gt;'</code> is the same, as <code>-c</code> is in
+Python and Bash. A first argument written as a file, <code>report.hql</code> or
+<code>./report</code>, runs that file instead (<a href="../scripts/">scripts</a>):</p>
 <div class="highlight"><pre><span></span><code>$ cat examples/io/sightings.jsonl | hql 'source(stdin, Json) | filter(s =&gt; s.seen == "morning") | map(s =&gt; s.species)'
 "wren"
 "kingfisher"
@@ -7170,17 +7224,20 @@ first argument that names no command is a program, so <code>hql '&lt;program&gt;
 <p>The result is a <code>Stream&lt;String&gt;</code>, so the host writes each value as it
 arrives, in HQL, the format a result is written in unless <code>--to</code> names
 another (<a href="../../08-output/">writing results out</a>).</p>
+<p>Options of <code>hql</code> come before the program. Every word after the program is
+the program's own, read with <code>io.env.argv()</code>, as the words after a Python or
+Bash script are (<a href="../scripts/">Scripts</a>).</p>
 <h2 id="-to-and-compact"><code>--to</code> and <code>--compact</code><a class="headerlink" href="#-to-and-compact" title="Permanent link">&para;</a></h2>
 <p><code>--to json</code> presents each document of the result pretty-printed, as <code>jq .</code>
 does, and <code>--compact</code> gives one line each, as <code>jq -c</code> does:</p>
-<div class="highlight"><pre><span></span><code>$ head -1 examples/io/sightings.jsonl | hql 'source(stdin, Json)' --to json
+<div class="highlight"><pre><span></span><code>$ head -1 examples/io/sightings.jsonl | hql --to json 'source(stdin, Json)'
 {
   "seen": "dusk",
   "site": "meadow",
   "species": "barn owl"
 }
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>$ head -2 examples/io/sightings.jsonl | hql 'source(stdin, Json)' --to json --compact
+<div class="highlight"><pre><span></span><code>$ head -2 examples/io/sightings.jsonl | hql --to json --compact 'source(stdin, Json)'
 {"seen":"dusk","site":"meadow","species":"barn owl"}
 {"seen":"morning","site":"hedge","species":"wren"}
 </code></pre></div>
@@ -7189,7 +7246,7 @@ one <code>hql</code> is the input of the next. <code>sink(e, Json)</code> writes
 line whatever the flags: a program writing a file says what the file is, and
 <code>--compact</code> is about the terminal.</p>
 <p>Converting between formats is a source and a <code>--to</code>:</p>
-<div class="highlight"><pre><span></span><code>$ hql 'source(file("examples/io/sightings.jsonl")) | map(s =&gt; s.site)' --to yaml
+<div class="highlight"><pre><span></span><code>$ hql --to yaml 'source(file("examples/io/sightings.jsonl")) | map(s =&gt; s.site)'
 - meadow
 - hedge
 - barn
@@ -7215,7 +7272,18 @@ kingfisher
 </code></pre></div>
 <p><code>hql run -</code> reads the program from standard input, so such a program cannot
 also read <code>stdin</code> as data, and <code>source(stdin, …)</code> in it is a type error.
-<code>--log-level</code> sets every logger's threshold (<a href="../logging/">logging</a>).</p>
+<code>hql</code> with no program does the same when standard input is not a terminal,
+and opens the REPL when it is:</p>
+<div class="highlight"><pre><span></span><code>$ echo '1 + 1' | hql
+2
+</code></pre></div>
+<p><code>--log-level</code> sets every logger's threshold (<a href="../logging/">logging</a>).</p>
+<h2 id="a-program-in-a-file">A program in a file<a class="headerlink" href="#a-program-in-a-file" title="Permanent link">&para;</a></h2>
+<p><code>hql FILE</code> runs a file, the same as <code>hql run FILE</code>, when the word ends in
+<code>.hql</code> or contains a <code>/</code>. A file whose first line is <code>#!/usr/bin/env hql</code>
+runs on its own, and the exit status follows from its result. <a href="../scripts/">scripts</a>
+covers arguments, the exit status, and where a script's relative paths
+resolve.</p>
 
 
 

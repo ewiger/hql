@@ -181,6 +181,10 @@
          <lastmod>2026-11-22</lastmod>
     </url>
     <url>
+         <loc>https://hql-lang.org/latest/book/09-io/scripts/</loc>
+         <lastmod>2026-11-22</lastmod>
+    </url>
+    <url>
          <loc>https://hql-lang.org/latest/book/09-io/source/</loc>
          <lastmod>2026-11-22</lastmod>
     </url>
@@ -1446,6 +1450,10 @@
     </url>
     <url>
          <loc>https://hql-lang.org/latest/reference/std/io/env/args/</loc>
+         <lastmod>2026-11-22</lastmod>
+    </url>
+    <url>
+         <loc>https://hql-lang.org/latest/reference/std/io/env/argv/</loc>
          <lastmod>2026-11-22</lastmod>
     </url>
     <url>

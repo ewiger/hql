@@ -2014,6 +2014,8 @@
       
         
       
+        
+      
     
     
     
@@ -2466,6 +2468,34 @@
     
   
     hql on the command line
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../book/09-io/scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts
   
 
     
@@ -7025,7 +7055,11 @@
 </code></pre></div>
 <p><code>self</code> with <code>segment</code> appended as its last segment, separated by <code>/</code>:
 <code>Path("data").join("birds.csv")</code> is <code>Path("data/birds.csv")</code>. Onto
-<code>Path(".")</code> or <code>Path("")</code> it is <code>Path(segment)</code>.</p>
+<code>Path(".")</code> or <code>Path("")</code> it is <code>Path(segment)</code>. A <code>segment</code> with a root,
+<code>/</code>, a drive root <code>C:/</code> or a share, is <code>Path(segment)</code> itself:
+<code>working_dir().join("/tmp")</code> is <code>Path("/tmp")</code>, so a path given on the
+command line joins to the working directory whether it is relative or
+absolute.</p>
 <!-- hql reference: end -->
 
 
