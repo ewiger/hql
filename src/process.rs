@@ -176,7 +176,7 @@ fn live() -> std::sync::MutexGuard<'static, std::collections::BTreeSet<u32>> {
 pub(crate) fn end_children() {
     let groups: Vec<u32> = live().iter().copied().collect();
     for &group in &groups {
-        stop(group, false);
+        stop(&group, false);
     }
     let deadline = std::time::Instant::now() + GRACE;
     while std::time::Instant::now() < deadline
@@ -185,13 +185,42 @@ pub(crate) fn end_children() {
         std::thread::sleep(Duration::from_millis(10));
     }
     for &group in &groups {
-        stop(group, true);
+        stop(&group, true);
     }
 }
+
+/// What ends a child and every process it started: on Unix the process
+/// group the child leads, by its identifier; on Windows the Job Object the
+/// child is in, when the system gave one.
+#[cfg(unix)]
+type Group = u32;
+#[cfg(windows)]
+type Group = Option<Arc<hql_sys::Job>>;
+#[cfg(not(any(unix, windows)))]
+type Group = ();
+
+/// The group of a child just started.
+#[cfg(unix)]
+fn group_of(child: &Child) -> Group {
+    child.id()
+}
+
+/// The job of a child just started. A system that refuses a job leaves the
+/// child alone in none: ending it then ends only the child.
+#[cfg(windows)]
+fn group_of(child: &Child) -> Group {
+    let job = hql_sys::Job::new().ok()?;
+    job.assign(child).ok()?;
+    Some(Arc::new(job))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn group_of(_child: &Child) -> Group {}
 
 /// A started child, with the guard that terminates it at its timeout.
 struct Running {
     child: Child,
+    group: Group,
     /// Dropped when the child has ended, which stops the guard.
     ended: Option<mpsc::Sender<()>>,
     guard: Option<JoinHandle<()>>,
@@ -235,21 +264,23 @@ fn start(
             ..Failure::new(reason)
         })
     })?;
+    let group = group_of(&child);
     #[cfg(unix)]
-    live().insert(child.id());
+    live().insert(group);
     let timed_out = Arc::new(AtomicBool::new(false));
     let (ended, guard) = match spec.timeout {
         None => (None, None),
         Some(timeout) => {
             let (sender, receiver) = mpsc::channel::<()>();
-            let id = child.id();
+            #[allow(clippy::clone_on_copy, reason = "a Group is Copy only on Unix")]
+            let held = group.clone();
             let flag = Arc::clone(&timed_out);
             let guard = std::thread::spawn(move || {
                 if receiver.recv_timeout(timeout) == Err(mpsc::RecvTimeoutError::Timeout) {
                     flag.store(true, Ordering::SeqCst);
-                    stop(id, false);
+                    stop(&held, false);
                     if receiver.recv_timeout(GRACE) == Err(mpsc::RecvTimeoutError::Timeout) {
-                        stop(id, true);
+                        stop(&held, true);
                     }
                 }
             });
@@ -258,6 +289,7 @@ fn start(
     };
     Ok(Running {
         child,
+        group,
         ended,
         guard,
         timed_out,
@@ -265,22 +297,31 @@ fn start(
     })
 }
 
-/// Signal the process group led by `id`: `SIGTERM`, or `SIGKILL` when
-/// `kill`. A group that has already ended is left as it is.
+/// Signal the process group `group`: `SIGTERM`, or `SIGKILL` when `kill`.
+/// A group that has already ended is left as it is.
 #[cfg(unix)]
-fn stop(id: u32, kill: bool) {
+fn stop(group: &Group, kill: bool) {
     let signal = if kill {
         hql_sys::Stop::Kill
     } else {
         hql_sys::Stop::Term
     };
-    let _ = hql_sys::stop_group(id, signal);
+    let _ = hql_sys::stop_group(*group, signal);
 }
 
-/// Without process groups, the guard cannot reach the child; the owner
-/// ends it when it is dropped.
-#[cfg(not(unix))]
-fn stop(_id: u32, _kill: bool) {}
+/// End every process of the job. A job has no request to end, so the
+/// first stop already ends them.
+#[cfg(windows)]
+fn stop(group: &Group, _kill: bool) {
+    if let Some(job) = group {
+        let _ = job.stop();
+    }
+}
+
+/// Without process groups or jobs, the guard cannot reach the child; the
+/// owner ends it when it is dropped.
+#[cfg(not(any(unix, windows)))]
+fn stop(_group: &Group, _kill: bool) {}
 
 impl Running {
     /// Wait for the child to end, and stop its guard.
@@ -290,7 +331,7 @@ impl Running {
         }
         let status = self.child.wait()?;
         #[cfg(unix)]
-        live().remove(&self.child.id());
+        live().remove(&self.group);
         self.waited = Some(status);
         self.ended = None;
         if let Some(guard) = self.guard.take() {
@@ -306,7 +347,7 @@ impl Running {
         }
         #[cfg(unix)]
         {
-            stop(self.child.id(), false);
+            stop(&self.group, false);
             let deadline = std::time::Instant::now() + GRACE;
             while std::time::Instant::now() < deadline {
                 if let Ok(Some(_)) = self.child.try_wait() {
@@ -314,8 +355,10 @@ impl Running {
                 }
                 std::thread::sleep(Duration::from_millis(10));
             }
-            stop(self.child.id(), true);
+            stop(&self.group, true);
         }
+        #[cfg(windows)]
+        stop(&self.group, true);
         #[cfg(not(unix))]
         {
             let _ = self.child.kill();
@@ -355,7 +398,7 @@ impl Drop for Running {
     fn drop(&mut self) {
         self.terminate();
         #[cfg(unix)]
-        live().remove(&self.child.id());
+        live().remove(&self.group);
     }
 }
 
