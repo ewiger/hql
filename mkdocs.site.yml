@@ -32,6 +32,9 @@ nav:
       - "From Rust to English to Strange Loops": blog/ai-oriented-programming-language.md
   - Reference: /draft/reference/
   - Community: https://www.reddit.com/r/hqlang/
+  # The sibling project, on its own host: a button that spells out its name on
+  # hover; see `contrib/mkdocs/overrides/partials/tabs-item.html`.
+  - HMD: https://hypermarkdown.org/
 
 extra:
   # Which pages this build keeps; see `contrib/mkdocs/split.py`.

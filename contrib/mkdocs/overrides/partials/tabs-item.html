@@ -33,6 +33,30 @@
     {% endfor %}
   </ul>
 {% endmacro %}
+{#-
+  The HMD tab: the sibling project's button, an abbreviation that spells
+  itself out on hover. The capitals of the full name stay; every other letter
+  is a ghost that collapses to zero width, carrying its index for the CSS
+  stagger. Styled in `doc/public/assets/hql.css`.
+-#}
+{% set hmd_host = "https://hypermarkdown.org" %}
+{% set hmd_full = "HyperMarkDown" %}
+{% macro render_hmd(nav_item) %}
+  {% set ghosts = hmd_full | reject("upper") | list | length %}
+  {% set ns = namespace(i=0) %}
+  <a href="{{ nav_item.url }}" class="md-tabs__link hmd-tab" rel="noopener" aria-label="{{ nav_item.title }}, {{ hmd_full }}">
+    <span class="hmd-tab__text" aria-hidden="true">
+      {%- for letter in hmd_full -%}
+        {%- if letter.isupper() -%}
+          {{ letter }}
+        {%- else -%}
+          <span class="hmd-tab__ghost" style="--hmd-i: {{ ns.i }}; --hmd-n: {{ ghosts }}"><span>{{ letter }}</span></span>
+          {%- set ns.i = ns.i + 1 -%}
+        {%- endif -%}
+      {%- endfor -%}
+    </span>
+  </a>
+{% endmacro %}
 {% macro render(nav_item, ref) %}
   {% set ref = ref or nav_item %}
   {% set class = "md-tabs__item" %}
@@ -57,6 +81,10 @@
         </a>
       </li>
     {% endif %}
+  {% elif nav_item.url.startswith(hmd_host) %}
+    <li class="{{ class }}">
+      {{ render_hmd(nav_item) }}
+    </li>
   {% else %}
     <li class="{{ class }}">
       <a href="{{ nav_item.url | url }}" class="md-tabs__link">
