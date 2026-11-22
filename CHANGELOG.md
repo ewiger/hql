@@ -8,6 +8,28 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-11-22
+
+### Added
+
+- **A Windows binary.** The release carries `hql.exe` for
+  `x86_64-pc-windows-msvc`, in a `.tar.gz` like the other targets, and every
+  change is built and tested on Windows beside Linux and macOS.
+
+### Fixed
+
+- **On Windows, a path a program reads is written with `/`.** A card's `path`
+  was joined with `\`, so
+  `cards | filter(c => c.path | starts_with("books/"))` kept no card.
+  `fs.source_dir()`, `fs.working_dir()` and `vault.root` are read the same
+  way, `C:/Users/ada/notes`, so `name`, `parent`, `stem` and `extension` find
+  their segments. A path a message names is still written as the host
+  writes it ([HQL-0063](doc/proposals/HQL-0063/index.hmd)).
+- **A drive root and a share are roots of a `Path`**, on every host:
+  `Path("C:/Users").parent()` is `some(Path("C:/"))` where it was
+  `some(Path("C:"))`, and the parent of `C:/` and of `//server/share` is
+  `none`.
+
 ## [0.7.1] — 2026-11-16
 
 ### Changed
@@ -1413,7 +1435,8 @@ graph traversal that records why each node is present.
   runnable collection queries, including intentional errors for duplicate keys
   and non-orderable sorted-map keys.
 
-[Unreleased]: https://github.com/ewiger/hql/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/ewiger/hql/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/ewiger/hql/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/ewiger/hql/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/ewiger/hql/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/ewiger/hql/compare/v0.5.2...v0.6.0

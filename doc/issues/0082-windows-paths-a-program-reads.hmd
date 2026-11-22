@@ -90,5 +90,5 @@ that holds on both.
   [[HQL-0063]] decides that `\` is not a separator, since it is a character
   of a name on Linux and macOS.
 - A card saved with CRLF line endings has not been run on Windows.
-- Nothing here is confirmed on Windows until the run on `feat/win-bin` is
-  green; this card moves to done with the release that carries `hql.exe`.
+- The tests pass on `windows-latest` on `feat/win-bin`; this card moves to
+  done with the release that carries `hql.exe`.
