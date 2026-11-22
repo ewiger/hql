@@ -1,0 +1,12 @@
+[package]
+name = "hql-sys"
+version = "0.7.2"
+description = "The operating-system calls of hql that need unsafe, behind a safe API"
+license = "MIT"
+edition = "2024"
+rust-version = "1.95"
+repository = "https://github.com/ewiger/hql"
+homepage = "https://github.com/ewiger/hql"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.189"
