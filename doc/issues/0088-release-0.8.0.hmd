@@ -78,11 +78,11 @@ Every `hql` block runs, under `cargo test --test book`.
   - A page on child processes in the I/O chapter: `command`, `run`, a
     child as an endpoint, the `commands` grant, failures and their causes,
     and Windows. The proposal's parts 01 and 03 to 07 are not in it.
-  - Chapter 24 on documents and chapter 21 on a vault, read again against
-    0084 and `location_path`.
+  - Chapter 24 on documents, read again against 0084.
   - The page on scripts, read again against what shipped.
-  - Every chapter that shows a `.hmd/config.toml`, a `wiki =` or a plain
-    `hql` cell.
+  - After Omega merges `feat/hypermarkdown-location-path`, which already
+    updates chapters 13 and 21: a pass over every other chapter that shows
+    a `.hmd/config.toml`, a `wiki =` or a plain `hql` cell.
 - **Reference.** `hql reference --check doc/public/reference` is clean.
 - **The website.** The home and install pages name 0.8.0. `mkdocs build
   --strict` passes. The site publishes under `/v0.8.0/`, and `/latest/`
