@@ -1,6 +1,7 @@
 # 0085 — HQL-0064 beyond child processes
 
 Status: todo
+Target: 0.9.0
 Related: [[HQL-0064]], [[0083-io-programs-that-never-end|issue 0083]],
 [[0086-a-framed-read-continues-under-collect|issue 0086]]
 
@@ -18,9 +19,9 @@ in the order below. Each later part uses one before it.
 | 5 | [boilerplate logging](../proposals/HQL-0064/parts/07-boilerplate-logging.hmd) | `report_to`, `measurements_to`, `supervised`, logical zombies | 2, 3 and 4 |
 | 6 | [named pipes](../proposals/HQL-0064/parts/04-named-pipes.hmd) | `fifo(name)`, `fifo(path)`, Windows named pipes | none |
 
-On Windows, part 02 also needs the graceful stop: Ctrl-Break to a console
-child and `WM_CLOSE` to a windowed one, before `TerminateJobObject`, and
-the refusal of an argument `cmd.exe` cannot read as one.
+None of these parts ship in HQL 0.8.0; they are the work of 0.9.0. The
+Windows rules part 02 still lacks are
+[[0087-windows-graceful-stop|issue 0087]], for 0.8.0.
 
 Each part is done when its examples in `examples/process/` check as
 `valid-now`, its "Design only" warning is replaced, and the changelog of
