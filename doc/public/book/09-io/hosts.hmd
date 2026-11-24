@@ -77,6 +77,10 @@ evaluation failure: ../outside.json: a document reads only files under its own d
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
+A document starts no program either. A cell that reads or writes a command
+is a type error, `a document starts no program`
+([Child processes](child-processes.hmd)).
+
 A logger is checked as the `sink` it is, so a cell logs to `cell.logs`, its
 own channel, and not to `stderr` ([[logging]]). The same program
 runs under different policies without changing its model: a terminal may
