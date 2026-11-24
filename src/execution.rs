@@ -694,6 +694,9 @@ pub(crate) enum Field {
     Key(String),
     /// A field of a declared record, by name.
     Record(String),
+    /// A field an endpoint's type declares in `lib/std/`, by name, which
+    /// [`crate::io::Endpoint::field`] answers.
+    Endpoint(String),
     Name,
     Title,
     Path,
@@ -718,22 +721,21 @@ pub(crate) enum Field {
     Cards,
     Root,
     Graph,
-    End,
     Level,
     Logger,
     Message,
     Logs,
-    Url,
-    Method,
-    Headers,
-    Host,
-    Port,
 }
 
 impl Field {
     pub fn resolve(receiver: &TypeRef, name: &str) -> Option<Self> {
         if *receiver.present() == TypeRef::DATA {
             return Some(Self::Key(name.to_owned()));
+        }
+        // An endpoint's fields are the ones its type declares in `lib/std/`.
+        if receiver.present().is(&TypeRef::ENDPOINT) {
+            return crate::library::field_type(receiver.present(), name)
+                .map(|_| Self::Endpoint(name.to_owned()));
         }
         // `Zone` and the file system's `Path`, `Folder`, `Glob` and `Entry`
         // are built-in types whose values are records, built by their
@@ -775,16 +777,10 @@ impl Field {
             "cards" => Self::Cards,
             "root" => Self::Root,
             "graph" => Self::Graph,
-            "end" => Self::End,
             "level" => Self::Level,
             "logger" => Self::Logger,
             "message" => Self::Message,
             "logs" => Self::Logs,
-            "url" => Self::Url,
-            "method" => Self::Method,
-            "headers" => Self::Headers,
-            "host" => Self::Host,
-            "port" => Self::Port,
             _ => return None,
         })
     }

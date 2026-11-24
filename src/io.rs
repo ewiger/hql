@@ -187,6 +187,36 @@ impl Endpoint {
         }
     }
 
+    /// The value of the field `name` that the endpoint's type declares in
+    /// `lib/std/`, or `None` when it declares no such field. The checker
+    /// accepts a field of an endpoint exactly when the declaration has it,
+    /// so every declared field is answered here; a test holds the two
+    /// together.
+    #[must_use]
+    pub fn field(&self, name: &str) -> Option<Value> {
+        let text = |value: &str| Value::Str(Arc::from(value));
+        Some(match (self, name) {
+            (Self::File(path) | Self::FileEnd(path), "path") => text(&path.display().to_string()),
+            (Self::File(path), "end") => Value::Endpoint(Arc::new(Self::FileEnd(path.clone()))),
+            (Self::Http { url, .. } | Self::WebSocket(url), "url") => text(url),
+            (Self::Http { method, .. }, "method") => text(method),
+            (Self::Http { headers, .. }, "headers") => Value::Data(Arc::new(Data::Map(
+                headers
+                    .iter()
+                    .map(|(name, value)| (name.clone(), Data::Str(value.clone())))
+                    .collect(),
+            ))),
+            (Self::Socket(host, _), "host") => text(host),
+            (Self::Socket(_, port), "port") => Value::Int(i64::from(*port)),
+            (Self::Command(spec), "program") => text(&spec.program),
+            (Self::Command(spec), "args") => Value::List(
+                Arc::new(spec.args.iter().map(|arg| text(arg)).collect()),
+                TypeRef::STR,
+            ),
+            _ => return None,
+        })
+    }
+
     /// The path a format is implied by: a file's, and through an age
     /// wrapper its file's without `.age`, so `orders.jsonl.age` is JSON
     /// Lines.
