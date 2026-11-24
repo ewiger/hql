@@ -48,7 +48,14 @@ announces its release and the publication of the crate.
 
 - **Upstream.** Depend on `hypermarkdown = "0.3"` when 0.3.0 is on
   crates.io. Drop the `[patch.crates-io]` table, which is for testing only,
-  and refresh `Cargo.lock`. 0.8.0 does not tag before this.
+  and refresh `Cargo.lock`. The website builds with the Python package
+  `hypermarkdown[mkdocs]` from PyPI, which runs `hmd lint` and the MkDocs
+  plugin. Its pin in `pyproject.toml` moves from `>=0.3,<0.4` to
+  `>=0.5,<0.6` when 0.5.0 is published, and `uv.lock` is refreshed. 0.5.0
+  reads `location_path` and stops the build on a config that sets `wiki`.
+  The release order: the spec 0.1.0, the crate 0.3.0, the Python package
+  0.5.0, then HQL 0.8.0. 0.8.0 does not tag before both packages are
+  published.
 - **The vault.** `location_path` defaults to `.`. A config with `wiki` is
   refused, naming both keys. Every `.hmd/config.toml` of this repository,
   of `hql-extensions` and of `hql-demo` reads `location_path`.
