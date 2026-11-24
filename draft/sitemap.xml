@@ -1657,6 +1657,34 @@
          <lastmod>2026-11-24</lastmod>
     </url>
     <url>
+         <loc>https://hql-lang.org/latest/reference/std/io/process/command/</loc>
+         <lastmod>2026-11-24</lastmod>
+    </url>
+    <url>
+         <loc>https://hql-lang.org/latest/reference/std/io/process/</loc>
+         <lastmod>2026-11-24</lastmod>
+    </url>
+    <url>
+         <loc>https://hql-lang.org/latest/reference/std/io/process/run/</loc>
+         <lastmod>2026-11-24</lastmod>
+    </url>
+    <url>
+         <loc>https://hql-lang.org/latest/reference/std/io/process/types/Command/</loc>
+         <lastmod>2026-11-24</lastmod>
+    </url>
+    <url>
+         <loc>https://hql-lang.org/latest/reference/std/io/process/types/CommandFailure/</loc>
+         <lastmod>2026-11-24</lastmod>
+    </url>
+    <url>
+         <loc>https://hql-lang.org/latest/reference/std/io/process/types/Output/</loc>
+         <lastmod>2026-11-24</lastmod>
+    </url>
+    <url>
+         <loc>https://hql-lang.org/latest/reference/std/io/process/types/Signal/</loc>
+         <lastmod>2026-11-24</lastmod>
+    </url>
+    <url>
          <loc>https://hql-lang.org/latest/reference/std/io/sink/</loc>
          <lastmod>2026-11-24</lastmod>
     </url>
