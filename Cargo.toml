@@ -85,7 +85,7 @@ futures-util = { version = "0.3.34", default-features = false, optional = true }
 getrandom = { version = "0.4", features = ["sys_rng"] }
 hql-sys = { version = "0.7.2", path = "crates/hql-sys", optional = true }
 hmac = "0.13"
-hypermarkdown = "0.2"
+hypermarkdown = "0.3"
 jiff = { version = "0.2.43", features = ["tzdb-bundle-always"] }
 jiff-tzdb = "0.1.9"
 libloading = { version = "0.8", optional = true }
@@ -136,9 +136,3 @@ getrandom = { version = "0.4", features = ["sys_rng", "wasm_js"] }
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
 # The clock is the page's `Date.now()`.
 jiff = { version = "0.2.43", features = ["tzdb-bundle-always", "js"] }
-
-# FOR TESTING ONLY. Remove before HQL releases. The hypermarkdown crate that
-# reads `location_path` is not on crates.io yet; once 0.3.0 is published, drop
-# this table and depend on `hypermarkdown = "0.3"` above.
-[patch.crates-io]
-hypermarkdown = { path = "../../hypermarkdown-prep-0.1-spec/tools/hmd-rs-core" }

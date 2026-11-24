@@ -1541,7 +1541,9 @@ dependencies = [
 
 [[package]]
 name = "hypermarkdown"
-version = "0.2.0"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c926cc3fd89af2bc4339467c12e537c726c32dc57c10733bb970b10a617c53d"
 dependencies = [
  "serde",
  "serde_yaml_ng",
