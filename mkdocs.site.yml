@@ -29,6 +29,7 @@ nav:
   # home page shows the latest.
   - Blog:
       - blog.md
+      - "HQL 0.8.0": blog/hql-0-8-0.md
       - "From Rust to English to Strange Loops": blog/ai-oriented-programming-language.md
   - Reference: /draft/reference/
   - Community: https://www.reddit.com/r/hqlang/

@@ -1,0 +1,223 @@
+---
+description: HQL 0.8.0 runs a program as a script, starts other programs and reads what they print as typed values, and reads a HyperMarkDown 0.1.0 vault. One running program for each, what breaks, and what 0.9.0 brings.
+---
+# HQL 0.8.0: scripts, child processes, HyperMarkDown 0.1.0 { .hql-post-title }
+
+<p class="hql-post-meta">24 November 2026 · Yauhen Yakimovich</p>
+
+!!! abstract "TL;DR"
+
+    - **Scripts.** A file that starts with `#!/usr/bin/env hql` runs as a
+      command. It reads its arguments with `io.env.argv()`, and its result
+      sets the exit status the shell reads.
+    - **Child processes.** `command("git", ["log"])` names a program. `source`
+      reads what it prints as values, `sink` writes to it, and `run` gives its
+      outcome as a `Result`. No shell reads the command line, and a non-zero
+      exit status is a failure.
+    - **HyperMarkDown 0.1.0.** A vault's config reads `location_path`. In a
+      document, only `hql#eval` and `hql#query` fences run; a plain `hql`
+      fence is a code listing.
+    - **Five changes break existing programs or projects.** Each has a
+      one-line fix, listed under "What breaks".
+
+HQL 0.8.0 is out. This post shows one program for each of its three
+features. Every program and every output below was run with this release.
+[Install](/install/) has the binaries.
+
+## A script
+
+A program in a file now runs as a command. The first line names `hql` as
+the interpreter, and the words after the path are the program's arguments:
+
+```hql
+#!/usr/bin/env hql
+import io.env
+
+type Book { title: String, status: String }
+
+shelf = [
+    Book(title = "Frankenstein", status = "done"),
+    Book(title = "Dune", status = "reading"),
+    Book(title = "The Hobbit", status = "todo"),
+    Book(title = "Leaves of Grass", status = "todo"),
+]
+wanted = env.argv()[0] | unwrap_or("todo")
+shelf | filter(b => b.status == wanted) | map(b => b.title) | sink(stdout, Text)
+```
+
+```text
+$ chmod +x todo.hql
+$ ./todo.hql
+The Hobbit
+Leaves of Grass
+$ ./todo.hql reading
+Dune
+```
+
+`env.argv()` is a `Seq<String>`, so `env.argv()[0]` is an `Option<String>`
+and the script supplies its default with `unwrap_or`. The script is
+type-checked before it runs, as every HQL program is.
+
+`hql todo.hql reading` runs the same file, and `hql -c '<program>'` runs
+program text, as `-c` does in Python and Bash.
+
+The exit status follows from the program's result. A program that fails to
+parse, check or evaluate exits `1`. So does a program whose result is
+`err(e)`. Any other result exits `0`:
+
+```text
+$ hql -c 'err("no book is lent")'; echo "exit $?"
+err("no book is lent")
+exit 1
+```
+
+The book has the details: [Scripts](/draft/book/09-io/scripts/).
+
+## A child process in a pipeline
+
+A **child process** is another program that an HQL program starts. This
+script counts the commits of each author in the repository it is run in:
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+source(command("git", ["log", "--format=%an"]), Lines)
+| group(by = name => name)
+| sort(by = g => g.key)
+| map(g => {author: g.key, commits: g.items | size})
+```
+
+```text
+$ ./authors.hql
+[{author: "Ada", commits: 2}, {author: "Grace", commits: 1}]
+```
+
+`command(…)` is a value and starts nothing. It is an endpoint, like a
+file: `source` starts `git`, reads its standard output to the end, waits
+for it to exit, and gives each line as a `String`. The rest is an ordinary
+pipeline.
+
+Three rules differ from what a shell script or a `subprocess` call does:
+
+- **No shell reads the command line.** `git` receives its arguments exactly
+  as written. No word is split and no `*` is expanded, so text from outside
+  the program is always one argument and never a command.
+- **A non-zero exit status is a failure.** Run outside a repository, the
+  script stops, and the diagnostic gives the child's own error as the cause:
+
+    ```text
+    $ ./authors.hql
+    fatal: not a git repository (or any of the parent directories): .git
+    execute failure[io-failure]: command `git`: failed: exited, status 128
+     --> ./authors.hql:4:1
+      |
+    4 | source(command("git", ["log", "--format=%an"]), Lines)
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      = caused by: its standard error ended with:
+                   fatal: not a git repository (or any of the parent directories): .git
+    ```
+
+- **A child does not outlive the program.** When a read stops early, a
+  `timeout_ms` passes or `hql` is interrupted, `hql` terminates the child
+  and every process the child started.
+
+A program that handles a failure uses `run`, which gives the outcome as a
+`Result`: `ok(Output)` when the child exits `0`, and `err(CommandFailure)`
+with a `reason` otherwise. `sink` and `target` write to a child's standard
+input. A project lists the programs its scripts may start with
+`commands = ["git"]` in `.hql/config.toml`.
+
+Child processes run on Linux, macOS and Windows. The book's page is
+[Child processes](/draft/book/09-io/child-processes/).
+
+## A document vault under HyperMarkDown 0.1.0
+
+HQL reads a folder of HyperMarkDown cards as a **vault**, and `hql render`
+runs the queries a document holds. 0.8.0 follows
+[HyperMarkDown](https://hypermarkdown.org/) 0.1.0 in two places.
+
+A vault's `.hmd/config.toml` states where its cards start with
+`location_path`:
+
+```toml
+location_path = "."
+```
+
+In a document, only a fence marked `hql#eval` or `hql#query` is a cell. A
+plain `hql` fence is a code listing. This is `reading-list.hmd`, in a vault
+with two book cards:
+
+````markdown
+# Reading list
+
+```hql#query id=books
+cards | filter(c => c.metadata.category == "book")
+```
+
+## Still to read
+
+```hql#eval
+books | filter(c => c.metadata.status == "todo") | map(c => c.title)
+```
+
+A listing is shown and not run:
+
+```hql
+books | size
+```
+````
+
+````text
+$ hql render reading-list.hmd
+# Reading list
+
+## Still to read
+
+- The Hobbit
+
+A listing is shown and not run:
+
+```hql
+books | size
+```
+````
+
+The `hql#query` cell ran and wrote nothing. The `hql#eval` cell read its
+value by `id` and wrote its output. The listing stayed as written. The book
+has more: [Queries inside documents](/draft/book/24-documents/).
+
+## What breaks
+
+HQL is before 1.0, and 0.8.0 makes five breaking changes.
+
+| What changed | What you see | The fix |
+| --- | --- | --- |
+| A vault config that sets `wiki` is refused | the vault is not loaded, and the message names both `wiki` and `location_path` | rename the key to `location_path` in `.hmd/config.toml` |
+| A plain `hql` fence is a code listing | `hql render` no longer runs the fence or writes its output | mark each cell `hql#eval`, or `hql#query` for a cell that writes nothing |
+| Every word after the program is the program's | `hql '<program>' --to json` passes `--to json` to the program | write options first: `hql --to json '<program>'` |
+| A result that is `err(e)` exits `1` | a script whose last value is an `err` now fails in `&&` chains and CI | handle the `err`, with `match` or `unwrap_or`, where it is not a failure |
+| `Path.join` keeps an absolute segment | `Path("/home/ada").join("/tmp")` is `/tmp`, not `/home/ada//tmp` | pass a relative segment to stay under the base |
+
+Two smaller changes are in the same release. An `hql#query` cell writes no
+output in any `--emit` mode. `--to text` writes a collection of strings as
+one string per line. The
+[changelog](https://github.com/ewiger/hql/blob/main/CHANGELOG.md) lists
+every change.
+
+## Next: 0.9.0
+
+0.9.0 continues with processes. These are planned and not in 0.8.0:
+
+- **Signals.** The program's own process id, the signals it receives, and
+  sending a signal to a process.
+- **A child's pipes wired to channels.** Reading a child's standard error
+  as values, and feeding its standard input from a channel.
+- **`parallel`.** Branches that run at the same time, for a conversation
+  with a child: one branch writes questions while another reads answers.
+- **Watchdogs.** A check that runs beside a child and terminates it when it
+  stops being healthy.
+- **Named pipes.** `fifo(name)` as an endpoint, on Unix and Windows.
+
+Questions and bug reports are welcome on
+[r/hqlang](https://www.reddit.com/r/hqlang/).
