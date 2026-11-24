@@ -1,0 +1,507 @@
+# Child processes
+
+A **child process** is another program that an HQL program starts, writes
+to, reads from and waits for. The reading club keeps its notes in a `git`
+repository and its shelf in a file, and the tools that already answer
+questions about them are programs: `git`, `sort`, `grep`. A script that
+starts one reads what it prints as values:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+source(command("printf", ["Dune\nEmma\n"]), Lines)
+```
+
+```text
+["Dune", "Emma"]
+```
+
+`command("printf", ["Dune\nEmma\n"])` names a program and its arguments.
+It is an endpoint, as `file(p)` is. `source` starts the program, reads its
+standard output to the end, waits for it to exit, and gives each line as a
+value. The other operations of `io` accept a command too: `tap` reads the
+output as it arrives, and `target` and `sink` write the child's standard
+input.
+
+What a child prints is bytes, like the content of a file. A format decodes
+it into documents, and a declared record validates them, exactly as for a
+file. A child adds one thing a file does not have: it ends with an **exit
+status**, and HQL treats every status other than `0` as a failure.
+
+The programs on this page are Unix tools. On Windows, `cmd`, `findstr` or
+PowerShell take their place, and the section "Windows" below states what
+else differs.
+
+## A command is a value
+
+`command(program, args)` builds a `Command`. Building it starts nothing:
+
+<!-- run: novault -->
+```hql
+from io.process import *
+
+log = command("git", ["log", "--format=%an"])
+[log, command("sort")]
+```
+
+```text
+[command("git", ["log", "--format=%an"]), command("sort")]
+```
+
+`io.process` is not part of the prelude. A program that uses `command`
+without importing it is rejected before it runs:
+
+<!-- run: novault -->
+```hql
+command("sort")
+```
+
+```text
+check error[unknown-name]: `command` is declared in the module `io.process`: write `from io.process import command`
+ --> <expression>:1:1
+  |
+1 | command("sort")
+  | ^^^^^^^^^^^^^^^
+```
+
+Three named arguments describe how the child runs:
+
+| Argument | Meaning | Default |
+| --- | --- | --- |
+| `dir` | the child's working directory | the directory `hql` runs in |
+| `env` | variables added to the child's environment | none |
+| `timeout_ms` | the child is terminated after this many milliseconds | `0`, no bound |
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+command("sh", ["-c", "echo $CLUB"], env = {CLUB: "readers"}).run()
+| map(o => o.stdout | trim)
+```
+
+```text
+ok("readers")
+```
+
+A `program` without `/` is looked up in `PATH`. A relative `program` with a
+`/` resolves against the folder of the source that names it, as every path
+does ([Scripts](scripts.hmd)).
+
+Each operation on a command starts the program once. Two `source` calls on
+one `Command` are two runs. Bind the result to a name when two steps need
+it.
+
+## The five operations
+
+| Operation | The child's standard input | The child's standard output | Gives |
+| --- | --- | --- | --- |
+| `source(c, F)` | closed | read to its end, decoded by `F` | `Seq<T>` |
+| `tap(c, F)` | closed | read as it arrives, decoded by `F` | `Stream<T>` |
+| `target(v, c, F)` | `v` as one document, then closed | the program's standard output | `Step` |
+| `sink(vs, c, F)` | one document for each value, then closed | the program's standard output | `Step` |
+| `c.run(input)` | `input`, then closed | captured | `Result<Output, CommandFailure>` |
+
+`source`, `target`, `sink` and `run` wait for the child to exit. `tap` does
+not: it gives each document while the child is still running.
+
+## Reading a child
+
+`source` reads everything the child writes. The format states how the bytes
+are documents, and from there the values are refined the way a file's are.
+Here a child prints JSON, one document per line, and each document is read
+as a `Book`:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+type Book { title: String, pages: Int }
+
+source(command("printf", ["{\"title\": \"Dune\", \"pages\": 412}\n"]), Json)
+| map(b => Book(b))
+| map(b => b.title)
+```
+
+```text
+["Dune"]
+```
+
+A document that does not fit the contract is an `execute error`, as it is
+for a file:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+type Book { title: String, pages: Int }
+
+source(command("printf", ["{\"title\": \"Dune\", \"pages\": \"many\"}\n"]), Json)
+| map(b => Book(b))
+```
+
+```text
+execute error[contract-violation]: this does not read as Book: field `pages`: "many" is not Int
+ --> <expression>:6:12
+  |
+6 | | map(b => Book(b))
+  |            ^^^^^^^
+  = expected: Book
+  = element: {"pages":"many","title":"Dune"}, position 1 of 1 in `map`
+  = bindings: b = {"pages":"many","title":"Dune"}
+```
+
+`tap` gives a `Stream`, so it also reads a child that never ends
+([Finite or live](finite-or-live.hmd)). `yes` prints its argument forever,
+and `take(3)` ends the read after three lines:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+tap(command("yes", ["Dune"]), Lines) | take(3)
+```
+
+```text
+["Dune", "Dune", "Dune"]
+```
+
+`yes` is still running when `take` has its three lines. `hql` terminates
+it, as the section "Lifetime" below states. A child that must finish its
+work is read with `source`.
+
+## Writing to a child
+
+`sink` writes one document to the child's standard input for each value,
+and closes it when the values end. The child's own output is not read by
+the program. It goes to the program's standard output:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+["Emma", "Dune", "Beloved"] | sink(command("sort"), Lines)
+```
+
+```text
+Beloved
+Dune
+Emma
+```
+
+The three lines were printed by `sort`. The result of `sink` is a `Step`,
+which prints nothing. `target` writes its whole input as one document and
+then closes standard input:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+["Emma", "Dune"] | target(command("tr", ["a-z", "A-Z"]), Lines)
+```
+
+```text
+EMMA
+DUNE
+```
+
+A command sits in a pipeline like any other endpoint. This one reads a
+file, keeps one field and hands the lines to `sort`:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+source(file("examples/io/sightings.jsonl"))
+| map(s => s.species)
+| sink(command("sort"), Lines)
+```
+
+```text
+barn owl
+barn owl
+kingfisher
+wren
+```
+
+!!! note "A child that reads all its input needs an input that ends"
+    `sort` prints nothing until its standard input is closed, and `sink`
+    closes it only when its values end. A `sink` to `sort` from a `tap`
+    that never ends waits forever. Give such a child a list, a `source`,
+    or a stream bounded by `take`.
+
+## `run`
+
+`run` starts the child, writes `input` to its standard input, waits, and
+gives the outcome as a `Result`. A child that exits `0` gives `ok` with an
+`Output`, the text it wrote on standard output and standard error:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+command("tr", ["a-z", "A-Z"]).run(input = "dune")
+```
+
+```text
+ok(Output(stdout = "DUNE", stderr = ""))
+```
+
+Every other end gives `err` with a `CommandFailure`:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+command("sh", ["-c", "echo no disk >&2; exit 3"]).run()
+```
+
+```text
+err(CommandFailure(command = command("sh", ["-c", "echo no disk >&2; exit 3"]), reason = "exited", status = 3, signal = none, stdout = "", stderr = "no disk\n"))
+```
+
+`Output` has no status, since an `ok` is always a child that exited `0`.
+The functions of `Result` work on the outcome
+([Handling errors](../12-errors/handling.hmd)). `and_then` starts the
+second command only when the first succeeded:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+command("printf", ["dune"]).run()
+| and_then(o => command("tr", ["a-z", "A-Z"]).run(input = o.stdout))
+| map(o => o.stdout)
+```
+
+```text
+ok("DUNE")
+```
+
+## Failures
+
+A `CommandFailure` states why the command did not succeed in its `reason`:
+
+| `reason` | The failure | Set beside it |
+| --- | --- | --- |
+| `not-found` | no program of that name, in `PATH` or at the path | |
+| `not-permitted` | the file is not executable by this user | |
+| `exited` | the child exited with a status other than `0` | `status` |
+| `signalled` | a signal ended the child | `signal` |
+| `timed-out` | `timeout_ms` passed and `hql` terminated the child | |
+| `closed` | under `target` or `sink`, the child closed its standard input before a write ended | |
+| `invalid-text` | under `run`, the child wrote bytes that are not UTF-8 | |
+
+`stdout` and `stderr` hold what the child wrote before it ended. A child
+that runs past its bound is terminated:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+command("sleep", ["30"], timeout_ms = 200).run() | map_err(e => e.reason)
+```
+
+```text
+err("timed-out")
+```
+
+Some tools use a non-zero status for an ordinary answer. `grep` exits `1`
+when no line matches. A program that expects this matches on `status`:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+match command("grep", ["-c", "heron", "examples/io/sightings.jsonl"]).run() {
+    ok(o) => o.stdout | trim,
+    err(e) given e.status == some(1) => "0",
+    err(e) => e.stderr,
+}
+```
+
+```text
+"0"
+```
+
+`source`, `tap`, `target` and `sink` give a sequence, a stream and a
+`Step`. None of them can hold a status, so a failure under them stops
+evaluation:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+source(command("sh", ["-c", "echo no disk >&2; exit 3"]), Lines)
+```
+
+```text
+no disk
+execute failure[io-failure]: command `sh`: failed: exited, status 3
+ --> <expression>:3:1
+  |
+3 | source(command("sh", ["-c", "echo no disk >&2; exit 3"]), Lines)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = caused by: its standard error ended with:
+               no disk
+```
+
+The first line is the child's own standard error, which passes through to
+the program's. The diagnostic then names the command, the reason and the
+status, and gives the last lines of the child's standard error as the
+cause. A program that handles a failure uses `run`.
+
+Either way the shell sees the failure. A program stopped by a failure
+exits `1`, and so does a program whose result is the `err` of a `run`
+([Scripts](scripts.hmd#the-exit-status)).
+
+## No shell reads the command line
+
+The child receives `program` and `args` exactly as written. No word is
+split, no `*` is expanded and no `$NAME` is replaced:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+command("echo", ["*.txt; rm -rf $HOME"]).run() | map(o => o.stdout)
+```
+
+```text
+ok("*.txt; rm -rf $HOME\n")
+```
+
+`echo` received one argument and printed it. Text that comes from outside
+the program, a file name or a user's input, is therefore always one
+argument and never a command.
+
+The program and its arguments are separate values. `command("ls *.txt")`
+names a program called `ls *.txt`, and no such program exists:
+
+<!-- run: unix novault -->
+```hql
+from io.process import *
+
+command("ls *.txt").run() | map_err(e => e.reason)
+```
+
+```text
+err("not-found")
+```
+
+A pattern of file names is expanded in HQL, with `glob`
+([Files and folders](files-and-folders.hmd)), and each match is one
+argument. A script that does need shell text names the shell as its
+program: `command("sh", ["-c", "ls *.txt"])`.
+
+## The child's environment
+
+A child inherits the environment variables the program itself may read,
+and no others. Where the project's `env` grant lists names, the child sees
+those names ([Environment and arguments](environment.hmd)). The `env`
+argument of `command` adds variables for one child.
+
+## Lifetime
+
+A child does not outlive the evaluation that started it.
+
+```d2
+direction: down
+
+value: "command(program, args)\na value, nothing runs" {style.fill: "#eef6ee"}
+grant: "commands grant\npermits or refuses the program" {style.fill: "#f6efe6"}
+start: "source, tap, target, sink or run\nstarts the child" {style.fill: "#eef6ee"}
+child: "child process\nits own process group" {style.fill: "#f6efe6"}
+ok: "exit 0\nthe values, or ok(Output)" {style.fill: "#eef6ee"}
+err: "any other end\nevaluation stops, or err(CommandFailure)" {
+  style.stroke: "#b23b3b"
+  style.stroke-dash: 3
+}
+
+value -> grant
+grant -> start
+start -> child
+child -> ok
+child -> err
+```
+
+`hql` starts each child as the leader of a new process group. Every
+process the child starts belongs to that group. `hql` terminates the whole
+group when:
+
+- `timeout_ms` passes;
+- a read ends before the child does, as under `take`;
+- evaluation ends with the child still running, on a failure;
+- `hql` itself receives `SIGINT`, `SIGTERM` or `SIGHUP`. A Ctrl-C in the
+  terminal is one of these.
+
+Termination is `SIGTERM`, then `SIGKILL` after 5 seconds. A `make` that
+`hql` terminates takes the compiler it started with it.
+
+## The `commands` grant
+
+A program that starts other programs has every right of the user who runs
+it. A project states which programs its scripts may start, in
+`.hql/config.toml`:
+
+```toml
+commands = ["git"]
+```
+
+Without the key, a run may start every program. With it, a run may start
+the programs it lists, matched against `program` as written, and no
+other:
+
+```text
+$ cat commits.hql
+from io.process import *
+
+source(command("sh", ["-c", "git log | wc -l"]), Lines)
+$ hql run commits.hql
+execute failure[io-failure]: command `sh`: the program is not in the project's `commands` grant
+ --> commits.hql:3:1
+  |
+3 | source(command("sh", ["-c", "git log | wc -l"]), Lines)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+A shell is granted like any other program. A list without `sh` or `bash`
+keeps shell text out of the project.
+
+`hql render` grants no program. A cell that names a command is rejected
+when the document is checked, before any cell runs
+([Effects and what a host allows](hosts.hmd)):
+
+```text
+check error[type-mismatch]: a document starts no program
+ --> report.hmd:5:8
+  |
+5 | source(command("printf", ["wren"]), Lines)
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = cell: 0
+```
+
+## Windows
+
+`hql` starts a child on Windows through the Win32 API. It needs no shell
+and no POSIX layer.
+
+| | Unix | Windows |
+| --- | --- | --- |
+| `program` without a path | looked up in `PATH` | the same, and `git` finds `git.exe` |
+| Arguments | passed as a list | quoted by `hql` into one command line |
+| The child and what it starts | a process group | a Job Object |
+| `signal` in a `CommandFailure` | set when a signal ended the child | never set |
+| `hql` itself is killed | after `SIGKILL`, the group keeps running | the Job Object ends every process in it |
+
+- A `program` ending in `.bat` or `.cmd` is run by `cmd.exe`, which is a
+  shell. Under a `commands` grant it starts only when the list names both
+  the file and `cmd`: `commands = ["build.bat", "cmd"]`.
+- `sort`, `find` and `timeout` are programs of Windows itself, with other
+  options than the Unix tools of the same names. `command("sort")` runs
+  `sort.exe` from `System32`. Name a program by its path to state which
+  one runs.
+
+The [reference](../../reference/std/io/process/index.hmd) states every
+type and function of `io.process`.
