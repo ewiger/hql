@@ -132,7 +132,7 @@ creates a directory.
 ```
 
 ```text
-evaluation failure: a.json: this evaluation has already replaced the file; append to `file(p).end`, or write it once
+execute failure[io-failure]: a.json: this evaluation has already replaced the file; append to `file(p).end`, or write it once
  --> <expression>:2:5
   |
 2 | 2 | target(file("a.json"))
