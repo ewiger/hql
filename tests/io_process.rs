@@ -13,7 +13,7 @@ use std::process::{Command, Output};
 /// The configuration file of a directory that is a project.
 fn project_config(dir: &Path) -> PathBuf {
     std::fs::create_dir_all(dir.join(".hmd")).unwrap();
-    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "location_path = \".\"\n").unwrap();
     std::fs::create_dir_all(dir.join(".hql")).unwrap();
     dir.join(".hql/config.toml")
 }
