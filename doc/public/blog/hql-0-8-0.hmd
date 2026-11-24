@@ -71,7 +71,7 @@ err("no book is lent")
 exit 1
 ```
 
-The book has the details: [Scripts](/draft/book/09-io/scripts/).
+The book has the details: [Scripts](/latest/book/09-io/scripts/).
 
 ## A child process in a pipeline
 
@@ -87,6 +87,9 @@ source(command("git", ["log", "--format=%an"]), Lines)
 | sort(by = g => g.key)
 | map(g => {author: g.key, commits: g.items | size})
 ```
+
+Run in a repository with three commits, two by Ada and one by Grace, it
+prints:
 
 ```text
 $ ./authors.hql
@@ -129,7 +132,7 @@ input. A project lists the programs its scripts may start with
 `commands = ["git"]` in `.hql/config.toml`.
 
 Child processes run on Linux, macOS and Windows. The book's page is
-[Child processes](/draft/book/09-io/child-processes/).
+[Child processes](/latest/book/09-io/child-processes/).
 
 ## A document vault under HyperMarkDown 0.1.0
 
@@ -185,7 +188,7 @@ books | size
 
 The `hql#query` cell ran and wrote nothing. The `hql#eval` cell read its
 value by `id` and wrote its output. The listing stayed as written. The book
-has more: [Queries inside documents](/draft/book/24-documents/).
+has more: [Queries inside documents](/latest/book/24-documents/).
 
 ## What breaks
 

@@ -16,6 +16,10 @@ hql eval '40 + 2'
 42
 ```
 
+The current release is 0.8.0, and `hql --version` prints the one you have.
+[[/blog/hql-0-8-0|The release post]] shows what is new and what to change
+when you upgrade.
+
 That's all you need. Start with [Hello world](/draft/book/01-hello-world/),
 the first chapter of the book.
 
