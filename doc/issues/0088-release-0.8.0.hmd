@@ -69,7 +69,7 @@ announces its release and the publication of the crate.
   a page reference is trimmed. A card beside a folder note of the same name
   shadows it, and that is a warning. Fix the links in `doc/`, `examples/`
   and `lib/` that break these rules (two with `:`, two with a backslash).
-- **The knowledge base.** The [[hypermarkdown]] card and `doc/stack.hmd`
+- **The knowledge base.** The [[wiki/hypermarkdown|hypermarkdown]] card and `doc/stack.hmd`
   name HyperMarkDown 0.1.0 and the crate's version.
 - **Downstream.** Rebuild `hql-ext-ml` against 0.8.0. The VS Code
   extension needs no change: `maskForHql` in `@hypermarkdown/core` stays.
