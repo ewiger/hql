@@ -821,6 +821,76 @@ mod tests {
         assert!(records().is_some());
     }
 
+    /// One endpoint of each type that declares fields.
+    fn endpoint_samples() -> Vec<crate::io::Endpoint> {
+        use crate::io::{CommandSpec, Endpoint};
+        use std::collections::BTreeMap;
+        use std::path::PathBuf;
+        vec![
+            Endpoint::File(PathBuf::from("books.txt")),
+            Endpoint::FileEnd(PathBuf::from("books.txt")),
+            Endpoint::Http {
+                url: "https://example.org/".to_owned(),
+                method: "GET".to_owned(),
+                headers: BTreeMap::from([("Accept".to_owned(), "text/plain".to_owned())]),
+                timeout: std::time::Duration::from_secs(1),
+            },
+            Endpoint::WebSocket("wss://example.org/".to_owned()),
+            Endpoint::Socket("localhost".to_owned(), 4222),
+            Endpoint::Command(Box::new(CommandSpec {
+                program: "git".to_owned(),
+                executable: PathBuf::from("git"),
+                args: vec!["log".to_owned()],
+                dir: None,
+                env: BTreeMap::new(),
+                timeout: None,
+            })),
+        ]
+    }
+
+    /// Every field an endpoint's type declares in `lib/std/` is read from an
+    /// endpoint of that type, with a value of the declared type. A field
+    /// declared and not answered by `Endpoint::field` fails here, and so does
+    /// an endpoint type with fields that has no sample above.
+    #[test]
+    fn every_declared_endpoint_field_is_read() {
+        let samples = endpoint_samples();
+        let mut checked = 0;
+        for (name, record) in records().unwrap() {
+            if record.fields.is_empty() {
+                continue;
+            }
+            let Some(ty) = crate::types::builtin::constructor(name).map(|c| c.apply([])) else {
+                continue;
+            };
+            if !ty.is(&TypeRef::ENDPOINT) {
+                continue;
+            }
+            let sample = samples
+                .iter()
+                .find(|sample| sample.type_of() == ty)
+                .unwrap_or_else(|| panic!("no sample endpoint of `{name}`, which declares fields"));
+            for declared in &record.fields {
+                let expected = field_type(&ty, &declared.name).unwrap();
+                let value = sample.field(&declared.name).unwrap_or_else(|| {
+                    panic!(
+                        "`{name}.{}` is declared, and the endpoint has no value for it",
+                        declared.name
+                    )
+                });
+                assert!(
+                    value.type_of().is(&expected),
+                    "`{name}.{}` is declared {expected}, and is {}",
+                    declared.name,
+                    value.type_of()
+                );
+                checked += 1;
+            }
+        }
+        // `File`, `FileEnd`, `Http`, `WebSocket`, `Tcp` and `Command`.
+        assert!(checked >= 11, "only {checked} fields checked");
+    }
+
     #[test]
     fn the_hmd_package_follows_the_standard_one_and_names_its_modules() {
         assert_eq!(&MODULES[..STD.len()], STD);
