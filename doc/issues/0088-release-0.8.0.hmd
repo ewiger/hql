@@ -1,0 +1,124 @@
+# 0088 — Release 0.8.0: scripts, child processes, HyperMarkDown 0.1.0
+
+Status: todo
+Target: 0.8.0
+Related: [kanban.yaml](kanban.yaml), [CHANGELOG](../../CHANGELOG.md),
+[[0072-release-0.6.0|the 0.6.0 release]],
+[[HQL-0062]], [[HQL-0064]],
+[[0084-a-plain-hql-fence-is-a-listing|0084]],
+[[0086-a-framed-read-continues-under-collect|0086]],
+[[0087-windows-graceful-stop|0087]],
+[[0085-hql-0064-beyond-child-processes|0085]] (0.9.0)
+
+0.7.2 is the last tag. 0.8.0 is a minor release that ships a lot:
+
+- **HQL is a script language** ([[HQL-0062]]): `#!`, `hql FILE`, `-c`,
+  `io.env.argv()`, and the exit status of a result. On `main`.
+- **Child processes** ([[HQL-0064]], its companion note on child
+  processes): `command`, `run`, a child as `source`, `tap`, `target` and
+  `sink`, process groups, Job Objects on Windows, and diagnostics that
+  carry their causes. Pull request #22, with 0087 and 0086.
+- **HyperMarkDown 0.1.0.** A vault reads `location_path`, not `wiki`, and a
+  config that still sets `wiki` is refused. A plain `hql` fence is a code
+  listing and `hql#query` is `hql#eval hidden` (0084, on `main`).
+
+The rest of [[HQL-0064]], its parts 01 and 03 to 07, is 0.9.0's work
+(0085).
+
+The work splits between two sessions. **Omega** owns the code, the
+HyperMarkDown alignment and the release itself. **Lambda** owns the
+paperwork: the changelog, the book, the website and the release post.
+
+## Code (Omega)
+
+1. Review `crates/hql-sys` and the process lifetime in `src/process.rs`,
+   then merge pull request #22.
+2. 0087: on Windows, a graceful stop before `TerminateJobObject`, and the
+   `cmd.exe` argument refusal.
+3. 0086: under `collect`, a framed read steps past a record that does not
+   decode.
+4. `Command` declares the fields `program` and `args` in
+   `lib/std/io/process/mod.hql`, and the checker does not know them:
+   `command("date").program` is `check error[unknown-field]`. `Http`'s
+   fields, declared the same way, check. Found by Lambda while writing the
+   child-processes page.
+5. Rebase `feat/hypermarkdown-location-path` (Carol's, verified at
+   `073584e4`) onto `main` after #22, and merge it.
+
+## HyperMarkDown 0.1.0 alignment (Omega)
+
+The specification is `doc/wiki/hmd-lang-spec.hmd` on the branch
+`feature/prep-0.1-spec` of the HyperMarkDown repository. Alice's session
+announces its release and the publication of the crate.
+
+- **Upstream.** Depend on `hypermarkdown = "0.3"` when 0.3.0 is on
+  crates.io. Drop the `[patch.crates-io]` table, which is for testing only,
+  and refresh `Cargo.lock`. The website builds with the Python package
+  `hypermarkdown[mkdocs]` from PyPI, which runs `hmd lint` and the MkDocs
+  plugin. Its pin in `pyproject.toml` moves from `>=0.3,<0.4` to
+  `>=0.5,<0.6` when 0.5.0 is published, and `uv.lock` is refreshed. 0.5.0
+  reads `location_path` and stops the build on a config that sets `wiki`.
+  The release order: the spec 0.1.0, the crate 0.3.0, the Python package
+  0.5.0, then HQL 0.8.0. 0.8.0 does not tag before both packages are
+  published.
+- **The vault.** `location_path` defaults to `.`. A config with `wiki` is
+  refused, naming both keys. Every `.hmd/config.toml` of this repository,
+  of `hql-extensions` and of `hql-demo` reads `location_path`.
+- **Wikilinks.** `:` is reserved, a backslash is malformed, `.` and `..`
+  appear only in `./` and `../` references, an unclosed `[[` is text, and
+  a page reference is trimmed. A card beside a folder note of the same name
+  shadows it, and that is a warning. Fix the links in `doc/`, `examples/`
+  and `lib/` that break these rules (two with `:`, two with a backslash).
+- **The knowledge base.** The [[hypermarkdown]] card and `doc/stack.hmd`
+  name HyperMarkDown 0.1.0 and the crate's version.
+- **Downstream.** Rebuild `hql-ext-ml` against 0.8.0. The VS Code
+  extension needs no change: `maskForHql` in `@hypermarkdown/core` stays.
+  After the tag, tell Alice's session, so it re-renders its status views
+  with the new `hql`.
+
+## Paperwork (Lambda)
+
+Every page follows the book's style guide and
+[[0019-documentation-precision|documentation states semantics]].
+Every `hql` block runs, under `cargo test --test book`.
+
+- **Changelog.** Turn Unreleased into `[0.8.0]`, dated on the day of the
+  tag. Open it with a **Breaking** list: a config that sets `wiki`, a plain
+  `hql` fence, an option after the program, a result `err(e)` that exits
+  `1`, `Path.join` with an absolute segment.
+- **The book.**
+  - A page on child processes in the I/O chapter: `command`, `run`, a
+    child as an endpoint, the `commands` grant, failures and their causes,
+    and Windows. The proposal's parts 01 and 03 to 07 are not in it.
+  - Chapter 24 on documents, read again against 0084.
+  - The page on scripts, read again against what shipped.
+  - After Omega merges `feat/hypermarkdown-location-path`, which already
+    updates chapters 13 and 21: a pass over every other chapter that shows
+    a `.hmd/config.toml`, a `wiki =` or a plain `hql` cell.
+- **Reference.** `hql reference --check doc/public/reference` is clean.
+- **The website.** The home and install pages name 0.8.0. `mkdocs build
+  --strict` passes. The site publishes under `/v0.8.0/`, and `/latest/`
+  points at it.
+- **The release post.** A post in `doc/public/blog/`, listed first in its
+  index. It covers what 0.8.0 lets a user do, with one running program
+  for each feature: a script, a child process in a pipeline, a document
+  vault under HyperMarkDown 0.1.0. It says what breaks and how to fix it,
+  and what 0.9.0 brings (0085).
+- **Status.** Re-render `doc/status/` and fix its index's links to
+  `inconsistencies.md` and `consolidation.md`, neither of which exists.
+
+## Done when
+
+- `cargo build`, `cargo test`, `cargo fmt --check` and
+  `cargo clippy -D warnings` are clean, and CI passes on Linux, macOS and
+  Windows.
+- `Cargo.toml` says `version = "0.8.0"` and `hypermarkdown = "0.3"`, with
+  no `[patch]` table.
+- `uv run hmd lint --root doc/public` and `mkdocs build --strict` are
+  clean.
+- The changelog, the book, the reference, the website and the post are
+  merged.
+- `v0.8.0` is tagged, and the release workflow has published the binaries,
+  the crate and the site.
+- 0084, 0086, 0087 and this issue are archived. 0085 stays on the board,
+  for 0.9.0.
