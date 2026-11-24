@@ -5,4 +5,4 @@
 # each cell's code is one click away. Lint it with
 #   hmd lint --root examples/notebook
 
-wiki = "."
+location_path = "."

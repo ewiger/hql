@@ -1,3 +1,3 @@
-# A vault whose cards start below its root: `wiki` names doc/wiki, so
+# A vault whose cards start below its root: `location_path` names doc/wiki, so
 # README.md beside .hmd/ is not a card.
-wiki = "doc/wiki"
+location_path = "doc/wiki"

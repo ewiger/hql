@@ -136,3 +136,9 @@ getrandom = { version = "0.4", features = ["sys_rng", "wasm_js"] }
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
 # The clock is the page's `Date.now()`.
 jiff = { version = "0.2.43", features = ["tzdb-bundle-always", "js"] }
+
+# FOR TESTING ONLY. Remove before HQL releases. The hypermarkdown crate that
+# reads `location_path` is not on crates.io yet; once 0.3.0 is published, drop
+# this table and depend on `hypermarkdown = "0.3"` above.
+[patch.crates-io]
+hypermarkdown = { path = "../../hypermarkdown-prep-0.1-spec/tools/hmd-rs-core" }
