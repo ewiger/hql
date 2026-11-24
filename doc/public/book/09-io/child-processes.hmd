@@ -492,9 +492,12 @@ and no POSIX layer.
 | `program` without a path | looked up in `PATH` | the same, and `git` finds `git.exe` |
 | Arguments | passed as a list | quoted by `hql` into one command line |
 | The child and what it starts | a process group | a Job Object |
+| A child that `hql` terminates | `SIGTERM`, then `SIGKILL` after 5 seconds | ended at once, with every process in the job |
 | `signal` in a `CommandFailure` | set when a signal ended the child | never set |
 | `hql` itself is killed | after `SIGKILL`, the group keeps running | the Job Object ends every process in it |
 
+- On Windows a child that `hql` terminates is ended at once. It receives
+  no request to stop first, so it cannot save its work or clean up.
 - A `program` ending in `.bat` or `.cmd` is run by `cmd.exe`, which is a
   shell. Under a `commands` grant it starts only when the list names both
   the file and `cmd`: `commands = ["build.bat", "cmd"]`.
