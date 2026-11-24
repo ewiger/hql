@@ -585,7 +585,11 @@ fn a_nested_vault_is_not_part_of_the_vault_around_it() {
     std::fs::create_dir_all(outer.join(".hmd")).unwrap();
     std::fs::write(outer.join(".hmd/config.toml"), "location_path = \".\"\n").unwrap();
     std::fs::create_dir_all(outer.join("site/.hmd")).unwrap();
-    std::fs::write(outer.join("site/.hmd/config.toml"), "location_path = \".\"\n").unwrap();
+    std::fs::write(
+        outer.join("site/.hmd/config.toml"),
+        "location_path = \".\"\n",
+    )
+    .unwrap();
     std::fs::create_dir_all(outer.join("site/learn")).unwrap();
     std::fs::create_dir_all(outer.join("wiki")).unwrap();
     std::fs::write(outer.join("wiki/time.hmd"), "# Time").unwrap();
@@ -613,7 +617,11 @@ fn the_cards_start_where_location_path_says_and_their_paths_are_relative_to_it()
     let root = tempfile::tempdir().unwrap();
     let vault = root.path();
     std::fs::create_dir_all(vault.join(".hmd")).unwrap();
-    std::fs::write(vault.join(".hmd/config.toml"), "location_path = \"doc/wiki\"\n").unwrap();
+    std::fs::write(
+        vault.join(".hmd/config.toml"),
+        "location_path = \"doc/wiki\"\n",
+    )
+    .unwrap();
     std::fs::create_dir_all(vault.join("doc/wiki/birds")).unwrap();
     std::fs::write(vault.join("README.md"), "# Readme").unwrap();
     std::fs::write(vault.join("doc/wiki/birds/owl.hmd"), "# Owl").unwrap();
@@ -672,7 +680,11 @@ fn a_vault_that_still_sets_wiki_is_refused_naming_location_path() {
 fn written(files: &[(&str, &str)]) -> tempfile::TempDir {
     let root = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(root.path().join(".hmd")).unwrap();
-    std::fs::write(root.path().join(".hmd/config.toml"), "location_path = \".\"\n").unwrap();
+    std::fs::write(
+        root.path().join(".hmd/config.toml"),
+        "location_path = \".\"\n",
+    )
+    .unwrap();
     for (path, text) in files {
         let path = root.path().join(path);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
