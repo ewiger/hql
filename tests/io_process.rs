@@ -74,6 +74,21 @@ const RAN: &str =
     r#"match command("printf", ["wren"]).run() { ok(o) => o.stdout, err(e) => e.reason }"#;
 
 #[test]
+fn a_command_has_the_fields_its_type_declares() {
+    // Reading the fields starts nothing, so the program need not exist.
+    let output = standalone(
+        &[],
+        r#"c = command("no-such-program", ["--format", "%an"])
+{program: c.program, args: c.args}"#,
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output).trim_end(),
+        r#"{args: ["--format", "%an"], program: "no-such-program"}"#
+    );
+}
+
+#[test]
 fn a_run_on_its_own_grants_every_program() {
     let output = standalone(&[], RAN);
     assert!(output.status.success(), "{}", stderr(&output));
