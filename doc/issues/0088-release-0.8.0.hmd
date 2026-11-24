@@ -37,7 +37,12 @@ paperwork: the changelog, the book, the website and the release post.
    `cmd.exe` argument refusal.
 3. 0086: under `collect`, a framed read steps past a record that does not
    decode.
-4. Rebase `feat/hypermarkdown-location-path` (Carol's, verified at
+4. `Command` declares the fields `program` and `args` in
+   `lib/std/io/process/mod.hql`, and the checker does not know them:
+   `command("date").program` is `check error[unknown-field]`. `Http`'s
+   fields, declared the same way, check. Found by Lambda while writing the
+   child-processes page.
+5. Rebase `feat/hypermarkdown-location-path` (Carol's, verified at
    `073584e4`) onto `main` after #22, and merge it.
 
 ## HyperMarkDown 0.1.0 alignment (Omega)
