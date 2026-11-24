@@ -6,7 +6,9 @@
 //! `<!-- run: skip -->` leaves it unrun;
 //! `<!-- run: [check] [with A,B] [ARGS…] -->` runs `hql check` instead of
 //! `eval`, prefixes the named blocks, and replaces the default arguments,
-//! `--vault examples/reading-club` (`novault` runs with none).
+//! `--vault examples/reading-club` (`novault` runs with none);
+//! `<!-- run: unix [the words above] -->` runs the block on Unix only: it
+//! names a Unix program, so on Windows it is neither run nor compared.
 //! A block inside a four-backtick fence is an example document, not a program.
 
 use std::collections::HashMap;
@@ -79,12 +81,31 @@ fn blocks(text: &str, defined: &mut HashMap<String, String>) -> Vec<Block> {
     found
 }
 
+/// Where `unix` is among a directive's own words, those before `--`.
+fn unix_word(words: &[&str]) -> Option<usize> {
+    words
+        .iter()
+        .take_while(|word| **word != "--")
+        .position(|word| *word == "unix")
+}
+
+/// Whether the block runs on Unix only.
+fn unix_only(block: &Block) -> bool {
+    block
+        .directive
+        .as_deref()
+        .is_some_and(|d| unix_word(&d.split_whitespace().collect::<Vec<_>>()).is_some())
+}
+
 fn run(block: &Block, defined: &HashMap<String, String>) -> String {
     let mut words: Vec<&str> = block
         .directive
         .as_deref()
         .map(|d| d.split_whitespace().collect())
         .unwrap_or_default();
+    if let Some(at) = unix_word(&words) {
+        words.remove(at);
+    }
     let mut command = "eval";
     if words.first() == Some(&"check") {
         command = "check";
@@ -188,6 +209,9 @@ fn every_program_in_the_book_writes_what_the_book_shows() {
         let mut defined = HashMap::new();
         for block in blocks(&text, &mut defined) {
             if block.directive.as_deref() == Some("skip") {
+                continue;
+            }
+            if cfg!(windows) && unix_only(&block) {
                 continue;
             }
             let written = run(&block, &defined);
