@@ -43,18 +43,19 @@ document is checked, before any cell runs:
 ````markdown
 # Report
 
-```hql
+```hql#eval
 [1] | target(file("out.json"))
 ```
 ````
 
 ```text
 $ hql render report.hmd
-type error: a document writes nothing outside itself, so `target` and `sink` are refused here
+check error[type-mismatch]: a document writes nothing outside itself, so `target` and `sink` are refused here
  --> report.hmd:4:7
   |
 4 | [1] | target(file("out.json"))
   |       ^^^^^^^^^^^^^^^^^^^^^^^^
+  = cell: 0
 ```
 
 A network endpoint in a document is a type error in the same way, and a file
@@ -62,19 +63,21 @@ read that leaves the document's directory, by `..` or through a symbolic
 link, is an evaluation failure naming the path:
 
 ```text
-type error: a document reads and writes nothing on the network
+check error[type-mismatch]: a document reads and writes nothing on the network
  --> net.hmd:5:8
   |
 5 | source(http("https://example.com/x"), Json)
   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = cell: 0
 ```
 
 ```text
-evaluation failure: ../outside.json: a document reads only files under its own directory
+execute failure[io-failure]: ../outside.json: a document reads only files under its own directory
  --> outside.hmd:4:1
   |
 4 | source(file("../outside.json"))
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = cell: 0
 ```
 
 A document starts no program either. A cell that reads or writes a command
