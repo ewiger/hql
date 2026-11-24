@@ -1,0 +1,13 @@
+<!-- hql reference: std/io/process.Command -->
+# `Command`
+
+In [`std/io/process`](../index.hmd).
+
+```hql
+type Command : {Replayable, Writable} { program : String args : List<String> }
+```
+
+A program to run, with its arguments. Read, it is the child's standard
+output; written, its standard input. Each read or write starts the
+program once, as each read of an `Http` endpoint is one request.
+<!-- hql reference: end -->

@@ -418,14 +418,47 @@ pub struct Context {
     pub bindings: BTreeMap<String, serde_json::Value>,
     /// How evaluation reached it, outermost first.
     pub trace: Vec<Frame>,
+    /// What led to it, nearest first: the failures below the one the
+    /// message states, as the program, the library or the system that
+    /// failed gave them.
+    pub causes: Vec<String>,
     /// Where the data came from.
     pub source: Option<Provenance>,
     /// For a contract read, what `validate` would have given.
     pub violations: Vec<serde_json::Value>,
 }
 
+/// What separates a failure's message from its causes in the text an
+/// operation outside the program fails with: a reader, a writer, a child.
+/// Prefixing the text with context keeps the causes at its end, so
+/// [`Diagnostic::new`] parts them however far the text travelled.
+pub(crate) const CAUSE: char = '\u{1f}';
+
+/// `message`, with `cause` as the failure that led to it.
+pub(crate) fn caused(message: impl Into<String>, cause: &str) -> String {
+    let mut message = message.into();
+    message.push(CAUSE);
+    message.push_str(cause);
+    message
+}
+
+/// `message`, with each error below `error` in its chain of sources as a
+/// cause, nearest first.
+pub(crate) fn caused_by_sources(
+    mut message: String,
+    error: &(dyn std::error::Error + 'static),
+) -> String {
+    let mut below = error.source();
+    while let Some(current) = below {
+        message = caused(message, &current.to_string());
+        below = current.source();
+    }
+    message
+}
+
 impl Diagnostic {
-    /// A diagnostic with its four axes and nothing else.
+    /// A diagnostic with its four axes and nothing else. Causes the
+    /// message carries, by [`caused`], become its `causes`.
     #[must_use]
     pub fn new(
         phase: Phase,
@@ -435,15 +468,25 @@ impl Diagnostic {
         span: Range<usize>,
         message: impl Into<String>,
     ) -> Self {
+        let message = message.into();
+        let mut parts = message.split(CAUSE);
+        let stated = parts.next().unwrap_or_default().to_owned();
+        let causes: Vec<String> = parts
+            .filter(|cause| !cause.is_empty())
+            .map(str::to_owned)
+            .collect();
         Self {
             phase,
             kind,
             severity,
             disposition,
-            message: message.into(),
+            message: stated,
             origin: None,
             span,
-            context: Box::default(),
+            context: Box::new(Context {
+                causes,
+                ..Context::default()
+            }),
         }
     }
 
@@ -762,6 +805,9 @@ impl Diagnostic {
                 })
                 .collect();
         }
+        if !self.context.causes.is_empty() {
+            entry["causes"] = self.context.causes.clone().into();
+        }
         if let Some(source) = &self.context.source {
             let mut written = serde_json::json!({ "path": source.path });
             if let Some(line) = source.line {
@@ -880,6 +926,10 @@ impl Diagnostic {
                 element: frame.get("element").cloned(),
             })
             .collect();
+        context.causes = list("causes")
+            .iter()
+            .filter_map(|cause| cause.as_str().map(str::to_owned))
+            .collect();
         context.source = field("source").map(|source| Provenance {
             path: text_in(source, "path").unwrap_or_default().to_owned(),
             line: count_in(source, "line"),
@@ -953,6 +1003,23 @@ mod tests {
             .called_from("share", 0..3);
         assert_eq!(Diagnostic::from_json(&written.to_json()), Ok(written));
         assert!(Diagnostic::from_json(&serde_json::json!({"phase": "lunch"})).is_err());
+        let caused = Diagnostic::io_failure(0..1, caused(caused("read failed", "a"), "b"));
+        assert_eq!(Diagnostic::from_json(&caused.to_json()), Ok(caused));
+    }
+
+    #[test]
+    fn the_causes_a_message_carries_are_parted_from_it_nearest_first() {
+        let message = caused(
+            caused("command `sh` failed", "the pipe broke"),
+            "the disk is full",
+        );
+        let diagnostic = Diagnostic::io_failure(0..1, format!("reading: {message}"));
+        assert_eq!(diagnostic.message, "reading: command `sh` failed");
+        assert_eq!(
+            diagnostic.context.causes,
+            vec!["the pipe broke".to_owned(), "the disk is full".to_owned()]
+        );
+        assert!(Diagnostic::runtime(0..1, "plain").context.causes.is_empty());
     }
 
     #[test]

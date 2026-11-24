@@ -1,0 +1,91 @@
+# HQL-0064: Processes: `io.process`, child processes, pipes, `parallel` and watchdogs
+
+**Status**: implemented in part
+**Created**: 2026-11-22
+**Source**: design discussion of 2026-11-22 on [[HQL-0062]]: a script that
+reads its arguments and reports an exit status also needs to start other
+programs, talk to them and run two things at once
+
+!!! note "Implemented in part"
+    The companion note [child processes](parts/02-child-processes.hmd) is
+    implemented on Linux, macOS and Windows. Every other part is a design
+    direction, and carries its own "Design only" warning.
+
+## Abstract
+
+A script is a Unix process. [[HQL-0062]] makes an HQL file runnable as one
+and gives it its arguments and its exit status. This proposal gives it the
+rest of the process model: its identifier and its signals, in a module
+`io.process`; child processes, as an endpoint `command(program, args)` read
+and written by `source`, `tap`, `target` and `sink`; named pipes, as an
+endpoint `fifo(name)` of `io.fs`; the keyword `parallel`, which runs
+branches at the same time and joins them; and watchdogs, which ask a child
+a question at an interval.
+
+Every operation follows the rules of the note
+[pure and effectful](../HQL-0062/parts/01-pure-and-effectful.hmd) of
+[[HQL-0062]]: an effect is declared `effectful`, returns an ordinary value,
+gives a handleable failure as a `Result`, and never ends the process.
+
+## Motivation
+
+- A script cannot run another program. A shell pipeline can call `git`,
+  `kubectl` or `sort`; an HQL script can only be one stage of such a
+  pipeline, fed by a shell around it.
+- A script cannot stop cleanly on `SIGTERM`, and cannot signal another
+  process.
+- A script cannot read a named pipe: `File` is `Replayable`, and a pipe is
+  not.
+- HQL evaluates statements in order. A program that writes to a child while
+  it reads the child's answers has no way to say so.
+- A child that is running and no longer answers cannot be told from one that
+  works. In ETL this is the common fault: a stage that consumes a streaming
+  queue never ends by design, so only its measurements show that it has
+  hung or stopped giving output.
+
+## The parts
+
+| Part | Defines |
+| --- | --- |
+| [`io.process`](parts/01-io-process.hmd) | the Unix process model against HQL, the module `io.process`, `Signal`, `signals` and `send`, the `process` grant, and signals on Windows |
+| [child processes](parts/02-child-processes.hmd) | `command` against Python's `subprocess`, Haskell's `System.Process` and Rust's `Command`; the five operations; a child's three pipes; failures; text that is not UTF-8; process groups and lifetime; the `commands` grant; Windows, its Job Objects and `crates/hql-sys`; a side note on handling a failed command, where the result and the status are, and what makes a command a different endpoint |
+| [advanced child processes](parts/03-advanced-child-processes.hmd) | a child's pipes wired to channels: `stdin_from`, `stdout_to`, `stderr_to`, and `command(…).stderr` |
+| [named pipes](parts/04-named-pipes.hmd) | `fifo(name)` and `fifo(path)` in `io.fs`, a named pipe handed to a child, and Windows named pipes |
+| [`parallel`](parts/05-parallel.hmd) | the keyword `parallel`: the block, the step, `join = any`, branches against children, and how it runs |
+| [watchdogs](parts/06-watchdog.hmd) | `Watchdog`, a question asked of a child or a block at an interval; a side note on `io.process.monitoring`, measurements, idle and reports |
+| [boilerplate logging](parts/07-boilerplate-logging.hmd) | the use case, an unhealthy consumer of a streaming queue; who takes a `Measurement` and how it reaches a watchdog; children's standard error, reports and measurements in channels; the wiring written once; logical zombies, certain as `deadlock` and suspected as idle |
+| [I/O FAQ](parts/faq.hmd) | the programs that hang, fail or surprise under these rules, those that read as a mistake and are correct, and those that behave differently on Windows |
+
+## Relation to other proposals
+
+- [[HQL-0062]] keeps `#!`, `hql FILE`, positional arguments, `io.env.argv()`
+  and the exit status. `argv` stays in `io.env`, beside `arg` and `args`.
+- [[HQL-0055]] states which effects are ordered and which rewrites a planner
+  may make. `parallel` changes one rule: effects of two branches are
+  unordered.
+- [[HQL-0033]]: a non-zero exit status of a child is an `err` under `run`.
+- [[HQL-0059]] holds the configuration keys that the grants `process` and
+  `commands` would add.
+- [[0083-io-programs-that-never-end|Issue 0083]] collects every way an I/O
+  program can wait without end.
+
+## Changelog
+
+- 2026-11-22: drafted, from the companion notes of [[HQL-0062]]
+- 2026-11-22: implemented in part: the companion note
+  [child processes](parts/02-child-processes.hmd) on Unix, with the
+  `commands` grant and `[command_output] invalid_utf8`, and the crate
+  `hql-sys`. Not yet: `io.process` signals, channels wired to a child's
+  pipes, named pipes, `parallel`, watchdogs, and the Windows Job Object; on
+  Windows a child's `timeout_ms` is not yet enforced
+- 2026-11-22: child processes on every platform. A signal that ends `hql`
+  ends its children first, and `hql` then ends by that signal. On Windows
+  each child runs in a Job Object, so `timeout_ms` and a stream not read
+  to its end end it and what it started. A failure's diagnostic carries
+  the child's standard error as its cause. Not yet: the parts
+  [`io.process`](parts/01-io-process.hmd), [advanced child
+  processes](parts/03-advanced-child-processes.hmd), [named
+  pipes](parts/04-named-pipes.hmd), [`parallel`](parts/05-parallel.hmd),
+  [watchdogs](parts/06-watchdog.hmd) and [boilerplate
+  logging](parts/07-boilerplate-logging.hmd); on Windows the graceful stop
+  by Ctrl-Break and `WM_CLOSE`

@@ -49,6 +49,9 @@ pub enum Endpoint {
     WebSocket(String),
     /// A TCP connection, carrying documents as their format separates them.
     Socket(String, u16),
+    /// A program to run as a child process (HQL-0064): read, its standard
+    /// output; written, its standard input. Each use starts it once.
+    Command(Box<CommandSpec>),
     /// One table of an SQLite database file: one row per element.
     Sqlite {
         /// The database file, as the program wrote it.
@@ -130,6 +133,27 @@ pub enum Endpoint {
     },
 }
 
+/// A program and how to run it, as `command(program, args, …)` built it.
+/// Every path in it is resolved where the command was constructed, so a
+/// child is started the same from any thread.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandSpec {
+    /// The program as the program wrote it: what the `commands` grant
+    /// matches and a failure names.
+    pub program: String,
+    /// What is executed: `program` itself when it holds no `/`, to be
+    /// looked up in `PATH`, and otherwise the path it names, resolved.
+    pub executable: PathBuf,
+    /// The arguments, each passed as written.
+    pub args: Vec<String>,
+    /// The child's working directory; this process's own when `None`.
+    pub dir: Option<PathBuf>,
+    /// Variables added to the environment the child inherits.
+    pub env: BTreeMap<String, String>,
+    /// How long the child may run before it is terminated.
+    pub timeout: Option<Duration>,
+}
+
 impl Endpoint {
     /// The endpoint's type.
     #[must_use]
@@ -144,6 +168,7 @@ impl Endpoint {
             Self::Http { .. } => TypeRef::HTTP,
             Self::WebSocket(_) => TypeRef::WEB_SOCKET,
             Self::Socket(..) => TypeRef::SOCKET,
+            Self::Command(_) => TypeRef::COMMAND,
             Self::Sqlite { .. } => TypeRef::SQLITE,
             Self::Postgres { .. } => TypeRef::POSTGRES,
             Self::Spark { .. } => TypeRef::SPARK,
@@ -212,6 +237,7 @@ impl Endpoint {
             Self::Channel(name, _) => format!("channel {name:?}"),
             Self::Http { url, .. } | Self::WebSocket(url) => url.clone(),
             Self::Socket(host, port) => format!("{host}:{port}"),
+            Self::Command(spec) => format!("command `{}`", spec.program),
             Self::Sqlite { path, table, .. } => {
                 format!("table `{table}` of {}", path.display())
             }
@@ -264,6 +290,15 @@ impl fmt::Display for Endpoint {
             }
             Self::WebSocket(url) => write!(f, "websocket({url:?})"),
             Self::Socket(host, port) => write!(f, "tcp({host:?}, {port})"),
+            Self::Command(spec) => {
+                write!(f, "command({:?}", spec.program)?;
+                if !spec.args.is_empty() {
+                    let args: Vec<String> =
+                        spec.args.iter().map(|arg| format!("{arg:?}")).collect();
+                    write!(f, ", [{}]", args.join(", "))?;
+                }
+                f.write_str(")")
+            }
             Self::Sqlite { path, table, order } => {
                 write!(
                     f,
@@ -718,7 +753,7 @@ pub(crate) fn source_directory() -> PathBuf {
 
 /// A path as the host reads it: relative to the source directory of the
 /// unit naming it.
-fn resolved(path: &Path) -> PathBuf {
+pub(crate) fn resolved(path: &Path) -> PathBuf {
     if path.is_absolute() {
         return path.to_path_buf();
     }
@@ -1032,6 +1067,11 @@ fn pieces(reader: Box<dyn Read + Send>, format: TypeConstructor, origin: String)
                 .into_iter::<serde_json::Value>()
                 .map(move |document| {
                     document.map(tree).map_err(|error| {
+                        // The reader failed, not the text: its failure is
+                        // given as it is.
+                        if error.is_io() {
+                            return located(std::io::Error::from(error).to_string());
+                        }
                         located(format!(
                             "not JSON at line {}, column {}: {error}",
                             error.line(),
@@ -1267,8 +1307,23 @@ pub(crate) fn read_all(endpoint: &Endpoint, format: TypeConstructor) -> Result<V
         Endpoint::Decrypted { inner, identity } => {
             pieces(open_decrypted(inner, identity)?, format, inner.describe()).collect()
         }
+        Endpoint::Command(spec) => {
+            pieces(command_output(spec)?, format, endpoint.describe()).collect()
+        }
         other => Err(format!("{} is not read as a whole", other.describe())),
     }
+}
+
+/// A started child's standard output, its text that is not UTF-8 replaced
+/// where `invalid_utf8` says so (HQL-0064).
+fn command_output(spec: &CommandSpec) -> Result<Box<dyn Read + Send>, String> {
+    let output = crate::process::output(spec).map_err(|problem| problem.message(spec))?;
+    Ok(match crate::extensions::process::invalid_utf8() {
+        crate::extensions::process::InvalidUtf8::Fail => Box::new(output),
+        crate::extensions::process::InvalidUtf8::Replace => {
+            Box::new(crate::process::Lossy::new(output))
+        }
+    })
 }
 
 /// The body of an HTTP resource, fetched once per evaluation.
@@ -1445,6 +1500,20 @@ impl Reading {
                 )))
             }
             Endpoint::WebSocket(url) => Ok(Self::shared(messages(url.clone(), format))),
+            // The child starts when the stream is first traversed, and ends
+            // with the stream: read to its end, or dropped before it.
+            Endpoint::Command(spec) => {
+                let spec = spec.as_ref().clone();
+                let reader = Lazy {
+                    connect: Some(Box::new(move || command_output(&spec))),
+                    inner: None,
+                };
+                Ok(Self::shared(pieces(
+                    Box::new(reader),
+                    format,
+                    endpoint.describe(),
+                )))
+            }
             Endpoint::Nats {
                 server,
                 subject,
@@ -1751,6 +1820,8 @@ pub(crate) enum Destination {
     Nats(Box<crate::nats::Publisher>),
     /// An age file being written, its chunks encrypted as they fill.
     Sealed(Box<Sealed>),
+    /// A child's standard input, one line per document (HQL-0064).
+    Command(Box<crate::process::Input>, Box<CommandSpec>),
 }
 
 /// An age file being written: to a file beside its destination, renamed
@@ -2039,6 +2110,13 @@ impl Destination {
             Endpoint::Socket(host, port) => {
                 Ok((Self::Socket(crate::net::socket(host, *port)?), false))
             }
+            Endpoint::Command(spec) => Ok((
+                Self::Command(
+                    Box::new(crate::process::input(spec).map_err(|problem| problem.message(spec))?),
+                    spec.clone(),
+                ),
+                false,
+            )),
             Endpoint::WebSocket(url) => Ok((
                 Self::WebSocket(url.clone(), Box::new(crate::net::websocket(url)?)),
                 false,
@@ -2110,6 +2188,9 @@ impl Destination {
             Self::WebSocket(url, connection) => return crate::net::post(connection, url, text),
             Self::Nats(publisher) => return publisher.send(text.to_owned()),
             Self::Sealed(sealed) => return sealed.line(text),
+            Self::Command(input, spec) => {
+                return input.line(text).map_err(|problem| problem.message(spec));
+            }
         };
         result.map_err(|error| error.to_string())
     }
@@ -2123,6 +2204,7 @@ impl Destination {
         match self {
             Self::Nats(publisher) => publisher.flush(),
             Self::Sealed(sealed) => sealed.finish(),
+            Self::Command(input, spec) => input.finish().map_err(|problem| problem.message(spec)),
             _ => Ok(()),
         }
     }

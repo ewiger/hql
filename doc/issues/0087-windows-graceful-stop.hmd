@@ -1,0 +1,57 @@
+# 0087 — Windows: a child process is asked to stop before it is ended, and an argument `cmd.exe` cannot read is refused
+
+Status: todo
+Target: 0.8.0
+Related: [[HQL-0064]], its companion note
+[child processes](../proposals/HQL-0064/parts/02-child-processes.hmd), the
+[I/O FAQ](../proposals/HQL-0064/parts/faq.hmd),
+[[0085-hql-0064-beyond-child-processes|issue 0085]],
+`src/process.rs`, `crates/hql-sys`
+
+The companion note [child
+processes](../proposals/HQL-0064/parts/02-child-processes.hmd) is
+implemented on Linux, macOS and Windows except for two Windows rules. This
+issue carries them. With it, the note is implemented in full on every
+platform.
+
+## Expected
+
+| Case | Unix today | Windows today | Windows expected |
+| --- | --- | --- | --- |
+| `hql` ends a child: `timeout_ms`, an unread stream, a signal to `hql` | `SIGTERM` to the group, `SIGKILL` after 5 seconds | `TerminateJobObject` at once | a graceful stop, then `TerminateJobObject` after 5 seconds |
+| an argument of a `.bat` or `.cmd` program that `cmd.exe` cannot read as one argument | not applicable | passed on, quoted by the C runtime's rules | the evaluation failure `invalid-argument`, naming the argument |
+
+- **The graceful stop.** `hql` sends Ctrl-Break to a console child, which
+  it starts with a console process group of its own, and `WM_CLOSE` to
+  each top-level window of a process in the child's Job Object. A child
+  still running after 5 seconds, the `GRACE` of `src/process.rs`, is
+  ended by `TerminateJobObject`.
+- **The reason stays the same.** A child that `hql` stopped reports the
+  same reason as on Unix (`timed-out`), whether the graceful stop ended it
+  or `TerminateJobObject` did. Windows sets no `signal`.
+- **The `cmd.exe` refusal.** A `program` ending in `.bat` or `.cmd` is run
+  by `cmd.exe`. An argument that `hql` cannot quote so that `cmd.exe` reads
+  it as one argument, such as one holding `"`, `%`, `^`, `&`, `|`, `<`, `>`
+  or a line break, is `invalid-argument`, and the child does not start.
+
+## Where
+
+- Ctrl-Break needs `CREATE_NEW_PROCESS_GROUP` at spawn and
+  `GenerateConsoleCtrlEvent`. Enumerating a job's processes and their
+  windows, and posting `WM_CLOSE`, need `unsafe`. That code goes into
+  `crates/hql-sys`, behind a safe API, as the note requires. The `hql`
+  crate keeps `#![forbid(unsafe_code)]`.
+- The stop sequence goes in `src/process.rs`, next to the Unix one that
+  sends `SIGTERM` and waits `GRACE`.
+- The refusal is checked where `args` are quoted into the command line,
+  before `CreateProcessW`.
+
+## Done when
+
+- On Windows CI, a console child that handles Ctrl-Break by exiting stops
+  without `TerminateJobObject`, and one that ignores it is ended after 5
+  seconds. Both report `timed-out`.
+- On Windows CI, `run(command("echo.bat", ["a&b"]))` is `invalid-argument`
+  naming `a&b`, and `run(command("echo.bat", ["ab"]))` runs.
+- The "Implemented" note of the companion note no longer lists either rule
+  as missing. The [[HQL-0064]] changelog and `CHANGELOG.md` say so.

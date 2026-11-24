@@ -1,0 +1,320 @@
+# HQL-0064: boilerplate logging: measurements, reports and logical zombies
+
+Companion to [[HQL-0064]]. A program that starts several children wires
+the same things to each: its standard error to a log, a watchdog, and a
+place for what the watchdog finds. The case that motivates it is ETL: a
+child that consumes a streaming queue, runs by design without end, and
+hangs or slows while it still runs. This note states who takes a
+`Measurement`, how it reaches a watchdog, where reports go, and how `hql`
+finds a **logical zombie**: a child or a branch that runs and no longer
+does its work.
+
+!!! warning "Design only"
+    Nothing in this note is implemented, and [[HQL-0064]] does not deploy
+    it. The declarations are a design direction. They extend the side note
+    "monitoring" of [watchdogs](06-watchdog.hmd), and use
+    [advanced child processes](03-advanced-child-processes.hmd) and
+    [`parallel`](05-parallel.hmd).
+
+!!! abstract "TL;DR"
+    - **The use case is an unhealthy consumer of a streaming queue.** It
+      never ends by design, so its exit status says nothing. Its
+      measurements say whether it still takes input and still gives
+      output.
+    - **`hql` takes every measurement.** It is the parent of every child:
+      it counts the bytes on the pipes it holds, and reads the rest from
+      the kernel by the child's identifier.
+    - **A measurement crosses no transport.** The watchdog runs inside the
+      `hql` process, as a branch, and reads the measurement as a value in
+      memory. TCP and shared memory are not needed.
+    - **The log is a channel.** A child's standard error, a watchdog's
+      reports and its measurements each go to a channel the program names
+      once, through `stderr_to`, `report_to` and `measurements_to`.
+    - **The boilerplate is a function** the program writes once, not a new
+      construct.
+    - **A logical zombie is found two ways.** Branches that all wait on
+      each other are certain, and `hql` fails them as `deadlock`. A child
+      that stops taking input or stops giving output is suspected, and
+      its watchdog reports it.
+
+## The use case: a consumer of a streaming queue
+
+An ETL stage reads a queue, transforms each message in a child, and
+writes the result on. The queue has no end, so the stage has none: a
+`tap` of a broker, a `sink` to the child, and a second branch that keeps
+the child's output.
+
+```hql
+#!/usr/bin/env hql
+import io.msg.kafka
+from io.process import *
+from io.process.monitoring import *
+
+events   = kafka(topic = "orders.changed", brokers_env = "KAFKA_BROKERS")
+enriched = Channel<String>("enriched")
+log      = Channel<String>("log")
+
+healthy = Watchdog(
+    (m: Measurement) => m.stdin_blocked_ms < 30000 and m.stdout_idle_ms < 60000,
+    every_ms = 10000, misses = some(3), report_to = log,
+)
+
+r = parallel {
+    fed  = tap(events, Json)
+           | sink(command("enrich", stdout_to = enriched, stderr_to = log,
+                          watchdog = healthy), JsonLines)
+    kept = tap(enriched) | sink(file("enriched.jsonl"), Lines)
+}
+```
+
+The child is healthy while it takes the messages `hql` has for it and
+writes what it makes of them. Its process exists in every one of the
+states below, so the kernel tells none of them apart:
+
+| State | What `hql` measures | Field |
+|---|---|---|
+| healthy | input taken, output written | both small |
+| hung on a message: a loop, a lock, a remote call that does not return | `hql` has a message to write; the child does not read it | `stdin_blocked_ms` grows |
+| reads and writes nothing: drops messages, or buffers them without end | the child reads; no output follows | `stdout_idle_ms` grows |
+| slow: falls behind the queue | both move, slowly | none: the broker's consumer lag, which `ask` reads from the broker |
+| waiting for the queue | no message arrives; the child is idle | `idle_ms` grows; `stdin_blocked_ms` is `0` |
+
+- `stdin_blocked_ms` is the time the current write of `hql` to the child's
+  standard input has waited, because the pipe is full. It is `0` when
+  `hql` has nothing to write.
+- `stdout_idle_ms` is the time since the child last wrote a byte to its
+  standard output.
+- A quiet queue is not a fault. The last row is an idle child with no
+  message waiting, and the watchdog above passes it, since neither field
+  grows.
+
+## Who takes a measurement
+
+`hql` is the one parent of every child (the section "Branches, children
+and the one parent" of [`parallel`](05-parallel.hmd)). It holds every
+pipe of every child and knows each child's identifier from the spawn, so
+it takes every field of a `Measurement` itself. The child does nothing to
+be measured.
+
+| Field | Taken from | Linux | macOS | Windows |
+|---|---|---|---|---|
+| `pid`, `uptime_ms` | `hql`, at the spawn | the spawn's result, the clock | the same | the same |
+| `stdin_bytes`, `stdout_bytes`, `stderr_bytes` | `hql`, counted on the pipes it writes and reads | exact | exact | exact |
+| `cpu_ms`, `memory_bytes` | the kernel, by `pid` | `/proc/<pid>/stat`, `/proc/<pid>/statm` | `proc_pid_rusage` | the Job Object's accounting |
+| `disk_read`, `disk_written` | the kernel, by `pid` | `/proc/<pid>/io` | `proc_pid_rusage` | the Job Object's I/O accounting |
+| `net_received`, `net_sent` | none: no kernel gives these per process | `0` | `0` | `0` |
+| `stdin_blocked_ms`, `stdout_idle_ms` | `hql`, from its writes and reads of the pipes | exact | exact | exact |
+| `idle_ms` | `hql`, from the fields above | | | |
+
+- `hql` MUST take a measurement of a guarded child every `every_ms`, before
+  it asks the watchdog's question.
+- `cpu_ms`, `memory_bytes`, `disk_read` and `disk_written` MUST be summed
+  over the child's process group (the section "The child's environment
+  and lifetime" of [child processes](02-child-processes.hmd)). A `make`
+  whose `cc` compiles is not idle.
+- On Windows the Job Object gives these fields for the whole job in one
+  call, through `crates/hql-sys` (the section "Windows" of
+  [child processes](02-child-processes.hmd)).
+- The byte counts of the standard streams are exact at any moment. The
+  fields read from the kernel are as fresh as the last measurement.
+- `idle_ms` is the time since the last measurement in which `cpu_ms` or
+  any byte count grew. A child that computes without I/O is not idle.
+
+!!! tip "Windows: disk bytes count every I/O"
+    The I/O accounting of Windows counts the bytes of every read and
+    write, to files, pipes and devices alike. `disk_read` and
+    `disk_written` there include what the child moves on its pipes, so a
+    question on them compares a child with itself, not with Linux.
+
+A child's own state, such as the length of its queue, is not visible from
+outside. A child that reports it writes it to a pipe or serves it on an
+endpoint, and `ask` reads it there, as the example "Guarding a command" of
+[watchdogs](06-watchdog.hmd) reads `/health`.
+
+## How a measurement reaches the watchdog
+
+The watchdog's questions run beside the operation that reads or writes the
+child, as a branch of the `hql` process. The measurement is a value in that
+process's memory, and `ask` receives it as an argument.
+
+| `[execution] parallel` | Where the watchdog runs | How the measurement reaches it |
+|---|---|---|
+| `tasks` | a task beside the child's task | a value in memory |
+| `threads` | a thread beside the child's thread | a value in memory |
+| `processes` | the worker `hql` process that is the child's parent | a value in the worker's memory; a report crosses to the main process as any value does, serialized |
+
+- A measurement MUST NOT need a network connection, a shared-memory
+  segment, or an endpoint the child serves.
+- A watchdog never runs outside the evaluation
+  ([watchdogs](06-watchdog.hmd), the section "What a watchdog does not
+  do"), so nothing outside `hql` is a reader of measurements. A program
+  that sends them elsewhere writes them there, with `sink`.
+
+## The log is a channel
+
+Three things leave a guarded child, and each goes to a channel or to the
+program's standard error:
+
+| What | Argument | Default when not wired |
+|---|---|---|
+| the child's standard error | `stderr_to` of `command` | the program's standard error |
+| the watchdog's reports, one line per miss | `report_to` of `Watchdog` | the program's standard error |
+| the watchdog's measurements, one per interval | `measurements_to` of `Watchdog` | none: not kept |
+
+The side note's revision of `Watchdog` takes the measurement, a limit of
+misses that may be absent, and the two channels:
+
+```hql
+module io.process
+
+fn Watchdog(ask: (Measurement) -> Bool, *, every_ms: Int = 5000,
+            wait_ms: Int = 2000, misses: Option<Int> = some(3),
+            grace_ms: Int = 0,
+            report_to:       Option<Channel<String>>      = none,
+            measurements_to: Option<Channel<Measurement>> = none) : Watchdog
+```
+
+- For each miss, `hql` MUST write one report line, to `report_to` when it
+  is given and to the program's standard error when not. The line names
+  the program and the `pid` of the child, and the reason of the miss.
+- For each measurement taken, `hql` MUST append it to `measurements_to`
+  when it is given.
+- `misses = none` MUST never terminate the child: the watchdog only
+  reports.
+- One channel MAY be wired to several children and several watchdogs. A
+  line of one source keeps its order; lines of two sources arrive in the
+  order they reach `hql`.
+
+Channels hold values for the evaluation ([advanced child
+processes](03-advanced-child-processes.hmd), the section "How a channel
+works"), so the measurements are the stream the side note "monitoring" of
+[watchdogs](06-watchdog.hmd) leads to: `tap(c)` of `measurements_to`
+gives a `Stream<Measurement>` while the children run, and a `sink` writes
+it to a file or a metrics endpoint. No handle to a running child is
+needed, because the watchdog that measures is attached to the command.
+
+## The boilerplate, written once
+
+The wiring is the same for every child, so the program states it once, as
+a function:
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+from io.process.monitoring import *
+
+log     = Channel<String>("log")
+metrics = Channel<Measurement>("metrics")
+
+not_idle = Watchdog((m: Measurement) => m.idle_ms < 60000,
+                    every_ms = 60000, misses = none,
+                    report_to = log, measurements_to = metrics)
+
+fn supervised(program: String, args: Seq<String>) : Command =
+    command(program, args, stderr_to = log, watchdog = not_idle)
+
+r = parallel {
+    built  = supervised("make", ["all"]).run()
+    served = supervised("server", ["--port", "8080"]).run()
+    kept   = tap(metrics) | sink(file("metrics.jsonl"), JsonLines)
+}
+```
+
+`log` then holds, in one place, what each child wrote to its standard
+error and what each watchdog reported:
+
+```text
+cc: warning: unused variable 'n'
+watchdog: server (pid 4711) idle for 60 s
+watchdog: server (pid 4711) idle for 120 s
+```
+
+`supervised` is an ordinary function. The boilerplate needs no construct
+of its own, and a program with other needs writes another function.
+
+## Logical zombies
+
+A **zombie** in the kernel's sense is a child that has exited and whose
+status its parent has not collected. `hql` collects every status, so it
+leaves none. A **logical zombie** is a child or a branch that is running,
+passes the kernel's test that it exists, and no longer does its work. It
+is one of two kinds:
+
+- **by mistake**: a program that should end and cannot, because what it
+  waits for will never happen. The [I/O FAQ](faq.hmd), the section
+  "Waiting forever", lists the programs that make one.
+- **by design**: a stage that never ends, such as a consumer of a
+  streaming queue, and has stopped taking input or giving output.
+
+`hql` finds the first kind for certain when only branches wait. A
+watchdog finds the second kind, and the first when a child is among the
+waits.
+
+### Certain: a wait nothing can end
+
+`hql` holds every wait of every branch: on a pipe of a child, a channel, the
+open of a named pipe, the exit of a child. A wait is **internal** when only
+a branch of this evaluation can end it, and **external** when something
+else can: standard input, a socket, a signal, a file, or a running child.
+
+- A `tap(c)` of a channel waits on a writer of `c`. The wait is internal
+  when no running child is wired to `c`, and external when one is.
+- Every wait on a running child is external. `hql` cannot show what a
+  child waits on: a child blocked on its standard input and a child that
+  sleeps before it writes look the same from outside, and no platform
+  reports the difference reliably.
+- When every branch waits, and every wait is internal, nothing can end any
+  of them. `hql` MUST then fail the evaluation with the unrecoverable
+  failure `deadlock`, which names each waiting branch and what it waits
+  on.
+
+A program in that state can never end, so failing it changes no result
+it could have had. A program of the FAQ ends this way:
+
+```hql
+sorted = Channel<String>("sorted")
+["wren", "kite"] | target(command("sort", stdout_to = sorted), Lines)
+tap(sorted)
+```
+
+```text
+hql: deadlock: tap(sorted) waits on a writer of channel "sorted";
+     no running branch or child writes it
+```
+
+The conversation written as two statements is not certain, because its
+wait is on a running child:
+
+```hql
+questions = Channel<String>("questions")
+bc = command("bc", ["-l"], stdin_from = questions)
+answers = tap(bc, Lines) | take(2)
+["2 + 2", "10 / 4"] | sink(questions)
+```
+
+`tap(bc)` waits on `bc`, and `bc` is idle with no running branch that
+writes `questions`. That is a logical zombie by mistake, and only a
+watchdog on `bc` reports it.
+
+### Suspected: a consumer that no longer works
+
+A consumer of a streaming queue never reaches the certain case: its `tap`
+of the broker is an external wait, so a hung consumer and a healthy one on
+a quiet queue are both waits `hql` cannot rule out. This is the main case,
+and the watchdog's. `hql` does not decide it; the program's question does,
+from the fields of the section "The use case: a consumer of a streaming
+queue". The watchdog reports each miss, and terminates the child only when
+`misses` is given and reached.
+
+A child that waits on a lock, on a remote service, or on an input `hql`
+does not hold is the same case: a watchdog on `idle_ms` reports it at
+every interval, as in the example of the section "The boilerplate, written
+once".
+
+| | Certain | Suspected |
+|---|---|---|
+| found by | `hql`, from the waits it holds | a watchdog, from measurements |
+| kind | by mistake, among branches | by design, and by mistake on a child |
+| applies to | branches whose waits are all internal | any guarded child |
+| needs a watchdog | no | yes |
+| result | the evaluation fails with `deadlock` | a report per miss; `unhealthy` at `misses` |

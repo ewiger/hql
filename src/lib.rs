@@ -41,6 +41,10 @@ use unavailable::net;
 pub mod package;
 mod parser;
 mod paths;
+#[cfg(feature = "native")]
+mod process;
+#[cfg(not(feature = "native"))]
+use unavailable::process;
 pub mod playground;
 #[cfg(feature = "native")]
 mod postgres;

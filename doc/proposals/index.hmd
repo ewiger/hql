@@ -123,4 +123,4 @@ outside this list.
 | [HQL-0061](HQL-0061/index.hmd) | implemented in part | A browser playground: `hql` compiled to WebAssembly |
 | [HQL-0062](HQL-0062/index.hmd) | implemented | HQL as a script language: `#!`, `hql FILE` and the script's arguments |
 | [HQL-0063](HQL-0063/index.hmd) | implemented in part | Paths a program reads: `/` between segments on every host, the host's form kept inside the runtime |
-| HQL-0064 | reserved | Processes: `io.process`, child processes, pipes, `parallel` and watchdogs (reserved; on `feat/io-process`) |
+| [HQL-0064](HQL-0064/index.hmd) | implemented in part | Processes: `io.process`, child processes, pipes, `parallel` and watchdogs |

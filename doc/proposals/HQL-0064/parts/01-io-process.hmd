@@ -1,0 +1,230 @@
+# HQL-0064: `io.process`, signals, and the Unix process model
+
+Companion to [[HQL-0064]]. A script is a Unix process. This note compares
+what a Unix process can do with what an HQL program can do today, defines
+the module `io.process` for the process's identity and its signals, and
+names the module each remaining piece belongs to.
+
+!!! warning "Design only"
+    Nothing in this note is implemented, and [[HQL-0064]] does not deploy
+    it. The declarations are a design direction, written under the rules of
+    the note [pure and effectful](../../HQL-0062/parts/01-pure-and-effectful.hmd) of [[HQL-0062]].
+
+!!! abstract "TL;DR"
+    - **`io.env` keeps the invocation**: `var`, `vars`, `arg`, `args` and
+      `argv`, the values fixed before the program started.
+    - **`io.process` is the running process**: its identifier, the signals
+      it receives, as a `Stream<Signal>`, and the signals it sends, as an
+      effectful operation that returns a `Result`.
+    - **Missing in the process**: its identifier, signals in both
+      directions, and child processes.
+    - **Missing in IPC**: named pipes, Unix domain sockets, a listening
+      socket, UDP and file locks. Each is an endpoint, in `io.fs` or
+      `io.net`, not in `io.process`.
+    - **Not wanted**: shared memory, semaphores and System V or POSIX
+      message queues.
+
+## The Unix process model, and what HQL has
+
+| A Unix process | HQL today | Module |
+|---|---|---|
+| reads its arguments | `arg`, `args`, and `argv` with [[HQL-0062]] | `io.env` |
+| reads its environment | `var`, `vars`, under the `env` grant | `io.env` |
+| reads and writes its three standard streams | `stdin`, `stdout`, `stderr` | `io` |
+| has a working directory | `working_dir()` | `io.fs` |
+| reports an exit status | the program's result ([[HQL-0062]], the section "The exit status") | none: no operation sets it |
+| has an identifier and a parent | missing | `io.process` |
+| receives signals | missing: every signal has its default action | `io.process` |
+| sends a signal to a process | missing | `io.process` |
+| starts a child, writes its input, reads its output and status | missing | `io.process` |
+| reads and writes a file | `file(path)`, `file(path).end` | `io` |
+| reads and writes a named pipe | missing: `File` is `Replayable` and a pipe is not | `io.fs` |
+| connects to a TCP address | `tcp(host, port)` | `io.net` |
+| listens on a TCP address and accepts connections | missing | `io.net` |
+| sends and receives UDP datagrams | missing | `io.net` |
+| connects to and listens on a Unix domain socket | missing | `io.net` |
+| locks a file against another process | missing | `io.fs` |
+| shares memory, or a semaphore, with another process | not wanted | none |
+| uses a System V or POSIX message queue | not wanted: `io.msg` holds the brokers | none |
+
+An anonymous pipe needs no operation of its own. Between two processes the
+shell makes it, and each side reads `stdin` or writes `stdout`:
+`./a.hql | ./b.hql`. Inside one program it is what connects a child's
+standard streams to its parent, so it arrives with child processes.
+
+Shared memory and semaphores are refused because an HQL value is immutable
+and an evaluation holds no state that two processes could write. Two
+processes that share data pass it through an endpoint.
+
+## `io.process`
+
+`io.process` holds what is true of the process while it runs. `io.env`
+holds what the invocation fixed before it started. A script that reads its
+command line imports `io.env` alone.
+
+```hql
+module io.process
+
+/// A signal, by its POSIX name without the `SIG` prefix: `Signal("TERM")`.
+/// `number` is the number this platform gives it.
+type Signal {
+    name   : String
+    number : Int
+}
+
+/// The signal named `name`. A name this platform does not define is an
+/// unrecoverable failure that states the name.
+fn Signal(name: String) : Signal
+
+/// Why a signal was not sent: `reason` is `no-such-process`,
+/// `not-permitted` or `unsupported`.
+type SendFailure : DataContract {
+    to     : Int
+    signal : Signal
+    reason : String
+}
+
+/// The identifier of this process.
+effectful fn id() : Int
+
+/// The identifier of the process that started this one.
+effectful fn parent_id() : Int
+
+/// The signals named, as they are delivered to this process, one element
+/// for each delivery. The stream does not end.
+effectful fn signals(...of: Signal) : Stream<Signal>
+
+/// Sends `signal` to the process `to`.
+effectful fn send(signal: Signal, *, to: Int) : Result<Step, SendFailure>
+```
+
+### Receiving a signal
+
+A signal is an event from outside the evaluation, so it arrives as a
+source: `signals` gives a `Stream<Signal>`.
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+// One line for each SIGHUP or SIGUSR1 the process receives.
+signals(Signal("HUP"), Signal("USR1")) | map(s => s.name) | sink(stdout, Text)
+```
+
+- From the first call that names a signal, `hql` MUST deliver that signal
+  to the stream and MUST NOT take its default action. A process that reads
+  `signals(Signal("TERM"))` no longer ends on `SIGTERM`.
+- A signal no call names MUST keep its default action.
+- `signals(Signal("KILL"))` and `signals(Signal("STOP"))` MUST be refused,
+  because no process receives either.
+- Two deliveries of one signal that the kernel merges are one element. The
+  stream MUST NOT be read as a count of the signals sent.
+- Two calls that name the same signal MUST each receive every delivery.
+
+### Sending a signal
+
+Sending a signal is a write to another process, as a request to an HTTP
+resource is a write to another host. It is an effect, it returns a value,
+and its failure is a `Result`.
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+import io.env
+
+// `./stop.hql 4242` exits 0 when the signal was sent, and 1 with the
+// reason when it was not.
+send(Signal("TERM"), to = to_int(env.argv()[0]))
+```
+
+- `send` MUST give `ok` when the kernel accepted the signal. That states
+  delivery to the process and nothing about what the process did with it.
+- `send` MUST give `err(SendFailure)` when no process has the identifier
+  or this process may not signal it.
+- `send` MUST NOT end this process when `to` is `id()` and the signal's
+  default action is to end it, unless no call to `signals` names that
+  signal. The signal is delivered as any other is.
+
+### The grant
+
+Both directions are controlled by one grant, a top-level key of `.hql/config.toml`
+beside `env` ([[HQL-0059]]):
+
+```toml
+process = ["receive", "send"]
+```
+
+- Absent, a run MUST grant both. Stated, it grants what it lists.
+- `hql render` MUST grant neither. A rendered document does not own the
+  process that renders it.
+- `id()` and `parent_id()` MUST need no grant.
+- A call the grant refuses is a forbidden effect, an unrecoverable failure
+  ([[HQL-0033]]).
+
+### Platforms
+
+Signals are a Unix mechanism. Windows has console control events and
+process termination in their place, and `hql` maps three signals onto
+them with no POSIX layer.
+
+| Signal | Received on Windows | Sent on Windows |
+|---|---|---|
+| `INT` | Ctrl-C | `err`, `unsupported`: Windows does not deliver Ctrl-C to another process group |
+| `TERM` | Ctrl-Break, closing the console window, logoff, shutdown | to a child of `hql`: its graceful stop, as termination does ([child processes](02-child-processes.hmd), the section "Windows"); to any other process: `err`, `unsupported` |
+| `KILL` | never: no process receives it | `TerminateProcess`, to any process this user may open |
+
+- On Windows, `Signal(name)` MUST define `INT`, `TERM` and `KILL` and no
+  other. `Signal("HUP")` is the failure for a name the platform does not
+  define.
+- `signals` MUST deliver each event of the table as its signal.
+
+!!! tip "Windows: a `TERM` handler has seconds, not minutes"
+    Windows ends a process a few seconds after it delivers a close, logoff
+    or shutdown event, whatever the handler does. A program that reads
+    `signals(Signal("TERM"))` on Windows finishes its cleanup at once.
+    Ctrl-Break has no such limit.
+
+!!! tip "Windows: control a process through a pipe or a socket"
+    Windows has no `HUP` or `USR1`. A program that reloads or reports on
+    request reads a named pipe ([named pipes](04-named-pipes.hmd)) or a
+    socket instead of waiting for a signal, and that works on Unix too.
+
+## What a signal handler needs that HQL lacks
+
+A program that follows a file and stops cleanly on `SIGTERM` has two
+streams: the lines and the signals. The first has to end when the second
+gives its first element. `lib/std` declares `take_while`, which tests an
+element of its own stream, and `merge` and `zip`, which join two streams
+and end neither early.
+
+What is missing is a way to run two pipelines at the same time and end
+both when one ends. It is not a Unix pipe, and it reaches nothing outside
+the evaluation. The companion note [`parallel`](05-parallel.hmd) defines
+it as `parallel(join = any) { … }`, with this program as its example. A
+program whose only stream is `signals`, as the example above, needs no
+such construct.
+
+!!! note "Two meanings of pipe"
+    An HQL pipe, `a | b`, composes computation: the value of `a` is the
+    input of the step `b` ([[pipes]]). A Unix pipe is a kernel object that
+    carries bytes from one process to another. This note writes "pipeline
+    step" for the first, and "anonymous pipe" or "named pipe" for the
+    second.
+
+## The remaining pieces
+
+Each is an endpoint or an operation on one, so each belongs to the module
+that owns the outside state it reaches, not to `io.process`.
+
+| Piece | Shape | Module |
+|---|---|---|
+| a child process | an endpoint, `{Readable, Writable}`: a write goes to its standard input, a read comes from its standard output, and its exit status is a `Result` | `io.process` |
+| a named pipe | an endpoint, `{Readable, Writable}` and not `Replayable`, beside `File` and `FileEnd`, defined in the companion note [named pipes](04-named-pipes.hmd) | `io.fs` |
+| a Unix domain socket | an endpoint, `{Readable, Writable}`, beside `Tcp` | `io.net` |
+| a listening socket | a `Stream` of connections, each an endpoint | `io.net` |
+| UDP | an endpoint whose documents are datagrams | `io.net` |
+| a file lock | a scope, as `with transaction` is | `io.fs` |
+
+A child process is the largest of these. With it a script replaces a shell
+pipeline, and without it a script is only ever one stage of one. The
+companion note [child processes](02-child-processes.hmd) defines it.

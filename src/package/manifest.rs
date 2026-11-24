@@ -152,6 +152,9 @@ pub struct Installed {
     pub rustc: String,
     /// The target it was built for.
     pub target: String,
+    /// The sizes of the types it exchanges with `hql`, as
+    /// [`crate::ext::layout`] gave them when it was built, joined by `,`.
+    pub layout: String,
     /// The library's file name, beside `package.toml`.
     pub library: String,
     /// When it was built.
@@ -194,6 +197,11 @@ impl Installed {
             hql: field("build", "hql")?,
             rustc: field("build", "rustc")?,
             target: field("build", "target")?,
+            // A record written before the layout was recorded states none,
+            // so the build is stale.
+            layout: section(&record, &["build"])
+                .and_then(|held| string(held, "layout"))
+                .unwrap_or_default(),
             library: field("build", "library")?,
             built: field("build", "built")?,
         })
@@ -230,6 +238,7 @@ impl Installed {
         build.insert("hql".to_owned(), text(&self.hql));
         build.insert("rustc".to_owned(), text(&self.rustc));
         build.insert("target".to_owned(), text(&self.target));
+        build.insert("layout".to_owned(), text(&self.layout));
         build.insert("library".to_owned(), text(&self.library));
         build.insert("built".to_owned(), text(&self.built));
         let mut record = toml::Table::new();
@@ -246,6 +255,15 @@ impl Installed {
     /// compiler.
     #[must_use]
     pub fn stale(&self) -> Option<String> {
+        if self.hql == crate::ext::HQL && self.rustc == crate::ext::RUSTC && self.layout != layout()
+        {
+            return Some(format!(
+                "package `{}` was built with other versions or features of the crates hql \
+                 depends on, so the values the two exchange differ in size: run `hql package \
+                 rebuild {}`",
+                self.name, self.name
+            ));
+        }
         (self.hql != crate::ext::HQL || self.rustc != crate::ext::RUSTC).then(|| {
             format!(
                 "package `{}` was built against hql {} with rustc {}; this is hql {} with \
@@ -259,6 +277,17 @@ impl Installed {
             )
         })
     }
+}
+
+/// The sizes [`crate::ext::layout`] gives for this build, as a record
+/// states them.
+#[must_use]
+pub fn layout() -> String {
+    crate::ext::layout()
+        .iter()
+        .map(usize::to_string)
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 #[cfg(test)]
@@ -275,6 +304,7 @@ mod tests {
             hql: crate::ext::HQL.to_owned(),
             rustc: crate::ext::RUSTC.to_owned(),
             target: crate::ext::TARGET.to_owned(),
+            layout: layout(),
             library: "libhql_ext_ml.dylib".to_owned(),
             built: "2026-11-14T10:00:00Z".to_owned(),
         }
@@ -315,6 +345,16 @@ mod tests {
             ..installed()
         };
         assert!(compiler.stale().is_some());
+        let sizes = Installed {
+            layout: "1,2,3".to_owned(),
+            ..installed()
+        };
+        assert!(sizes.stale().unwrap().contains("differ in size"));
+        let unrecorded = Installed {
+            layout: String::new(),
+            ..installed()
+        };
+        assert!(unrecorded.stale().is_some());
     }
 
     #[test]

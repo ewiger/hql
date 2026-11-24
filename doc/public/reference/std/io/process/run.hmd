@@ -1,0 +1,13 @@
+<!-- hql reference: std/io/process.run -->
+# `run`
+
+In [`std/io/process`](index.hmd).
+
+```hql
+effectful fn run(self: Command, input: String = "") : Result<Output, CommandFailure>
+```
+
+Starts the command, writes `input` to its standard input, waits for it
+to end, and gives what it wrote: `ok(Output)` when it exits `0`, and
+`err(CommandFailure)` with the reason otherwise.
+<!-- hql reference: end -->

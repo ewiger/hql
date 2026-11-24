@@ -1,0 +1,25 @@
+<!-- hql reference: std/io/process -->
+# `std/io/process`
+
+```hql
+module io.process
+```
+
+Child processes: a `Command` names a program and its arguments, and
+starts nothing until an operation of `io` uses it. `source` and `tap`
+start it and read its standard output, `target` and `sink` start it and
+write its standard input, and `run` starts it, waits for it and gives a
+`Result`. No shell reads the command line: no word is split and no `*`
+is expanded. `hql` starts each child in a process group of its own, and
+a child that is terminated takes every process it started with it.
+Which programs a run may start is the `commands` grant of a project's
+`.hql/config.toml`; a document starts none. A program imports the
+module, `from io.process import *`.
+
+- [`Signal`](types/Signal.hmd) — A signal, by its POSIX name without the `SIG` prefix: `TERM`, `KILL`.
+- [`Command`](types/Command.hmd) — A program to run, with its arguments.
+- [`Output`](types/Output.hmd) — What a child that exited with status `0` wrote.
+- [`CommandFailure`](types/CommandFailure.hmd) — Why a command did not succeed.
+- [`command`](command.hmd) — The command that runs `program` with `args`.
+- [`run`](run.hmd) — Starts the command, writes `input` to its standard input, waits for it to end, and gives what it wrote: `ok(Output)` when it exits `0`, and `err(CommandFailure)` with the reason otherwise.
+<!-- hql reference: end -->

@@ -100,6 +100,13 @@ fn load_cases() -> Vec<Case> {
                 assert!(!value.is_empty(), "{}: empty {key}", path.display());
                 assert!(metadata.insert(key.to_owned(), value.to_owned()).is_none());
             }
+            // A case that starts Unix programs runs only on Unix.
+            if let Some(platform) = metadata.get("platform") {
+                assert_eq!(platform, "unix", "{}: unsupported platform", path.display());
+                if !cfg!(unix) {
+                    continue;
+                }
+            }
             cases.push(Case {
                 path: path
                     .strip_prefix(root)

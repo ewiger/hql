@@ -38,6 +38,8 @@ board:
 
 Each card carries `id`, `title`, and `file`; the `id` is quoted so leading zeros
 survive. A card's column mirrors the `Status:` line inside its issue file.
+An issue scheduled for a release says so in a `Target:` line under `Status:`,
+naming the version: `Target: 0.8.0`.
 
 ## Columns
 

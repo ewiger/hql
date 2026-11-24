@@ -52,16 +52,16 @@ board:
         title: "Release 0.8.0: scripts, child processes, HyperMarkDown 0.1.0"
         file: 0088-release-0.8.0.hmd
       - id: "0087"
-        title: "Windows: a child process is asked to stop before it is ended, and an argument cmd.exe cannot read is refused (reserved; on feat/io-process)"
+        title: "Windows: a child process is asked to stop before it is ended, and an argument cmd.exe cannot read is refused"
         file: 0087-windows-graceful-stop.hmd
       - id: "0086"
-        title: "A framed read continues past a bad record under `collect` (reserved; on feat/io-process)"
+        title: "A framed read continues past a bad record under `collect`"
         file: 0086-a-framed-read-continues-under-collect.hmd
       - id: "0085"
-        title: "HQL-0064 beyond child processes: signals, wired pipes, `parallel`, watchdogs, logging, `fifo` (reserved; on feat/io-process)"
+        title: "HQL-0064 beyond child processes: signals, wired pipes, `parallel`, watchdogs, logging, `fifo`"
         file: 0085-hql-0064-beyond-child-processes.hmd
       - id: "0083"
-        title: "I/O programs that never end: trace every case (reserved; on feat/io-process)"
+        title: "I/O programs that never end: trace every case"
         file: 0083-io-programs-that-never-end.hmd
       - id: "0080"
         title: "`sink` or `target`, `tap` or `source`: say the difference outright"

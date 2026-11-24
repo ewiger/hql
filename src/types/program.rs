@@ -405,6 +405,9 @@ pub fn is_record_valued(name: &str) -> bool {
             | "Diagnostic"
             | "KeyPair"
             | "TransactionFailure"
+            | "Output"
+            | "CommandFailure"
+            | "Signal"
     ) {
         return true;
     }

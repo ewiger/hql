@@ -18,7 +18,10 @@ for what extensions may expose.
 - Rust, edition 2024. `rust-version` in `Cargo.toml` is the floor, and
   `rust-toolchain.toml` pins the channel everyone builds with.
 - No `unsafe`. `src/lib.rs` carries `#![forbid(unsafe_code)]`; lifting it is a
-  decision, not a detail.
+  decision, not a detail. An operating-system call that cannot be made
+  without `unsafe` goes in `crates/hql-sys`, behind a safe function, and
+  nowhere else ([[HQL-0064]]). `hql-sys` is published with `hql`, before
+  it.
 - Fallible work returns `Result`. Panics are for invariants that a caller
   cannot violate, never for expected failures such as bad input or missing
   files.

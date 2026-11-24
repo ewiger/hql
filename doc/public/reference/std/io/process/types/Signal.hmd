@@ -1,0 +1,12 @@
+<!-- hql reference: std/io/process.Signal -->
+# `Signal`
+
+In [`std/io/process`](../index.hmd).
+
+```hql
+type Signal { name : String number : Int }
+```
+
+A signal, by its POSIX name without the `SIG` prefix: `TERM`, `KILL`.
+`number` is the number this platform gives it.
+<!-- hql reference: end -->

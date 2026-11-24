@@ -361,6 +361,42 @@ enum ConfigAction {
     View,
 }
 
+/// Whether a signal is ending `hql`: its children are being ended, and then
+/// `hql` is, by the signal.
+static ENDING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Return unless a signal is ending `hql`; then wait for it to, so that
+/// the evaluation a child's end let finish does not exit first. Called by
+/// the binary before it exits.
+pub fn unless_ending() {
+    while ENDING.load(std::sync::atomic::Ordering::SeqCst) {
+        std::thread::park();
+    }
+}
+
+/// End the children `hql` started when `SIGINT`, `SIGTERM` or `SIGHUP`
+/// ends `hql`, then end `hql` by that signal (HQL-0064, the companion note
+/// on child processes). A child leads a process group of its own, so a
+/// terminal's Ctrl-C reaches only `hql`; this passes it on. Called once,
+/// by the binary, before it starts the host.
+pub fn end_children_on_signals() {
+    #[cfg(unix)]
+    {
+        let Ok(signals) = hql_sys::EndingSignals::catch() else {
+            return;
+        };
+        let _ = std::thread::Builder::new()
+            .name("hql-signals".to_owned())
+            .spawn(move || {
+                if let Ok(signal) = signals.wait() {
+                    ENDING.store(true, std::sync::atomic::Ordering::SeqCst);
+                    crate::process::end_children();
+                    hql_sys::end_by(signal);
+                }
+            });
+    }
+}
+
 /// Run the CLI, returning the process exit code.
 ///
 /// `0` is success, `1` is a language or I/O failure, and `2` is a usage error
@@ -743,6 +779,17 @@ fn execute(cli: &Cli, out: &mut impl Write, err: &mut impl Write) -> Result<u8, 
         _ => Vec::new(),
     };
     crate::extensions::env::set_invocation(grant, cli.options.arguments.clone(), positional);
+    // What `io.process` may start, and what a child's text that is not
+    // UTF-8 becomes; `hql render` starts no program, by its host policy.
+    let commands = context
+        .commands_grant()
+        .map_err(|error| error.to_string())?
+        .map_or(
+            crate::extensions::process::Grant::All,
+            crate::extensions::process::Grant::Only,
+        );
+    let invalid_utf8 = context.invalid_utf8().map_err(|error| error.to_string())?;
+    crate::extensions::process::set_policy(commands, invalid_utf8);
     // The run's diagnostic channel exists before the loader runs, so the
     // loader writes into it as every later phase does.
     let opened = crate::io::open_diagnostics();

@@ -1,0 +1,104 @@
+# 0083 — I/O programs that never end: trace every case
+
+Status: todo
+Related: [[HQL-0064]] and [[HQL-0062]], the [I/O FAQ](../proposals/HQL-0064/parts/faq.hmd),
+[`parallel`](../proposals/HQL-0064/parts/05-parallel.hmd),
+[child processes](../proposals/HQL-0064/parts/02-child-processes.hmd),
+[named pipes](../proposals/HQL-0064/parts/04-named-pipes.hmd),
+[[0080-sink-or-target-tap-or-source|issue 0080]],
+`eval_target` and `eval_sink` in `src/extensions/io.rs`
+
+An HQL program that reads or writes an endpoint can wait without end. The
+working name for this in discussion was "zombie process". The process is
+not a Unix zombie, an exited child that nobody collected. It is a **hang**:
+a program, or a branch of a `parallel` block, that is still running and
+will never end.
+
+This issue is open-ended. It collects every way a program hangs, with an
+example of each, until the list is complete enough to decide what the
+checker refuses, what the runtime detects and what the documentation has
+to say. A new case is added as a row when it is found.
+
+## What decides whether a read ends
+
+`tap` gives one document at a time, as a stream. Whether the stream ends
+is a property of the endpoint, not of `tap`.
+
+| Program | Ends | Runs today |
+| --- | --- | --- |
+| `tap(file("app.log"), Lines)` | at the end of the file | yes |
+| `tap(file("app.log").end, Lines)` | never: it follows what is appended | yes |
+| `tap(Channel<T>(name))` | never: a channel has no end | yes |
+| `tap(command(…), F)` | when the child closes its standard output | yes |
+| `tap(fifo(path), F)` | when every writer has closed the pipe | design only |
+| `signals(…)` | never | design only |
+
+`source`, `target` and `sink` do not wait forever by themselves. Each can
+wait for another process, as the cases below show.
+
+## The cases found so far
+
+Each row names the entry of the [I/O FAQ](../proposals/HQL-0064/parts/faq.hmd)
+that explains it.
+
+| Case | Example | FAQ entry | Runs today |
+| --- | --- | --- | --- |
+| a stream that does not end feeds a child that answers only at its end of input | `tap(command("tail", ["-f", "app.log"]), Lines) \| sink(command("sort"), Lines)` | "Why does a `sink` to `sort` never return?" | yes |
+| a child's standard input is wired to a channel, which has no end | `source(command("sort", stdin_from = names), Lines)` | "Why does `sort` with `stdin_from` never answer?" | design only |
+| a read and the write that feeds it are two statements, and statements run in order | `answers = tap(bc, Lines) \| take(2)`, then `[…] \| sink(questions)` | "Why does a conversation written as two statements hang?" | hangs today with a file: `t = tap(f.end, Lines)`, a write to `f.end`, then `t \| take(2)` |
+| a branch of a `parallel` block reads a stream that does not end, and the block waits for every branch | `parallel { answers = tap(bc, Lines) … }` | "Why does a `parallel` block with a `tap` never end?" | design only |
+| a channel is tapped after everything was written to it | `tap(sorted)` after the write has returned | "Why does a `tap` of a channel wait after the child has ended?" | yes |
+| a named pipe is opened and no process opens the other end | `tap(fifo(path), Lines)` | "Why does reading a named pipe wait before the first line?" | design only |
+| `source` waits for an end the other side never supplies | `source(stdin, F)` with standard input left open; `source` of a child that never exits | "What else can an operation wait for?" | the first, yes |
+| a writer is held by a full pipe | `sink` or `target` to a child that has stopped reading | "What else can an operation wait for?" | yes |
+
+## Programs that read as a hang and are not
+
+These were each reported as a mistake in review, and each ends.
+
+| Program | Why it ends | FAQ entry |
+| --- | --- | --- |
+| `["2 + 2", "10 / 4"] \| sink(questions)` | `sink` writes one value for each element and returns when the list has no more | "Is a list written with `sink` a mistake?" |
+| `tap(file("frames.jsonl"), JsonLines) \| sink(frames, JsonLines)` beside a `source` in one `parallel` block | `tap` of a `File` ends at the end of the file | "Does a `tap` beside a `source` in one `parallel` block never end?" |
+
+A rule that refuses "a `tap` beside a `source`" would refuse the second
+program, which is correct. Any detection has to rest on whether a stream
+may end, not on which operation produced it.
+
+## What exists
+
+- The checker already holds whether a stream may end. `target` of one that
+  may not is a type error: "`target` writes one completed value, and
+  `Stream<Int>` may not end".
+- `source` of a live endpoint, `file(path).end`, is a type error.
+- The evaluator holds the same fact at run time, as `finite` on a
+  traversal.
+
+## Directions
+
+None is decided. Each is to be weighed against the cases above as the list
+grows.
+
+- **A check rule for `parallel`.** A block that waits for every branch
+  cannot end when one branch consumes a stream that may not end. The
+  checker has what it needs to refuse it and to name the branch.
+- **Stated intent.** A program that is meant to run without end, a
+  listener on a queue, says so in the block, for example
+  `parallel(join = never) { … }`, and is then not refused.
+- **A policy setting.** `[execution] unbounded = "refuse" | "warn" |
+  "allow"`, since how strict a host is belongs to configuration and not to
+  syntax ([[pipes]]).
+- **Run-time detection.** When every branch waits on a channel that no
+  running branch can write, the runtime can report a deadlock. A wait on
+  another process cannot be told from slow work, and is bounded with
+  `timeout_ms` or a [watchdog](../proposals/HQL-0064/parts/06-watchdog.hmd).
+- **Documentation.** The distinction between `file(path)` and
+  `file(path).end` under `tap` is what made correct programs read as
+  hangs. [[0080-sink-or-target-tap-or-source|Issue 0080]] covers the book;
+  this issue feeds it the cases.
+
+## Done when
+
+The list of cases stops growing over a release, each case has an FAQ entry
+and an example in `examples/` that either runs or is marked proposed, and
+each direction above is taken into a proposal or dropped with its reason.

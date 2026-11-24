@@ -250,6 +250,7 @@ pub fn install(crate_dir: &Path, destination: &Path, source: Source) -> Result<I
         hql: ext::HQL.to_owned(),
         rustc: ext::RUSTC.to_owned(),
         target: ext::TARGET.to_owned(),
+        layout: super::manifest::layout(),
         library: package.library(),
         built: jiff::Timestamp::now().to_string(),
     };

@@ -8,6 +8,7 @@ pub(crate) mod kafka;
 pub(crate) mod nats;
 pub(crate) mod net;
 pub(crate) mod postgres;
+pub(crate) mod process;
 
 /// The failure every stand-in gives: what was asked for, and that this build
 /// cannot reach it.

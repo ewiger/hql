@@ -1,0 +1,46 @@
+# 0086 — A framed read continues past a bad record under `collect`
+
+Status: todo
+Target: 0.8.0
+Related: [[HQL-0045]], the [[error-handling|error-handling card]],
+[reporting](../models/behavior/reporting.hmd),
+[[0085-hql-0064-beyond-child-processes|issue 0085]]
+
+Under `--report collect`, `map`, `filter` and `flat_map` step past an
+element whose function failed, and the diagnostic channel holds every
+failure. A read does not: an I/O failure stops it under both modes, so the
+channel holds only the first bad record of an endpoint.
+
+```hql
+source(stdin, JsonLines)
+```
+
+With standard input `{"a":1}`, `bad`, `{"a":3}`, this gives `{a: 1}` and
+stops at line 2 under `strict` and under `collect` alike. The same holds for
+a file, an HTTP body and a command's standard output.
+
+## The rule
+
+Under `collect`, a read in a **framed** format, `Lines`, `JsonLines` or
+`Csv`, steps past a record that does not decode. It writes the failure
+`recoverable`, with the record's line in `element`, and gives the records
+after it. Under `strict` the read stops at the first, as it does today.
+
+- A whole-text format, `Json` or `Yaml`, has no record to step past: a
+  document that does not decode stops the read under both modes.
+- A failure of the endpoint itself, a file that cannot be opened, a child
+  that exits with a status other than `0`, a connection that drops, stops
+  the read under both modes. Only a record that does not decode is stepped
+  past.
+- The exit status is unchanged: a stepped-past record is a failure, and a
+  failure fails the run.
+
+## Where
+
+- `pieces` in `src/io.rs` gives one `Result` per record; the readers of a
+  framed format already know the record's line.
+- `eval_source` in `src/extensions/io.rs`, and the live read driven by
+  `Source::Read` in `src/evaluation.rs`, decide by the run's mode whether an
+  `Err` record stops the read or is written to the channel.
+- The error-handling card's table of the phases under `collect` gains the
+  read.

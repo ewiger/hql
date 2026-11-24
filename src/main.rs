@@ -10,11 +10,14 @@ use std::process::ExitCode;
 const STACK: usize = 256 * 1024 * 1024;
 
 fn main() -> ExitCode {
+    hql::cli::end_children_on_signals();
     let host = std::thread::Builder::new()
         .name("hql".to_owned())
         .stack_size(STACK)
         .spawn(|| hql::cli::main(hql::cli::parse()));
-    match host.map(std::thread::JoinHandle::join) {
+    let joined = host.map(std::thread::JoinHandle::join);
+    hql::cli::unless_ending();
+    match joined {
         Ok(Ok(code)) => ExitCode::from(code),
         // The host panicked, or could not be started at all: a defect, not a
         // program failure, reported as one.
