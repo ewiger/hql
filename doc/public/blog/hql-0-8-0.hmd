@@ -1,82 +1,39 @@
 ---
-description: HQL 0.8.0 runs a program as a script, starts other programs and reads what they print as typed values, and reads a HyperMarkDown 0.1.0 vault. One running program for each, what breaks, and what 0.9.0 brings.
+description: HQL 0.8.0 starts other programs and reads what they print as typed values, runs a program as a script, and reads a HyperMarkDown 0.1.0 vault. Running programs for each, what breaks, and what 0.9.0 brings.
 ---
-# HQL 0.8.0: scripts, child processes, HyperMarkDown 0.1.0 { .hql-post-title }
+# HQL 0.8.0: child processes, scripts, HyperMarkDown 0.1.0 { .hql-post-title }
 
 <p class="hql-post-meta">24 November 2026 · Yauhen Yakimovich</p>
 
 !!! abstract "TL;DR"
 
-    - **Scripts.** A file that starts with `#!/usr/bin/env hql` runs as a
-      command. It reads its arguments with `io.env.argv()`, and its result
-      sets the exit status the shell reads.
     - **Child processes.** `command("git", ["log"])` names a program. `source`
       reads what it prints as values, `sink` writes to it, and `run` gives its
       outcome as a `Result`. No shell reads the command line, and a non-zero
       exit status is a failure.
+    - **Scripts.** A file that starts with `#!/usr/bin/env hql` runs as a
+      command. It reads its arguments with `io.env.argv()`, and its result
+      sets the exit status the shell reads.
     - **HyperMarkDown 0.1.0.** A vault's config reads `location_path`. In a
       document, only `hql#eval` and `hql#query` fences run; a plain `hql`
       fence is a code listing.
     - **Five changes break existing programs or projects.** Each has a
       one-line fix, listed under "What breaks".
 
-HQL 0.8.0 is out. This post shows one program for each of its three
+HQL 0.8.0 is out. This post shows running programs for each of its three
 features. Every program and every output below was run with this release.
 [Install](/install/) has the binaries.
 
-## A script
-
-A program in a file now runs as a command. The first line names `hql` as
-the interpreter, and the words after the path are the program's arguments:
-
-```hql
-#!/usr/bin/env hql
-import io.env
-
-type Book { title: String, status: String }
-
-shelf = [
-    Book(title = "Frankenstein", status = "done"),
-    Book(title = "Dune", status = "reading"),
-    Book(title = "The Hobbit", status = "todo"),
-    Book(title = "Leaves of Grass", status = "todo"),
-]
-wanted = env.argv()[0] | unwrap_or("todo")
-shelf | filter(b => b.status == wanted) | map(b => b.title) | sink(stdout, Text)
-```
-
-```text
-$ chmod +x todo.hql
-$ ./todo.hql
-The Hobbit
-Leaves of Grass
-$ ./todo.hql reading
-Dune
-```
-
-`env.argv()` is a `Seq<String>`, so `env.argv()[0]` is an `Option<String>`
-and the script supplies its default with `unwrap_or`. The script is
-type-checked before it runs, as every HQL program is.
-
-`hql todo.hql reading` runs the same file, and `hql -c '<program>'` runs
-program text, as `-c` does in Python and Bash.
-
-The exit status follows from the program's result. A program that fails to
-parse, check or evaluate exits `1`. So does a program whose result is
-`err(e)`. Any other result exits `0`:
-
-```text
-$ hql -c 'err("no book is lent")'; echo "exit $?"
-err("no book is lent")
-exit 1
-```
-
-The book has the details: [Scripts](/latest/book/09-io/scripts/).
-
 ## A child process in a pipeline
 
-A **child process** is another program that an HQL program starts. This
-script counts the commits of each author in the repository it is run in:
+A **child process** is another program that an HQL program starts. HQL
+0.8.0 starts one with `command` from the module `io.process`, and reads
+and writes it with the operations a file already has.
+
+### Reading: `source`
+
+This script counts the commits of each author in the repository it is run
+in:
 
 ```hql
 #!/usr/bin/env hql
@@ -99,15 +56,69 @@ $ ./authors.hql
 `command(…)` is a value and starts nothing. It is an endpoint, like a
 file: `source` starts `git`, reads its standard output to the end, waits
 for it to exit, and gives each line as a `String`. The rest is an ordinary
-pipeline.
+pipeline. `tap` reads the same output as a stream, one line at a time
+while the child is still running.
+
+### Writing: `sink`
+
+`sink` writes one line to the child's standard input for each value, and
+closes it when the values end. What the child prints goes to the program's
+standard output:
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+["The Hobbit", "Dune", "Frankenstein"] | sink(command("sort"), Lines)
+```
+
+```text
+$ ./sorted.hql
+Dune
+Frankenstein
+The Hobbit
+```
+
+The three lines were printed by `sort`. `target` does the same with its
+whole input as one document.
+
+### Handling a failure: `run`
+
+`run` starts the child, waits for it, and gives the outcome as a `Result`:
+`ok(Output)` when the child exits `0`, and `err(CommandFailure)` with a
+`reason` otherwise. `git describe` exits `128` in a repository that has no
+tag, and this script handles that case with a `match`:
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+match command("git", ["describe", "--tags"]).run() {
+    ok(out) => out.stdout | trim,
+    err(e) given e.status == some(128) => "no tag yet",
+    err(e) => fmt("git failed: {}", e.reason),
+}
+```
+
+```text
+$ ./tag.hql
+"no tag yet"
+$ git tag v1
+$ ./tag.hql
+"v1"
+```
+
+### Three rules
 
 Three rules differ from what a shell script or a `subprocess` call does:
 
 - **No shell reads the command line.** `git` receives its arguments exactly
   as written. No word is split and no `*` is expanded, so text from outside
   the program is always one argument and never a command.
-- **A non-zero exit status is a failure.** Run outside a repository, the
-  script stops, and the diagnostic gives the child's own error as the cause:
+- **A non-zero exit status is a failure.** Under `run` it is an `err`.
+  Under `source`, `tap`, `sink` and `target` it stops the program. Run
+  outside a repository, `authors.hql` stops, and the diagnostic gives the
+  child's own error as the cause:
 
     ```text
     $ ./authors.hql
@@ -125,14 +136,45 @@ Three rules differ from what a shell script or a `subprocess` call does:
   `timeout_ms` passes or `hql` is interrupted, `hql` terminates the child
   and every process the child started.
 
-A program that handles a failure uses `run`, which gives the outcome as a
-`Result`: `ok(Output)` when the child exits `0`, and `err(CommandFailure)`
-with a `reason` otherwise. `sink` and `target` write to a child's standard
-input. A project lists the programs its scripts may start with
+A project lists the programs its scripts may start with
 `commands = ["git"]` in `.hql/config.toml`.
 
 Child processes run on Linux, macOS and Windows. The book's page is
 [Child processes](/latest/book/09-io/child-processes/).
+
+## A script
+
+A program in a file now runs as a command. The first line names `hql` as
+the interpreter, and the words after the path are the program's arguments:
+
+```hql
+#!/usr/bin/env hql
+import io.env
+
+type Book { title: String, status: String }
+
+shelf = [
+    Book(title = "Dune", status = "reading"),
+    Book(title = "The Hobbit", status = "todo"),
+    Book(title = "Leaves of Grass", status = "todo"),
+]
+wanted = env.argv()[0] | unwrap_or("todo")
+shelf | filter(b => b.status == wanted) | map(b => b.title) | sink(stdout, Text)
+```
+
+```text
+$ chmod +x todo.hql
+$ ./todo.hql
+The Hobbit
+Leaves of Grass
+$ ./todo.hql reading
+Dune
+```
+
+`hql todo.hql reading` runs the same file, and `hql -c '<program>'` runs
+program text. The exit status follows from the result: a failure, or a
+result that is `err(e)`, exits `1`, and any other result exits `0`. The
+book has the details: [Scripts](/latest/book/09-io/scripts/).
 
 ## A document vault under HyperMarkDown 0.1.0
 

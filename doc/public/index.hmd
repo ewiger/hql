@@ -25,7 +25,7 @@ topics, NATS subjects, lakehouse tables and HyperMarkDown documents.
 cargo install hql
 ```
 
-The current release is 0.8.0: [[/blog/hql-0-8-0|scripts, child processes and HyperMarkDown 0.1.0]].
+The current release is 0.8.0: [[/blog/hql-0-8-0|child processes, scripts and HyperMarkDown 0.1.0]].
 
 </div>
 <div class="hql-term" markdown>
@@ -272,11 +272,11 @@ Why a language for this, and where it is going:
 <article class="hql-post-card" markdown>
 <p class="hql-post-meta">24 November 2026</p>
 
-### [[/blog/hql-0-8-0|HQL 0.8.0: scripts, child processes, HyperMarkDown 0.1.0]]
+### [[/blog/hql-0-8-0|HQL 0.8.0: child processes, scripts, HyperMarkDown 0.1.0]]
 
-HQL 0.8.0 runs a program as a script, starts other programs and reads what
-they print as typed values, and reads a HyperMarkDown 0.1.0 vault. One
-running program for each, what breaks, and what 0.9.0 brings.
+HQL 0.8.0 starts other programs and reads what they print as typed values,
+runs a program as a script, and reads a HyperMarkDown 0.1.0 vault. Running
+programs for each, what breaks, and what 0.9.0 brings.
 
 <p class="hql-post-more" markdown>[[/blog/hql-0-8-0|Read the post →]] · [[/blog|All posts]]</p>
 </article>
