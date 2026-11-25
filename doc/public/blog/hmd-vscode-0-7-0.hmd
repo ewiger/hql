@@ -1,0 +1,223 @@
+---
+description: HyperMarkDown for VS Code 0.7.0 colours HQL, colours a cell in any language, accepts the 770 language names of GitHub Linguist on a fence, and carries a language server for links. This post is a card itself, and shows its own source.
+---
+# A card in full colour: HyperMarkDown for VS Code 0.7.0 { .hql-post-title }
+
+<p class="hql-post-meta">25 November 2026 · Yauhen Yakimovich</p>
+
+!!! abstract "TL;DR"
+
+    - **HQL has colours.** A `.hql` file is highlighted, and so is the body
+      of an `hql`, `hql#eval` or `hql#query` fence in a card.
+    - **A cell in any language is coloured as that language.**
+      `python#eval id=plot` is Python now, not one grey block.
+    - **A fence may name any of 770 languages.** The list is the one GitHub
+      uses, from GitHub Linguist 9.7.0.
+    - **A language server comes with the extension.** A link that names no
+      card is coloured as an error while you type. Hover and **Go to
+      Definition** work on links.
+    - **This post is a card.** Its source is a `.hmd` file, and the last
+      section shows it.
+
+I write almost everything in cards now. A card is a
+[HyperMarkDown](https://hypermarkdown.org/) file: Markdown, plus links that
+name other cards, plus code that can run. The design notes of HQL are cards.
+So are the issues, the book, and this blog. I read and edit all of it in
+VS Code.
+
+Until this week, that editor showed a lot of grey.
+
+The prose was fine. Headings, links and emphasis had their colours. The code
+did not. An HQL query in a card was a flat block of one colour. A Python cell
+was the same from the moment it got a mode. A card about a data pipeline
+could hold four languages, and the editor drew all four alike.
+
+Version 0.7.0 of the extension came out today, and it fixes that. Here is
+what changed, in the order I noticed it.
+
+## HQL has colours
+
+This is a script from the
+[[/blog/hql-0-8-0|HQL 0.8.0 post]]. It counts the commits of each author in
+a repository:
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+
+source(command("git", ["log", "--format=%an"]), Lines)
+| group(by = name => name)
+| sort(by = g => g.key)
+| map(g => {author: g.key, commits: g.items | size})
+```
+
+On this site it has always had colours. In the editor it had none, because
+VS Code had no grammar for HQL. The extension now carries one.
+
+It applies in two places. A `.hql` file is highlighted as HQL. In a card,
+the body of an `hql` fence is highlighted too, and so is the body of an
+`hql#eval` or an `hql#query` cell.
+
+Two smaller things come with the grammar. **Toggle Line Comment** inside a
+cell writes an HQL comment, not a Markdown one. Bracket matching inside a
+cell follows HQL's brackets.
+
+## A cell keeps the colours of its language
+
+A **cell** is a fence with a mode after the language name. The mode is
+written after a `#`, and attributes may follow it:
+
+````markdown
+```python#eval id=plot
+import matplotlib.pyplot as plt
+
+plt.plot([1, 2, 3], [2, 4, 8])
+plt.savefig("growth.png")
+```
+````
+
+The Markdown grammar of VS Code reads a language name up to the end of the
+word. It does not read `python#eval`, so it gave up on the whole fence and
+drew the body in one colour. The plain fence was Python. The cell was grey.
+
+In 0.7.0 the body of this cell is coloured as Python. The same holds for a
+cell in any other language. The parts of the fence line have their own
+colours as well: the mode `eval`, the attribute `id=plot`, and the
+`hql:output` markers that hold a cell's saved output.
+
+## 770 languages
+
+I wanted to know how many language names a fence accepts now, so I counted
+the rows of the table the extension ships. There are **770**.
+
+The table comes from
+[GitHub Linguist](https://github.com/github-linguist/linguist) 9.7.0.
+Linguist is the library GitHub uses to detect the language of a file and to
+colour it. Its list has 770 languages with a grammar, and the extension
+takes all of them.
+
+A fence can name a language in three ways:
+
+- by its **name**: `kotlin`, `toml`, `rust`
+- by one of its **aliases**. The list has 416 of them, such as `c#`
+- by a **file extension** that only one language uses, such as `kt`
+
+So the fences you already write on GitHub work in a card without changes:
+
+```kotlin
+data class Book(val title: String, val status: String)
+
+val todo = shelf.filter { it.status == "todo" }
+```
+
+```toml
+location_path = "."
+```
+
+The list goes well past the usual names. COBOL and Fortran are in it. So are
+Zig, D2, Brainfuck and LOLCODE.
+
+!!! note "The extension brings the names, not 770 grammars"
+
+    The body of a fence is coloured when VS Code has a grammar for that
+    language. VS Code ships grammars for the common languages, and an
+    installed extension adds its own. For a language with no grammar
+    installed, the fence line is coloured and the body is not. Install the
+    extension for that language and the body gets its colours.
+
+## Links are checked while you type
+
+Colour is the part you see first. The second part of 0.7.0 is about links.
+
+A card links to another card by name: `[[reading-list]]`. Before 0.7.0 a
+link looked the same whether its target existed or not, until the linter
+ran. Now the extension starts `hmd-lsp`, the HyperMarkDown language server,
+for every `.hmd` file. With it:
+
+- a link that names no card is coloured as an error. So is a link that
+  names several cards, and one that leaves the vault
+- **hover** on a link says which card it resolves to
+- **Go to Definition** opens that card
+
+There is nothing to install. The build for each platform carries
+`hmd-lsp` 0.1.0.
+
+```d2
+direction: down
+
+card: "A card (.hmd)"
+grammar: "Grammars\nMarkdown, HQL, 770 fence names"
+server: "hmd-lsp\nthe language server"
+colours: "Coloured code"
+links: "Checked links\nerror colour, hover, Go to Definition"
+
+card -> grammar
+card -> server
+grammar -> colours
+server -> links
+```
+
+The two halves are separate. Without the server, the extension works as
+before and the colours stay. The server never starts in an untrusted
+workspace, and `hyperMarkdown.languageServer.enabled` turns it off.
+
+The server is HyperMarkDown's, and it reads links. HQL's part in this
+release is the grammar; HQL has no language server of its own. Completion
+and rename of links are not written yet.
+
+## This post is a card
+
+The page you are reading is one `.hmd` file,
+[`doc/public/blog/hmd-vscode-0-7-0.hmd`](https://github.com/ewiger/hql/blob/main/doc/public/blog/hmd-vscode-0-7-0.hmd)
+in the HQL repository. The site builds it like any other card. Its first
+lines are these:
+
+````markdown
+---
+description: HyperMarkDown for VS Code 0.7.0 colours HQL, colours a cell …
+---
+# A card in full colour: HyperMarkDown for VS Code 0.7.0 { .hql-post-title }
+
+…
+
+This is a script from the
+[[/blog/hql-0-8-0|HQL 0.8.0 post]]. It counts the commits of each author in
+a repository:
+
+```hql
+#!/usr/bin/env hql
+from io.process import *
+```
+````
+
+Everything this post describes can be seen on the post itself. Open the file
+in VS Code with 0.7.0 installed:
+
+- the HQL script near the top is coloured as HQL
+- the Kotlin and TOML fences are coloured as Kotlin and TOML
+- the link to the HQL 0.8.0 post resolves, and hover says where it goes.
+  Change one letter of its name and it turns into an error
+- the diagram above is a `d2` fence in the text, and the preview draws it
+
+That is the reason I like the format. The post about the tool is a file the
+tool reads.
+
+## Install
+
+```text
+ext install hypermarkdown.hmd
+```
+
+- **VS Code**: search *HyperMarkDown* in the Extensions view, or open
+  [the marketplace listing](https://marketplace.visualstudio.com/items?itemName=hypermarkdown.hmd).
+- **Cursor, Windsurf, VSCodium**:
+  [Open VSX](https://open-vsx.org/extension/hypermarkdown/hmd).
+
+It needs VS Code 1.90 or newer. Then open any `.hmd` file. The
+[extension's page](https://hypermarkdown.org/tools/vscode/) has the rest,
+and the
+[changelog](https://github.com/ewiger/hypermarkdown/blob/main/tools/hmd-vsc-ext/CHANGELOG.md)
+lists every change in 0.7.0.
+
+Questions and bug reports are welcome on
+[r/hqlang](https://www.reddit.com/r/hqlang/).

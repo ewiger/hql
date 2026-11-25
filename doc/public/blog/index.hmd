@@ -8,6 +8,19 @@ newest post is first. Discuss them on [r/hqlang](https://www.reddit.com/r/hqlang
 <article class="hql-post-card" markdown>
 <p class="hql-post-meta">25 November 2026</p>
 
+### [[/blog/hmd-vscode-0-7-0|A card in full colour: HyperMarkDown for VS Code 0.7.0]]
+
+HyperMarkDown for VS Code 0.7.0 colours HQL, colours a cell in any language,
+accepts the 770 language names of GitHub Linguist on a fence, and carries a
+language server for links. This post is a card itself, and shows its own
+source.
+
+<p class="hql-post-more" markdown>[[/blog/hmd-vscode-0-7-0|Read the post →]]</p>
+</article>
+
+<article class="hql-post-card" markdown>
+<p class="hql-post-meta">25 November 2026</p>
+
 ### [[/blog/hql-0-8-0|HQL 0.8.0: child processes, scripts, HyperMarkDown 0.1.0]]
 
 HQL 0.8.0 starts other programs and reads what they print as typed values,
