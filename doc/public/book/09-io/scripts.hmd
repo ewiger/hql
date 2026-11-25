@@ -294,3 +294,9 @@ walt-whitman.hmd
 [[endpoints|Files and standard endpoints]] states where every kind of unit
 resolves a relative path, and the [[env|reference]] states `argv` with the
 rest of `io.env`.
+
+## What is next
+
+A script often starts other programs: `git`, `sort`, a build tool.
+[Child processes](child-processes.hmd) starts one, reads what it prints as
+values, and handles its failure.

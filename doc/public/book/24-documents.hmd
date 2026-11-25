@@ -124,8 +124,9 @@ marker records the cell's id, a **hash** of its code and of the code of every
 cell it reads, and its status. An output whose hash differs from the cell's
 current one is stale, and an editor can say so without running anything.
 
-`--cell <id>` runs one cell and the cells it reads, and rewrites only its
-output. `--envelope json` prints the built document and a record per cell —
+With `--emit after`, `--cell <id>` runs one cell and the cells it reads, and
+rewrites only its output. Without `--emit after` it is a usage error, since
+a build is of the whole document. `--envelope json` prints the built document and a record per cell —
 its id, span, hash, type, status, output and reports — for an editor to read.
 
 ## Cells that maintain a vault

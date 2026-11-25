@@ -8,7 +8,27 @@ The language continues to be in active development.
 
 ## [Unreleased]
 
-HQL is a script language ([HQL-0062](doc/proposals/HQL-0062/index.hmd)).
+## [0.8.0] — 2026-11-25
+
+HQL starts child processes
+([HQL-0064](doc/proposals/HQL-0064/index.hmd)), is a script language
+([HQL-0062](doc/proposals/HQL-0062/index.hmd)), and reads a vault and its
+documents as HyperMarkDown 0.1.0 states them.
+
+### Breaking
+
+Each of these is stated in full under Changed.
+
+- **A `.hmd/config.toml` that sets `wiki` is refused.** Rename the key to
+  `location_path`.
+- **A plain `hql` fence is a code listing.** Mark a cell `hql#eval`, or
+  `hql#query` for a cell that writes no output.
+- **An option of `hql` written after the program is the program's
+  argument.** Write it before the program: `hql --to json '<program>'`.
+- **A result that is `err(e)` exits `1`.** Handle the `err`, with `match` or
+  `unwrap_or`, where it is not a failure.
+- **`Path.join` keeps an absolute segment.** `base.join("/tmp")` is `/tmp`.
+  Pass a relative segment to stay under `base`.
 
 ### Added
 
@@ -30,7 +50,7 @@ HQL is a script language ([HQL-0062](doc/proposals/HQL-0062/index.hmd)).
   granted. The program's own path is not among them.
 - `examples/scripts/`: `todo.hql` and `lsx.hql`, executable scripts. The
   book's I/O chapter has a page on scripts, with how their relative paths
-  differ from Python, Node and Bash.
+  differ from Python, Node and Bash, and a page on child processes.
 - **Child processes** ([HQL-0064](doc/proposals/HQL-0064/index.hmd)).
   `command(program, args)` of `io.process` names a program and starts
   nothing. `source` and `tap` start it and read its standard output,
@@ -1538,7 +1558,8 @@ graph traversal that records why each node is present.
   runnable collection queries, including intentional errors for duplicate keys
   and non-orderable sorted-map keys.
 
-[Unreleased]: https://github.com/ewiger/hql/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/ewiger/hql/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/ewiger/hql/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/ewiger/hql/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/ewiger/hql/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/ewiger/hql/compare/v0.6.0...v0.7.0

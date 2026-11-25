@@ -206,7 +206,7 @@ arguments as any program does ([[hosts|effects and what a host allows]]):
 ````markdown
 # Notes
 
-```hql
+```hql#eval
 import io.env
 [env.var("SHOP_REGION"), env.arg("who")]
 ```
