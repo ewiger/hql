@@ -8,6 +8,10 @@ on:
       tag:
         description: The existing tag to build a release from
         required: true
+      dry_run:
+        description: Check and build only; publish nothing
+        type: boolean
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -125,6 +129,9 @@ jobs:
   release:
     name: Publish the GitHub release
     needs: [tested, build]
+    # A dry run stops here; `docs` and `crates-io` need this job, so they
+    # are skipped with it.
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
