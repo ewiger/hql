@@ -62,10 +62,29 @@ takes 24 minutes.
 Parts 1 to 3 are small and carry most of the gain. Part 5 is measured on
 a branch with `--timings` on `windows-latest` before it is merged.
 
+## Progress
+
+On `feat/ci-speed`, parts 1 to 4 are in:
+
+- **1.** `HQL_PACKAGE_TARGET_DIR`, set to `target/packages` in
+  `.cargo/config.toml`. Locally `tests/package.rs` and `tests/book.rs`
+  together take 223 s cold and 118 s warm. `rust-cache` keeps the
+  dependencies under `target/packages` but prunes workspace crates, so a
+  warm CI run still compiles `hql` itself in release mode once. Whether
+  `cache-workspace-crates` pays for its size is measured on CI.
+- **2.** A `tested` job waits for CI on the tagged commit; the GitHub
+  release needs it and the builds. The build jobs run no `cargo test`.
+- **3.** `CARGO_PROFILE_DEV_DEBUG: line-tables-only` in `ci.yml`.
+- **4.** Pages run on a pool of threads, the programs of one page in order.
+  Locally the book test goes from 116 s to 23 s.
+
+Part 5 is not started.
+
 ## Done when
 
-- A CI run with a warm cache builds `hello` at most once, and the
-  `tests/packages/hello/target` directory is not created.
+- A CI run with a warm cache builds `hello` at most once, and cargo writes
+  no build output under `tests/packages/hello/target`, which holds only
+  the installed copy, `target/hql/hello`.
 - The slowest CI test job takes under 10 minutes.
 - A release run takes under 13 minutes and runs no `cargo test`.
 - `cargo test` on a developer machine passes with no new setup.
