@@ -64,21 +64,31 @@ a branch with `--timings` on `windows-latest` before it is merged.
 
 ## Progress
 
-On `feat/ci-speed`, parts 1 to 4 are in:
+Parts 1 to 4 are in (PR 28). Part 5 is not started.
+
+| Job | Before (CI run 174) | After, cache warm |
+| --- | --- | --- |
+| Test (ubuntu-latest) | 13m34s | 5m11s |
+| Test (macos-latest) | 17m58s | 3m00s |
+| Test (windows-latest) | 20m46s | 8m12s |
+| CI run | 20m49s | 8m12s |
 
 - **1.** `HQL_PACKAGE_TARGET_DIR`, set to `target/packages` in
-  `.cargo/config.toml`. Locally `tests/package.rs` and `tests/book.rs`
-  together take 223 s cold and 118 s warm. `rust-cache` keeps the
-  dependencies under `target/packages` but prunes workspace crates, so a
-  warm CI run still compiles `hql` itself in release mode once. Whether
-  `cache-workspace-crates` pays for its size is measured on CI.
+  `.cargo/config.toml`. `install()` now writes `hql`'s lock into a crate
+  that is its own workspace even inside another workspace's checkout, so
+  the fixture and the registry test's copy of it resolve alike and share
+  one build. Locally `tests/package.rs` and `tests/book.rs` together take
+  87 s cold. `rust-cache` keeps the dependencies under `target/packages`
+  but prunes workspace crates, so a warm CI run still compiles `hql`
+  itself in release mode once.
 - **2.** A `tested` job waits for CI on the tagged commit; the GitHub
   release needs it and the builds. The build jobs run no `cargo test`.
 - **3.** `CARGO_PROFILE_DEV_DEBUG: line-tables-only` in `ci.yml`.
 - **4.** Pages run on a pool of threads, the programs of one page in order.
   Locally the book test goes from 116 s to 23 s.
 
-Part 5 is not started.
+A `dry_run` of `release.yml` on `v0.8.0` passed `tested` in 11 s and
+built `x86_64-unknown-linux-gnu` in 4m03s.
 
 ## Done when
 
