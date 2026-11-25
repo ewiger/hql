@@ -196,6 +196,11 @@ jobs:
       # The site's ```d2 fences are drawn at build time by the `d2` binary;
       # without it a diagram degrades to its source. It comes from the pinned
       # HyperMarkDown toolchain release.
+      - name: Cache the toolchain archive
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/hypermarkdown-toolchain
+          key: hypermarkdown-toolchain-${{ runner.os }}-${{ hashFiles('contrib/ci/install-d2.sh') }}
       - name: Install d2
         run: contrib/ci/install-d2.sh
       - name: Publish the version and move latest to it

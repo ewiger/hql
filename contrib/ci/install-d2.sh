@@ -7,6 +7,11 @@
 # asset, fetched by its URL and checked against the digest below, so the
 # install makes no GitHub API request and cannot be rate-limited by one.
 #
+# The archive is kept in `~/.cache/hypermarkdown-toolchain`, which the
+# workflows save in the CI cache, keyed on this file. A run that finds the
+# archive there downloads nothing. The digest is checked on every run, on a
+# cached archive as on a downloaded one.
+#
 # To move to another toolchain release, change `version` and `sha256`
 # together. Both are in `toolchain.json` of ewiger/hypermarkdown, under
 # `archives.linux-x86_64`.
@@ -21,13 +26,30 @@ sha256=6ee19ddc6b94c653b0df6680dcf18b75a1f3948af74f9cd04ac623b9fc5f4c58
 name="hypermarkdown-toolchain-$version-linux-x86_64.tar.gz"
 url="https://github.com/ewiger/hypermarkdown-toolchain/releases/download/v$version/$name"
 bin="$HOME/.local/bin"
+cache="$HOME/.cache/hypermarkdown-toolchain"
+archive="$cache/$name"
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-curl -fsSL --retry 3 --retry-all-errors -o "$tmp/$name" "$url"
-echo "$sha256  $tmp/$name" | sha256sum -c -
-tar -xzf "$tmp/$name" -C "$tmp" bin/d2
+verify() {
+  echo "$sha256  $archive" | sha256sum -c - >/dev/null 2>&1
+}
+
+mkdir -p "$cache"
+if [ -f "$archive" ] && verify; then
+  echo "toolchain $version: from the cache"
+else
+  rm -f "$archive"
+  echo "toolchain $version: $url"
+  curl -fsSL --retry 3 --retry-all-errors -o "$archive" "$url"
+  if ! verify; then
+    echo "digest mismatch for $name, expected $sha256" >&2
+    rm -f "$archive"
+    exit 1
+  fi
+fi
+tar -xzf "$archive" -C "$tmp" bin/d2
 
 mkdir -p "$bin"
 install -m 755 "$tmp/bin/d2" "$bin/d2"
