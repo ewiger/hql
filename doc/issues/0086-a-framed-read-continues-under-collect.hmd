@@ -1,7 +1,7 @@
 # 0086 — A framed read continues past a bad record under `collect`
 
 Status: todo
-Target: 0.8.0
+Target: 0.8.1
 Related: [[HQL-0045]], the [[error-handling|error-handling card]],
 [reporting](../models/behavior/reporting.hmd),
 [[0085-hql-0064-beyond-child-processes|issue 0085]]

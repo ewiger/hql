@@ -1,5 +1,5 @@
 # The cards start at the vault root.
-wiki = "."
+location_path = "."
 
 [semantics]
 index = ".hmd/index.sqlite"

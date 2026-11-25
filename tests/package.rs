@@ -16,7 +16,7 @@ use std::sync::OnceLock;
 fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
     let dir = dir.as_ref();
     std::fs::create_dir_all(dir.join(".hmd")).unwrap();
-    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "location_path = \".\"\n").unwrap();
     std::fs::create_dir_all(dir.join(".hql")).unwrap();
     dir.join(".hql/config.toml")
 }
@@ -563,7 +563,12 @@ fn registered(home: &Path, repository: &Path, arguments: &[&str]) -> Output {
 
 #[test]
 fn a_package_the_registry_lists_installs_by_name() {
-    let repository = repository(">=0.7.0, <0.8.0");
+    // The range of this minor release, so the test holds across version bumps.
+    let mut version = env!("CARGO_PKG_VERSION").split('.');
+    let major: u64 = version.next().unwrap().parse().unwrap();
+    let minor: u64 = version.next().unwrap().parse().unwrap();
+    let range = format!(">={major}.{minor}.0, <{major}.{}.0", minor + 1);
+    let repository = repository(&range);
     let home = tempfile::tempdir().unwrap();
     let found = registered(home.path(), repository.path(), &["search", "greet"]);
     assert_eq!(

@@ -1425,7 +1425,7 @@ dependencies = [
 
 [[package]]
 name = "hql"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "aes-gcm 0.11.1",
  "age",
@@ -1487,7 +1487,7 @@ dependencies = [
 
 [[package]]
 name = "hql-sys"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
@@ -1495,7 +1495,7 @@ dependencies = [
 
 [[package]]
 name = "hql-wasm"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "hql",
  "include_dir",
@@ -1541,13 +1541,14 @@ dependencies = [
 
 [[package]]
 name = "hypermarkdown"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0d8c3303c0d6f90f2b60b8ea4ea707abfeedf11c129d6b382a8cf681867410f"
+checksum = "2c926cc3fd89af2bc4339467c12e537c726c32dc57c10733bb970b10a617c53d"
 dependencies = [
  "serde",
  "serde_yaml_ng",
  "toml 1.1.6+spec-1.1.0",
+ "unicode-normalization",
 ]
 
 [[package]]

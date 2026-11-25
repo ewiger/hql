@@ -11,7 +11,7 @@ use tempfile::tempdir;
 fn project_config(dir: impl AsRef<std::path::Path>) -> std::path::PathBuf {
     let dir = dir.as_ref();
     std::fs::create_dir_all(dir.join(".hmd")).unwrap();
-    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "location_path = \".\"\n").unwrap();
     std::fs::create_dir_all(dir.join(".hql")).unwrap();
     dir.join(".hql/config.toml")
 }
@@ -233,7 +233,11 @@ fn a_project_module_that_imports_hmd_activates_it_for_the_run() {
 fn a_run_with_a_vault_has_hmd_active_and_a_bare_run_walks_to_none() {
     let root = tempdir().unwrap();
     std::fs::create_dir(root.path().join(".hmd")).unwrap();
-    std::fs::write(root.path().join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::write(
+        root.path().join(".hmd/config.toml"),
+        "location_path = \".\"\n",
+    )
+    .unwrap();
     std::fs::write(root.path().join("one.md"), "# One\n").unwrap();
     // The vault found by the walk imports `hmd`: no import is written.
     let output = hql_in(root.path(), &["eval", "cards | count"]);
@@ -256,7 +260,11 @@ fn a_run_with_a_vault_has_hmd_active_and_a_bare_run_walks_to_none() {
 fn without_the_flag_the_vault_is_the_nearest_marked_directory_above() {
     let root = tempdir().unwrap();
     std::fs::create_dir(root.path().join(".hmd")).unwrap();
-    std::fs::write(root.path().join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::write(
+        root.path().join(".hmd/config.toml"),
+        "location_path = \".\"\n",
+    )
+    .unwrap();
     std::fs::write(root.path().join("one.md"), "# One\n").unwrap();
     let deep = root.path().join("notes/deeper");
     std::fs::create_dir_all(&deep).unwrap();

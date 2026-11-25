@@ -7,7 +7,7 @@
 # See ../wiki/hypermarkdown.hmd for what these settings mean and
 # https://hypermarkdown.org/wiki/hmd-lang-spec/ for the format's own rules.
 
-wiki = "."
+location_path = "."
 
 [discovery]
 # Load-bearing. Roughly a third of this vault's wikilinks resolve only in the

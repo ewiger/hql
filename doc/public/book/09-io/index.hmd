@@ -71,3 +71,4 @@ Logging and the network are modules of their own, `import logging` and
 | [Effects and what a host allows](hosts.hmd) | effectful operations, and what `hql eval`, `hql render` and `hql check` grant |
 | [`hql` on the command line](command-line.hmd) | `hql '<program>'`, `-c`, `--to`, `--compact` and `--from` |
 | [Scripts](scripts.hmd) | `#!`, `hql FILE`, `io.env.argv()`, the exit status, and relative paths in a script |
+| [Child processes](child-processes.hmd) | `io.process`: `command`, `run`, a child as an endpoint, failures and their causes, the `commands` grant, and Windows |

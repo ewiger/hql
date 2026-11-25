@@ -337,7 +337,7 @@ declines optional continuation after the first `error`.
 | --- | --- | --- |
 | `load` | skips the document and continues | the same |
 | `parse` | stops: nothing after an unparseable source has a structure | the same |
-| `check` | stops at the first | checks every statement; a failed one still binds its name at the open [[data-type\|Data]] type, so the statements after it are reported on their own faults |
+| `check` | stops at the first | checks every statement; a failed one still binds its name at the open [Data](types/data-type.hmd) type, so the statements after it are reported on their own faults |
 | `plan` | stops: a refused pipeline has no plan | the same |
 | `execute` | stops at the first | `map`, `filter` and `flat_map` step past an element whose function failed, writing the diagnostic `recoverable`; an overflow or an I/O failure stops under both |
 | `render` | stops at the failing cell | renders every cell, each reported against its own fault |

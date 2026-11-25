@@ -231,13 +231,13 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "hypermarkdown", extras = ["mkdocs"], specifier = ">=0.3,<0.4" },
+    { name = "hypermarkdown", extras = ["mkdocs"], specifier = ">=0.5,<0.6" },
     { name = "mike", specifier = ">=2.2.0" },
 ]
 
 [[package]]
 name = "hypermarkdown"
-version = "0.3.0"
+version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "markdown" },
@@ -245,9 +245,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/52/8b/fc793decde13aa1adcfa5b2b48950a4afbeead81a80ed952802730053c80/hypermarkdown-0.3.0.tar.gz", hash = "sha256:05458d7137567dfcae5c795bff2928fc722957eb17ed64b30e1ad17f002d48e0", size = 52727, upload-time = "2026-09-13T23:10:24.754Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ac/5a/13445d764c3761bcb098ab38cbd270d2fc91af2b6d6798779250801243aa/hypermarkdown-0.5.0.tar.gz", hash = "sha256:fa90defa80e554bf1ea5f94317809ffcc312f294238d633f3557a2db6640619a", size = 77751, upload-time = "2026-11-24T23:14:21.828Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/16/b8/b832fb9eda76f96da26910ef661f53d6c8b9f32351eab81b7c7dc3ee357a/hypermarkdown-0.3.0-py3-none-any.whl", hash = "sha256:f58d8464a97c09242fbd969abcf3c8a992915798692c58abc152a13e19e62e11", size = 48451, upload-time = "2026-09-13T23:10:23.371Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/2e/acae40209d523b5d82190072f96d58067a53ab94718d86b21f872da03a62/hypermarkdown-0.5.0-py3-none-any.whl", hash = "sha256:94415df706c173bd4f27e1b3d59e83b6665262f6431901f2a3d33fe779e56462", size = 70318, upload-time = "2026-11-24T23:14:20.741Z" },
 ]
 
 [package.optional-dependencies]

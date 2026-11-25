@@ -39,17 +39,22 @@ and a vault need not be a project
 ([[13-working-with-hql#projects-and-vaults|chapter 13]]).
 
 The vault's `.hmd/config.toml` says where its cards start, with the key
-`wiki`: a path against the vault root, `doc/wiki` when the file does not set
-it. The reading club keeps its cards at the vault root, so it says so:
+`location_path`: a path against the vault root, `.`, the vault root itself,
+when the file does not set it. The reading club keeps its cards at the vault
+root, and says so anyway:
 
 ```toml
-wiki = "."
+location_path = "."
 ```
+
+The key used to be called `wiki`, with the default `doc/wiki`. A config that
+still sets `wiki` is refused with a message naming `location_path`, and the
+vault is not read until the key is renamed.
 
 That directory is the **namespace root**. A document is a card exactly when
 it lies below it, and a card's path is written from it, so `books/dune.hmd`
 above. A file of the vault outside it, a `README.md` beside `.hmd/` in a
-vault whose `wiki` is `doc/wiki`, is not a card. A card is a `.hmd` file, or a
+vault whose `location_path` is `doc/wiki`, is not a card. A card is a `.hmd` file, or a
 `.md` or `.markdown` file whose body is plain Markdown.
 
 Each document is a **card**. A card has a header of metadata and a body
