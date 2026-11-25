@@ -87,8 +87,16 @@ Parts 1 to 4 are in (PR 28). Part 5 is not started.
 - **4.** Pages run on a pool of threads, the programs of one page in order.
   Locally the book test goes from 116 s to 23 s.
 
-A `dry_run` of `release.yml` on `v0.8.0` passed `tested` in 11 s and
-built `x86_64-unknown-linux-gnu` in 4m03s.
+A `dry_run` of `release.yml` on `v0.8.0` took 6 minutes, against 27m52s
+for the v0.8.0 release with its 3 minutes of publishing. `tested` passed
+in 11 s.
+
+| Release build job | v0.8.0 | Dry run |
+| --- | --- | --- |
+| `x86_64-pc-windows-msvc` | 24m04s | 5m30s |
+| `x86_64-unknown-linux-gnu` | 14m37s | 4m03s |
+| `aarch64-apple-darwin` | not read | 5m49s |
+| `x86_64-apple-darwin` | not read | 5m33s |
 
 ## Done when
 
