@@ -7229,7 +7229,7 @@ two files fit.</p>
 It is what explains the messages a package gives when it is refused, and
 why <code>hql package rebuild</code> exists.</p>
 <h2 id="from-a-crate-to-a-call">From a crate to a call<a class="headerlink" href="#from-a-crate-to-a-call" title="Permanent link">&para;</a></h2>
-<p><img alt="hql package install builds the crate with cargo against the running hql and writes the library, the module root and package.toml. When hql starts it compares the record with itself, opens the library, calls hql_extension_v1, compares the header, and binds the contract to the extension. A program's call then runs the library's function directly." src="../35-loading.svg" /></p>
+<p><img alt="hql package install builds the crate with cargo against the running hql and writes the library, the module root and package.toml. When hql starts it compares the record with itself, opens the library, calls hql_extension_v1, compares the header, and binds the contract to the extension. A program's call then runs the library's function directly." src="35-how-a-library-is-loaded/35-loading.svg" /></p>
 <p>There are two moments.</p>
 <p><strong>Install</strong>, once per package and again after <code>hql</code> is upgraded: <code>hql
 package install</code> runs <code>cargo</code> on the crate and writes three things into

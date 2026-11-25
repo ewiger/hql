@@ -7449,14 +7449,18 @@ project too, which configures the programs run in it; the two are separate,
 and a vault need not be a project
 (<a href="../13-working-with-hql/#projects-and-vaults">chapter 13</a>).</p>
 <p>The vault's <code>.hmd/config.toml</code> says where its cards start, with the key
-<code>wiki</code>: a path against the vault root, <code>doc/wiki</code> when the file does not set
-it. The reading club keeps its cards at the vault root, so it says so:</p>
-<div class="highlight"><pre><span></span><code><span class="n">wiki</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"."</span>
+<code>location_path</code>: a path against the vault root, <code>.</code>, the vault root itself,
+when the file does not set it. The reading club keeps its cards at the vault
+root, and says so anyway:</p>
+<div class="highlight"><pre><span></span><code><span class="n">location_path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"."</span>
 </code></pre></div>
+<p>The key used to be called <code>wiki</code>, with the default <code>doc/wiki</code>. A config that
+still sets <code>wiki</code> is refused with a message naming <code>location_path</code>, and the
+vault is not read until the key is renamed.</p>
 <p>That directory is the <strong>namespace root</strong>. A document is a card exactly when
 it lies below it, and a card's path is written from it, so <code>books/dune.hmd</code>
 above. A file of the vault outside it, a <code>README.md</code> beside <code>.hmd/</code> in a
-vault whose <code>wiki</code> is <code>doc/wiki</code>, is not a card. A card is a <code>.hmd</code> file, or a
+vault whose <code>location_path</code> is <code>doc/wiki</code>, is not a card. A card is a <code>.hmd</code> file, or a
 <code>.md</code> or <code>.markdown</code> file whose body is plain Markdown.</p>
 <p>Each document is a <strong>card</strong>. A card has a header of metadata and a body
 someone wrote:</p>
