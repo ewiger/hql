@@ -235,7 +235,11 @@ fn encrypting_to_a_files_end_is_a_check_error() {
 fn a_rendered_document_draws_nothing_from_the_host_generator() {
     let vault = tempfile::tempdir().unwrap();
     std::fs::create_dir(vault.path().join(".hmd")).unwrap();
-    std::fs::write(vault.path().join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::write(
+        vault.path().join(".hmd/config.toml"),
+        "location_path = \".\"\n",
+    )
+    .unwrap();
     let document = vault.path().join("keys.md");
     std::fs::write(
         &document,

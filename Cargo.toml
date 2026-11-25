@@ -85,7 +85,7 @@ futures-util = { version = "0.3.34", default-features = false, optional = true }
 getrandom = { version = "0.4", features = ["sys_rng"] }
 hql-sys = { version = "0.7.2", path = "crates/hql-sys", optional = true }
 hmac = "0.13"
-hypermarkdown = "0.2"
+hypermarkdown = "0.3"
 jiff = { version = "0.2.43", features = ["tzdb-bundle-always"] }
 jiff-tzdb = "0.1.9"
 libloading = { version = "0.8", optional = true }

@@ -75,7 +75,7 @@ pub struct Filesystem {
 
 impl Filesystem {
     /// Select the vault to read. Its cards are read from its namespace root,
-    /// the directory `wiki` in its `.hmd/config.toml` names, as HyperMarkdown
+    /// the directory `location_path` in its `.hmd/config.toml` names, as HyperMarkdown
     /// reads them; a directory that holds no `.hmd/` is read whole.
     ///
     /// # Errors
@@ -88,7 +88,7 @@ impl Filesystem {
     }
 }
 
-/// Where a vault's cards start: `wiki` against the vault root, as
+/// Where a vault's cards start: `location_path` against the vault root, as
 /// HyperMarkdown's own resolver reads it, or the directory itself where it
 /// holds no `.hmd/`.
 ///
@@ -119,7 +119,7 @@ impl VaultSource for Filesystem {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 format!(
-                    "the cards location {} does not exist; set `wiki` in {}",
+                    "the cards location {} does not exist; set `location_path` in {}",
                     self.cards.display(),
                     self.root.join(".hmd").join("config.toml").display()
                 ),

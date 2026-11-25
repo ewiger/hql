@@ -112,7 +112,7 @@ The rules are in the companion notes. In short:
    ([[01-packages#5-configuration|part 1, configuration]]).
 6. **`hql package` is the one command.** `install`, `list`, `info`,
    `search`, `update`, `rebuild`, `remove` and `registry`
-   ([[01-packages#6-hql-package|part 1, the command]]).
+   ([[01-packages#6-`hql-package`|part 1, the command]]).
 7. **`ml` is the first official package** ([[02-ml|part 2]]).
 
 ## Backwards Compatibility

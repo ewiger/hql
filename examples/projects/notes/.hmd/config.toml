@@ -1,4 +1,4 @@
 # The cards start at the vault root.
-wiki = "."
+location_path = "."
 
 # A vault with no project: two cards, and no `.hql/` beside them.

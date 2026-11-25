@@ -173,7 +173,7 @@ directory ([[09-io/files-and-folders|the files and folders page]] of chapter 9).
 `--project <dir>` names the project and replaces its walk; the directory must
 hold `.hql/config.toml`. `--vault <dir>` names the vault the `hmd` package
 reads, and the directory must hold `.hmd/`: it is the vault root, not the
-directory its cards start in, which the vault's `wiki` setting names
+directory its cards start in, which the vault's `location_path` setting names
 ([[21-a-vault|chapter 21]]). A directory inside a vault that holds no `.hmd/`
 is refused, naming the vault root above it. Where no project is named, the
 project is the nearest at or above the vault. `--bare` runs with no project

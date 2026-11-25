@@ -9,7 +9,7 @@
 #
 # See ../../wiki/hypermarkdown.hmd for what these settings mean.
 
-wiki = "."
+location_path = "."
 
 [discovery]
 autodiscovery = true
