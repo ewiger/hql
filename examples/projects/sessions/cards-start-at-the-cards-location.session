@@ -1,5 +1,5 @@
 // status: valid-now
-// feature: a vault's cards are the documents below the directory its `wiki` names, the namespace root; a file beside `.hmd/` is not a card
+// feature: a vault's cards are the documents below the directory its `location_path` names, the namespace root; a file beside `.hmd/` is not a card
 // implementation: implemented
 // environment: pure
 // session: cli

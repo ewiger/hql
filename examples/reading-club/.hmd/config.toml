@@ -1,5 +1,5 @@
 # The cards start at the vault root.
-wiki = "."
+location_path = "."
 
 # The vault the HQL book reads.
 

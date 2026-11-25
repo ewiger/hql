@@ -79,6 +79,12 @@ Each of these is stated in full under Changed.
 
 ### Changed
 
+- **A vault's cards start where `location_path` says**, the name HyperMarkDown
+  0.1 gives the setting `wiki` had. It defaults to `.`, the vault root, where
+  `wiki` defaulted to `doc/wiki`. A `.hmd/config.toml` that still sets `wiki`
+  is refused with a message naming `location_path`, and the vault is not read
+  until the key is renamed. The message for a missing cards location names
+  `location_path`.
 - **A result that is `err(e)` exits `1`.** It is still written on standard
   output. Only the result itself is tested: `[ok(1), err("x")]` exits `0`.
   `./check.hql && ./publish.hql` now stops on a failed check.

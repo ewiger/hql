@@ -81,7 +81,7 @@ fn copied() -> (TempDir, PathBuf) {
     let directory = tempdir().expect("a temporary directory");
     let root = directory.path().join("birds");
     fs::create_dir_all(root.join(".hmd")).expect("the vault directory");
-    std::fs::write(root.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::write(root.join(".hmd/config.toml"), "location_path = \".\"\n").unwrap();
     for entry in fs::read_dir(BIRDS).expect("the fixture vault") {
         let path = entry.expect("an entry").path();
         if path.is_file() {
@@ -344,7 +344,7 @@ fn a_vault_that_declares_an_embedder_still_answers_and_its_scores_name_the_index
     let (_directory, root) = copied();
     fs::write(
         root.join(".hmd/config.toml"),
-        "wiki = \".\"\n\
+        "location_path = \".\"\n\
          \n\
          [semantics]\n\
          index = \".hmd/index.sqlite\"\n\
@@ -384,7 +384,7 @@ fn an_index_outside_the_vault_is_refused() {
     let (_directory, root) = copied();
     fs::write(
         root.join(".hmd/config.toml"),
-        "wiki = \".\"\n[semantics]\nindex = \"../escaped.sqlite\"\n",
+        "location_path = \".\"\n[semantics]\nindex = \"../escaped.sqlite\"\n",
     )
     .expect("the configuration");
     let said = failure(

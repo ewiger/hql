@@ -13,7 +13,7 @@ use std::process::{Command, Output};
 /// The configuration file of a directory that is a project.
 fn project_config(dir: &Path) -> PathBuf {
     std::fs::create_dir_all(dir.join(".hmd")).unwrap();
-    std::fs::write(dir.join(".hmd/config.toml"), "wiki = \".\"\n").unwrap();
+    std::fs::write(dir.join(".hmd/config.toml"), "location_path = \".\"\n").unwrap();
     std::fs::create_dir_all(dir.join(".hql")).unwrap();
     dir.join(".hql/config.toml")
 }
@@ -72,6 +72,21 @@ fn standalone(variables: &[(&str, &str)], program: &str) -> Output {
 
 const RAN: &str =
     r#"match command("printf", ["wren"]).run() { ok(o) => o.stdout, err(e) => e.reason }"#;
+
+#[test]
+fn a_command_has_the_fields_its_type_declares() {
+    // Reading the fields starts nothing, so the program need not exist.
+    let output = standalone(
+        &[],
+        r#"c = command("no-such-program", ["--format", "%an"])
+{program: c.program, args: c.args}"#,
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output).trim_end(),
+        r#"{args: ["--format", "%an"], program: "no-such-program"}"#
+    );
+}
 
 #[test]
 fn a_run_on_its_own_grants_every_program() {
