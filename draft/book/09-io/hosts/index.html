@@ -2036,6 +2036,8 @@
       
         
       
+        
+      
     
     
     
@@ -2585,6 +2587,34 @@
     
   
     Scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../child-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Child processes
   
 
     
@@ -7251,32 +7281,38 @@ writes a file, standard output or standard error is reported when the
 document is checked, before any cell runs:</p>
 <div class="highlight"><pre><span></span><code><span class="gh"># Report</span>
 
-<span class="sb">```hql</span>
-<span class="s">[1] | target(file("out.json"))</span>
-<span class="sb">```</span>
+```hql#eval
+[1] | target(file("out.json"))
+```
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>$ hql render report.hmd
-type error: a document writes nothing outside itself, so `target` and `sink` are refused here
+check error[type-mismatch]: a document writes nothing outside itself, so `target` and `sink` are refused here
  --&gt; report.hmd:4:7
   |
 4 | [1] | target(file("out.json"))
   |       ^^^^^^^^^^^^^^^^^^^^^^^^
+  = cell: 0
 </code></pre></div>
 <p>A network endpoint in a document is a type error in the same way, and a file
 read that leaves the document's directory, by <code>..</code> or through a symbolic
 link, is an evaluation failure naming the path:</p>
-<div class="highlight"><pre><span></span><code>type error: a document reads and writes nothing on the network
+<div class="highlight"><pre><span></span><code>check error[type-mismatch]: a document reads and writes nothing on the network
  --&gt; net.hmd:5:8
   |
 5 | source(http("https://example.com/x"), Json)
   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = cell: 0
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>evaluation failure: ../outside.json: a document reads only files under its own directory
+<div class="highlight"><pre><span></span><code>execute failure[io-failure]: ../outside.json: a document reads only files under its own directory
  --&gt; outside.hmd:4:1
   |
 4 | source(file("../outside.json"))
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = cell: 0
 </code></pre></div>
+<p>A document starts no program either. A cell that reads or writes a command
+is a type error, <code>a document starts no program</code>
+(<a href="../child-processes/">Child processes</a>).</p>
 <p>A logger is checked as the <code>sink</code> it is, so a cell logs to <code>cell.logs</code>, its
 own channel, and not to <code>stderr</code> (<a href="../logging/">logging</a>). The same program
 runs under different policies without changing its model: a terminal may

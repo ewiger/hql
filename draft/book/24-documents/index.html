@@ -2032,6 +2032,8 @@
       
         
       
+        
+      
     
     
     
@@ -2512,6 +2514,34 @@
     
   
     Scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../09-io/child-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Child processes
   
 
     
@@ -7408,8 +7438,9 @@ outputs, and the next render replaces what is between the markers. The opening
 marker records the cell's id, a <strong>hash</strong> of its code and of the code of every
 cell it reads, and its status. An output whose hash differs from the cell's
 current one is stale, and an editor can say so without running anything.</p>
-<p><code>--cell &lt;id&gt;</code> runs one cell and the cells it reads, and rewrites only its
-output. <code>--envelope json</code> prints the built document and a record per cell —
+<p>With <code>--emit after</code>, <code>--cell &lt;id&gt;</code> runs one cell and the cells it reads, and
+rewrites only its output. Without <code>--emit after</code> it is a usage error, since
+a build is of the whole document. <code>--envelope json</code> prints the built document and a record per cell —
 its id, span, hash, type, status, output and reports — for an editor to read.</p>
 <h2 id="cells-that-maintain-a-vault">Cells that maintain a vault<a class="headerlink" href="#cells-that-maintain-a-vault" title="Permanent link">&para;</a></h2>
 <div class="admonition warning">

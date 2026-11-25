@@ -2032,6 +2032,8 @@
       
         
       
+        
+      
     
     
     
@@ -2512,6 +2514,34 @@
     
   
     Scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../09-io/child-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Child processes
   
 
     
@@ -7276,7 +7306,7 @@ whole <code>Cargo.toml</code> of <code>hello</code>:</p>
 <span class="n">crate-type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"cdylib"</span><span class="p">,</span><span class="w"> </span><span class="s2">"rlib"</span><span class="p">]</span>
 
 <span class="k">[dependencies]</span>
-<span class="n">hql</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0.7"</span>
+<span class="n">hql</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0.8"</span>
 
 <span class="k">[package.metadata.hql]</span>
 <span class="n">package</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"hello"</span>
@@ -7316,8 +7346,8 @@ nothing outside that prefix. A package named <code>ml</code> provides <code>ml</
 install</code> says so. <a href="../../35-how-a-library-is-loaded/static-and-dynamic/">Chapter 35</a> explains the two kinds.</p>
 <h2 id="the-hql-dependency">The <code>hql</code> dependency<a class="headerlink" href="#the-hql-dependency" title="Permanent link">&para;</a></h2>
 <p>The crate depends on <code>hql</code>, the same crate the <code>hql</code> binary is built from,
-and uses one module of it, <code>hql::ext</code>. <code>hql = "0.7"</code> is a range: every
-0.7 release. It says which versions the crate's source is written for.</p>
+and uses one module of it, <code>hql::ext</code>. <code>hql = "0.8"</code> is a range: every
+0.8 release. It says which versions the crate's source is written for.</p>
 <p>The version the crate is actually built against is not chosen by this
 line. <code>hql package install</code> builds the crate against the exact version of
 the <code>hql</code> that runs the command, and refuses a crate whose range excludes

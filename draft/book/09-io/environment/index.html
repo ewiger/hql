@@ -2036,6 +2036,8 @@
       
         
       
+        
+      
     
     
     
@@ -2618,6 +2620,34 @@
     
   
     Scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../child-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Child processes
   
 
     
@@ -7419,10 +7449,10 @@ the renderer's environment and discloses nothing of it. It reads its
 arguments as any program does (<a href="../hosts/">effects and what a host allows</a>):</p>
 <div class="highlight"><pre><span></span><code><span class="gh"># Notes</span>
 
-<span class="sb">```hql</span>
-<span class="s">import io.env</span>
-<span class="s">[env.var("SHOP_REGION"), env.arg("who")]</span>
-<span class="sb">```</span>
+```hql#eval
+import io.env
+[env.var("SHOP_REGION"), env.arg("who")]
+```
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>$ SHOP_REGION=eu hql --arg who=owl render notes.hmd
 # Notes
