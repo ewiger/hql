@@ -13,6 +13,7 @@ on:
       - "mkdocs.base.yml"
       - "mkdocs.site.yml"
       - "contrib/mkdocs/**"
+      - "contrib/ci/**"
       - "pyproject.toml"
       - "uv.lock"
       - "crates/hql-wasm/**"
@@ -54,9 +55,10 @@ jobs:
       - name: Install
         run: uv sync --locked
       # The site's ```d2 fences are drawn at build time by the `d2` binary;
-      # without it a diagram degrades to its source.
+      # without it a diagram degrades to its source. It comes from the pinned
+      # HyperMarkDown toolchain release.
       - name: Install d2
-        run: curl -fsSL https://d2lang.com/install.sh | sh -s -- --version v0.7.1
+        run: contrib/ci/install-d2.sh
 
       # Nothing is published that does not build clean. `--strict` also fails
       # a link between the website and the documentation that names a page the
@@ -110,9 +112,10 @@ jobs:
       - name: Install
         run: uv sync --locked
       # The site's ```d2 fences are drawn at build time by the `d2` binary;
-      # without it a diagram degrades to its source.
+      # without it a diagram degrades to its source. It comes from the pinned
+      # HyperMarkDown toolchain release.
       - name: Install d2
-        run: curl -fsSL https://d2lang.com/install.sh | sh -s -- --version v0.7.1
+        run: contrib/ci/install-d2.sh
       - name: Publish main as draft
         run: |
           git config user.name "github-actions[bot]"

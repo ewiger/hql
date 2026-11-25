@@ -194,9 +194,10 @@ jobs:
       - name: Install
         run: uv sync --locked
       # The site's ```d2 fences are drawn at build time by the `d2` binary;
-      # without it a diagram degrades to its source.
+      # without it a diagram degrades to its source. It comes from the pinned
+      # HyperMarkDown toolchain release.
       - name: Install d2
-        run: curl -fsSL https://d2lang.com/install.sh | sh -s -- --version v0.7.1
+        run: contrib/ci/install-d2.sh
       - name: Publish the version and move latest to it
         run: |
           tag="${{ inputs.tag || github.ref_name }}"
