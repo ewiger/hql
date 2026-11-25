@@ -272,13 +272,14 @@ Why a language for this, and where it is going:
 <article class="hql-post-card" markdown>
 <p class="hql-post-meta">25 November 2026</p>
 
-### [[/blog/hql-0-8-0|HQL 0.8.0: child processes, scripts, HyperMarkDown 0.1.0]]
+### [[/blog/hmd-vscode-0-7-0|A card in full colour: HyperMarkDown for VS Code 0.7.0]]
 
-HQL 0.8.0 starts other programs and reads what they print as typed values,
-runs a program as a script, and reads a HyperMarkDown 0.1.0 vault. Running
-programs for each, what breaks, and what 0.9.0 brings.
+HyperMarkDown for VS Code 0.7.0 colours HQL, colours a cell in any language,
+accepts the 770 language names of GitHub Linguist on a fence, and carries a
+language server for links. This post is a card itself, and shows its own
+source.
 
-<p class="hql-post-more" markdown>[[/blog/hql-0-8-0|Read the post →]] · [[/blog|All posts]]</p>
+<p class="hql-post-more" markdown>[[/blog/hmd-vscode-0-7-0|Read the post →]] · [[/blog|All posts]]</p>
 </article>
 
 </div>
