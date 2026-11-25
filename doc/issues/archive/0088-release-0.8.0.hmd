@@ -1,6 +1,6 @@
 # 0088 — Release 0.8.0: scripts, child processes, HyperMarkDown 0.1.0
 
-Status: todo
+Status: done
 Target: 0.8.0
 Related: [kanban.yaml](kanban.yaml), [CHANGELOG](../../CHANGELOG.md),
 [[0072-release-0.6.0|the 0.6.0 release]],

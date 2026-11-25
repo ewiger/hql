@@ -48,9 +48,6 @@ board:
         title: "Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events"
         file: 0075-validation-rules-thresholds-and-events.hmd
     todo:
-      - id: "0088"
-        title: "Release 0.8.0: scripts, child processes, HyperMarkDown 0.1.0"
-        file: 0088-release-0.8.0.hmd
       - id: "0087"
         title: "Windows: a child process is asked to stop before it is ended, and an argument cmd.exe cannot read is refused"
         file: 0087-windows-graceful-stop.hmd

@@ -51,10 +51,10 @@ then the archive.
 | lane    | issues |
 | ------- | ------ |
 | backlog | 9      |
-| todo    | 7      |
+| todo    | 11     |
 | doing   | 4      |
 | done    | 1      |
-| archive | 63     |
+| archive | 65     |
 <!-- /hql:output -->
 
 ## Board
@@ -82,17 +82,19 @@ range(0, depth)
 | format(as = Markdown)
 ```
 <!-- hql:output hash=fc2c6467e9c1 status=ok -->
-| backlog                                                                                        | todo                                                                    | doing                                                                    | done                                       |
-| ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------ |
-| 0081 fquery parity analysis: object-domain graph queries over SQL                              | 0080 `sink` or `target`, `tap` or `source`: say the difference outright | 0077 The knowledge base is hyper-markdown                                | 0072 Release 0.6.0: fix, finish, tidy, tag |
-| 0075 Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events | 0069 Transports: the core of HQL-0047 and HQL-0048                      | 0054 The website is for HQL users                                        |                                            |
-| 0074 Time columns read and written against a live PostgreSQL and Spark                         | 0063 The result of a write: `Unit` is the wrong answer                  | 0046 Renovate `lib/std/**` under the module, package and extension model |                                            |
-| 0073 Computation plans: align HQL-0056 with the computation life cycle                         | 0058 A value read from a card loses where it came from                  | 0019 Documentation states semantics, not intuition                       |                                            |
-| 0071 Key vaults: `crypto.keyvault` and its backends                                            | 0029 Binary formats, and codecs an extension or a package provides      |                                                                          |                                            |
-| 0068 General-purpose gap analysis: what Python and its peers have that HQL lacks               | 0027 A partial record type reads card metadata as typed fields          |                                                                          |                                            |
-| 0065 Neo4j parity analysis: graph patterns, traversal and graph schema                         | 0011 Wire the semantic-search toolchain together                        |                                                                          |                                            |
-| 0016 SQL parity analysis: relational operations, aggregation and schema                        |                                                                         |                                                                          |                                            |
-| 0015 jq parity analysis: data formats, types and operations                                    |                                                                         |                                                                          |                                            |
+| backlog                                                                                        | todo                                                                                                                | doing                                                                    | done                                       |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------ |
+| 0081 fquery parity analysis: object-domain graph queries over SQL                              | 0087 Windows: a child process is asked to stop before it is ended, and an argument `cmd.exe` cannot read is refused | 0077 The knowledge base is hyper-markdown                                | 0072 Release 0.6.0: fix, finish, tidy, tag |
+| 0075 Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events | 0086 A framed read continues past a bad record under `collect`                                                      | 0054 The website is for HQL users                                        |                                            |
+| 0074 Time columns read and written against a live PostgreSQL and Spark                         | 0085 HQL-0064 beyond child processes                                                                                | 0046 Renovate `lib/std/**` under the module, package and extension model |                                            |
+| 0073 Computation plans: align HQL-0056 with the computation life cycle                         | 0083 I/O programs that never end: trace every case                                                                  | 0019 Documentation states semantics, not intuition                       |                                            |
+| 0071 Key vaults: `crypto.keyvault` and its backends                                            | 0080 `sink` or `target`, `tap` or `source`: say the difference outright                                             |                                                                          |                                            |
+| 0068 General-purpose gap analysis: what Python and its peers have that HQL lacks               | 0069 Transports: the core of HQL-0047 and HQL-0048                                                                  |                                                                          |                                            |
+| 0065 Neo4j parity analysis: graph patterns, traversal and graph schema                         | 0063 The result of a write: `Unit` is the wrong answer                                                              |                                                                          |                                            |
+| 0016 SQL parity analysis: relational operations, aggregation and schema                        | 0058 A value read from a card loses where it came from                                                              |                                                                          |                                            |
+| 0015 jq parity analysis: data formats, types and operations                                    | 0029 Binary formats, and codecs an extension or a package provides                                                  |                                                                          |                                            |
+|                                                                                                | 0027 A partial record type reads card metadata as typed fields                                                      |                                                                          |                                            |
+|                                                                                                | 0011 Wire the semantic-search toolchain together                                                                    |                                                                          |                                            |
 <!-- /hql:output -->
 
 ## Archive
@@ -109,6 +111,8 @@ issues
 <!-- hql:output hash=b0018109fe7b status=ok -->
 | id   | title                                                                                 |
 | ---- | ------------------------------------------------------------------------------------- |
+| 0088 | Release 0.8.0: scripts, child processes, HyperMarkDown 0.1.0                          |
+| 0084 | A plain `hql` fence is a listing: `hql render` runs only `hql#eval` and `hql#query`   |
 | 0082 | On Windows, a path a program reads is not the text HQL reads                          |
 | 0079 | HQL reads cards from the vault root, not the namespace root                           |
 | 0078 | Packages: `hql-extensions`, `hql package`, and the `ml` extension                     |

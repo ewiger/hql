@@ -105,6 +105,7 @@ cards
 | [[HQL-0059]] | HyperMarkdown vaults and HQL project resolution                                                                          | implemented in part | partially   |
 | [[HQL-0060]] | One import mechanism for every module                                                                                    | implemented in part | partially   |
 | [[HQL-0061]] | A browser playground: `hql` compiled to WebAssembly                                                                      | implemented in part | partially   |
-| [[HQL-0062]] | HQL as a script language: `#!`, `hql FILE` and the script's arguments                                                    | drafted             | no          |
+| [[HQL-0062]] | HQL as a script language: `#!`, `hql FILE` and the script's arguments                                                    | implemented         | yes         |
 | [[HQL-0063]] | Paths a program reads: `/` between segments on every host                                                                | implemented in part | partially   |
+| [[HQL-0064]] | Processes: `io.process`, child processes, pipes, `parallel` and watchdogs                                                | implemented in part | partially   |
 <!-- /hql:output -->
