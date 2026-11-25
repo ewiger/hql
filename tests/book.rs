@@ -201,12 +201,13 @@ fn every_program_in_the_book_writes_what_the_book_shows() {
     let mut chapters = Vec::new();
     pages(std::path::Path::new("doc/public/book"), &mut chapters);
     chapters.sort();
-    let mut checked = 0;
-    // Every mismatch is gathered, so one run names all of them.
-    let mut wrong = Vec::new();
-    for chapter in chapters {
-        let text = std::fs::read_to_string(&chapter).unwrap();
+    // The programs of one page run in order, since a later one may read
+    // what an earlier one wrote. Pages run on a pool of threads, and their
+    // results are gathered in book order.
+    let page = |chapter: &std::path::PathBuf| {
+        let text = std::fs::read_to_string(chapter).unwrap();
         let mut defined = HashMap::new();
+        let (mut checked, mut wrong) = (0, Vec::new());
         for block in blocks(&text, &mut defined) {
             if block.directive.as_deref() == Some("skip") {
                 continue;
@@ -235,7 +236,29 @@ fn every_program_in_the_book_writes_what_the_book_shows() {
             }
             checked += 1;
         }
-    }
+        (checked, wrong)
+    };
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let results = std::sync::Mutex::new(vec![(0, Vec::new()); chapters.len()]);
+    let workers = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                loop {
+                    let at = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let Some(chapter) = chapters.get(at) else {
+                        break;
+                    };
+                    let result = page(chapter);
+                    results.lock().unwrap()[at] = result;
+                }
+            });
+        }
+    });
+    let results = results.into_inner().unwrap();
+    let checked: usize = results.iter().map(|(checked, _)| checked).sum();
+    // Every mismatch is gathered, so one run names all of them.
+    let wrong: Vec<String> = results.into_iter().flat_map(|(_, wrong)| wrong).collect();
     assert!(
         wrong.is_empty(),
         "{} programs differ from the book:\n\n{}",
