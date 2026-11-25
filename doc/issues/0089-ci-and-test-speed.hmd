@@ -1,0 +1,100 @@
+# 0089 — CI and test speed: build the test package once, test once per commit
+
+Status: doing
+Related: `.github/workflows/ci.yml`, `.github/workflows/release.yml`,
+`src/package/build.rs`, `tests/package.rs`, `tests/book.rs`,
+`tests/packages/hello`
+
+A CI run takes about 21 minutes and a release about 28. Before the
+package tests arrived in 0.7.0, a CI run took about 6.
+
+## Where the time goes
+
+Measured on v0.8.0, Linux, 2 vCPU, a cold `target/`:
+
+| Part of `cargo test --locked --no-fail-fast` | Time | Share |
+| --- | --- | --- |
+| `tests/book.rs`: a release build of `hello`, then 679 book programs one after another | 415 s | 53% |
+| `tests/package.rs`: a second release build of `hello`, in a temporary repository | 260 s | 33% |
+| every other test target, about 950 tests | 58 s | 7% |
+| `cargo` and a rebuild of the binary | 53 s | 7% |
+
+`hql package install` runs `cargo build --release --lib` on the fixture
+crate. The crate depends on `hql`, so each build compiles `hql` and about
+440 crates in release mode. One build lands in `tests/packages/hello/target`
+and one in a fresh temporary directory. `Swatinem/rust-cache` saves
+`./target` only, so both are cold on every run.
+
+| Job (CI run 174, after v0.8.0) | Time |
+| --- | --- |
+| Test (ubuntu-latest) | 13m34s |
+| Test (macos-latest) | 17m58s |
+| Test (windows-latest) | 20m46s |
+
+The release workflow runs the whole suite again in each build job, on a
+commit CI has already tested on the same three systems. Its Windows job
+takes 24 minutes.
+
+## Expected
+
+1. **The fixture is built once, and the build is cached.** A test-only
+   environment variable lets `src/package/build.rs` take a target
+   directory, in place of removing `CARGO_TARGET_DIR`. The fixture build
+   and the registry test's temporary repository both use one directory
+   under `./target`, which `rust-cache` saves. A real `hql package install`
+   behaves as before.
+2. **A release is built from a tested commit, and not tested again.**
+   `release.yml` refuses a tag whose commit has no passing CI run, and its
+   build jobs run `cargo build --release` only. The cross-compiled
+   `x86_64-apple-darwin` target was never tested in either workflow, so
+   coverage stays the same.
+3. **Test binaries carry line tables, not full debug info, on CI.**
+   `CARGO_PROFILE_DEV_DEBUG=line-tables-only` in the CI environment.
+   Locally this cut compile and link time by 28 to 38 percent and test
+   binaries from 12.4 GB to 5.1 GB. Backtraces keep file and line.
+4. **Book programs run in parallel.** `tests/book.rs` runs the collected
+   blocks on a worker pool and compares the results in book order, so a
+   failure reads as before.
+5. **Integration tests link into a few binaries.** The test files become
+   modules of a few test crates, so about 50 link steps become a few. This
+   is the one larger refactor, aimed at Windows link time.
+
+Parts 1 to 3 are small and carry most of the gain. Part 5 is measured on
+a branch with `--timings` on `windows-latest` before it is merged.
+
+## Progress
+
+Parts 1 to 4 are in (PR 28). Part 5 is not started.
+
+| Job | Before (CI run 174) | After, cache warm |
+| --- | --- | --- |
+| Test (ubuntu-latest) | 13m34s | 5m11s |
+| Test (macos-latest) | 17m58s | 3m00s |
+| Test (windows-latest) | 20m46s | 8m12s |
+| CI run | 20m49s | 8m12s |
+
+- **1.** `HQL_PACKAGE_TARGET_DIR`, set to `target/packages` in
+  `.cargo/config.toml`. `install()` now writes `hql`'s lock into a crate
+  that is its own workspace even inside another workspace's checkout, so
+  the fixture and the registry test's copy of it resolve alike and share
+  one build. Locally `tests/package.rs` and `tests/book.rs` together take
+  87 s cold. `rust-cache` keeps the dependencies under `target/packages`
+  but prunes workspace crates, so a warm CI run still compiles `hql`
+  itself in release mode once.
+- **2.** A `tested` job waits for CI on the tagged commit; the GitHub
+  release needs it and the builds. The build jobs run no `cargo test`.
+- **3.** `CARGO_PROFILE_DEV_DEBUG: line-tables-only` in `ci.yml`.
+- **4.** Pages run on a pool of threads, the programs of one page in order.
+  Locally the book test goes from 116 s to 23 s.
+
+A `dry_run` of `release.yml` on `v0.8.0` passed `tested` in 11 s and
+built `x86_64-unknown-linux-gnu` in 4m03s.
+
+## Done when
+
+- A CI run with a warm cache builds `hello` at most once, and cargo writes
+  no build output under `tests/packages/hello/target`, which holds only
+  the installed copy, `target/hql/hello`.
+- The slowest CI test job takes under 10 minutes.
+- A release run takes under 13 minutes and runs no `cargo test`.
+- `cargo test` on a developer machine passes with no new setup.

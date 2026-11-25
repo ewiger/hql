@@ -151,8 +151,12 @@ former indentation and comma-splitting parser as part of issue 0011.
 
 GitHub Actions runs what a contributor runs locally, and nothing else.
 [`ci.yml`](../.github/workflows/ci.yml) checks formatting, runs
-`cargo clippy -- -D warnings`, builds and tests on Linux and macOS, and builds
-once on the `rust-version` floor so the declared floor stays true.
+`cargo clippy -- -D warnings`, builds and tests on Linux, macOS and Windows,
+and builds once on the `rust-version` floor so the declared floor stays true.
+Its test binaries carry line tables in place of full debug info, which keeps
+file and line in a backtrace and makes them half the size. Packages the tests
+build share `target/packages` (`HQL_PACKAGE_TARGET_DIR`, set in
+`.cargo/config.toml`), so the CI cache keeps them.
 
 `contrib/` is not in CI. What CI proves is that the crate builds and tests with
 no Python installed at all.
@@ -262,14 +266,19 @@ The version lives in `Cargo.toml` and nowhere else; the CLI reports it, the tag
 repeats it, and crates.io records it.
 
 Pushing a tag releases. [`release.yml`](../.github/workflows/release.yml) does
-all of it, in four jobs that run in that order:
+all of it, in five jobs:
 
-- **build** — builds and tests `x86_64-unknown-linux-gnu` and
-  `aarch64-apple-darwin`, cross-compiles `x86_64-apple-darwin` from the Apple
-  silicon runner (no hosted runner runs Intel macOS any more, so that one is
-  built and not test-executed), and packages each as a `.tar.gz` with a
-  `.sha256` beside it. On Linux it also runs `hql reference --check`, so a
-  tag whose reference pages differ from its doc strings is not released.
+- **tested** — waits for [`ci.yml`](../.github/workflows/ci.yml) to finish on
+  the tagged commit, and fails unless it passed. A commit CI never ran on is
+  not released. It runs beside **build**, and nothing is published until both
+  pass.
+- **build** — builds `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin` and
+  `x86_64-pc-windows-msvc` in release mode, cross-compiles
+  `x86_64-apple-darwin` from the Apple silicon runner (no hosted runner runs
+  Intel macOS any more), and packages each as a `.tar.gz` with a `.sha256`
+  beside it. It does not run the tests: **tested** stands for them. On Linux
+  it also runs `hql reference --check`, so a tag whose reference pages differ
+  from its doc strings is not released.
 - **release** — creates the GitHub release from the changelog section, failing
   if the section is missing rather than publishing empty notes.
 - **docs** — publishes the documentation under `/vX.Y.Z/` with mike and moves
@@ -277,6 +286,10 @@ all of it, in four jobs that run in that order:
 - **crates-io** — publishes the crate, so `cargo install hql` reaches the same
   version. It runs last because it is the only step that cannot be undone, and
   it refuses to run if the tag does not name the version in `Cargo.toml`.
+
+Run by hand (`gh workflow run release.yml -f tag=vX.Y.Z -f dry_run=true`),
+the workflow is a dry run: **tested** and **build** run, and the three
+publishing jobs are skipped.
 
 Nothing is published from a laptop, and no registry token is stored. The publish
 authenticates by [trusted publishing](https://crates.io/docs/trusted-publishing):

@@ -8,11 +8,56 @@ on:
       tag:
         description: The existing tag to build a release from
         required: true
+      dry_run:
+        description: Check and build only; publish nothing
+        type: boolean
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # A release is cut from a commit CI has tested on Linux, macOS and Windows,
+  # so the build jobs below do not test it again. This job waits for CI's
+  # verdict on the tagged commit: a tag pushed right after the merge finds
+  # CI still running. It runs beside the builds, and nothing is published
+  # until it passes.
+  tested:
+    name: CI passed on the tagged commit
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Wait for CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          # 45 minutes for a run to finish, 5 for one to appear.
+          for minute in $(seq 1 45); do
+            state=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$sha" --jq '
+              if any(.workflow_runs[]; .conclusion == "success") then "passed"
+              elif any(.workflow_runs[]; .status != "completed") then "running"
+              elif (.workflow_runs | length) > 0 then "failed"
+              else "none" end')
+            case "$state" in
+              passed) echo "CI passed on $sha"; exit 0 ;;
+              failed) echo "CI failed on $sha; it is not released" >&2; exit 1 ;;
+              none)
+                if [ "$minute" -ge 5 ]; then
+                  echo "CI never ran on $sha; release a commit CI has tested" >&2
+                  exit 1
+                fi ;;
+            esac
+            sleep 60
+          done
+          echo "CI on $sha did not finish within 45 minutes" >&2
+          exit 1
+
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
@@ -26,11 +71,9 @@ jobs:
             target: aarch64-apple-darwin
           # Cross-compiled from the Apple silicon runner: the `macos-13` image
           # that ran x86_64 natively is retired, and a job asking for it queues
-          # forever rather than failing. `cross` marks the target whose tests
-          # this runner cannot execute.
+          # forever rather than failing.
           - os: macos-latest
             target: x86_64-apple-darwin
-            cross: true
           - os: windows-latest
             target: x86_64-pc-windows-msvc
     # One shell on every runner: the steps below are written for it.
@@ -51,12 +94,6 @@ jobs:
           rustup show active-toolchain || rustup toolchain install
           rustup target add ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
-      # A cross-compiled target's tests cannot run here: the runner executes a
-      # different architecture. The same commit is tested natively on the other
-      # two targets, and CI tests it on Linux and macOS besides.
-      - name: Test
-        if: ${{ !matrix.cross }}
-        run: cargo test --locked --target ${{ matrix.target }}
       - run: cargo build --locked --release --target ${{ matrix.target }}
       # The reference pages were updated from the doc strings when the release
       # was cut; a tag whose pages differ from its library is not released.
@@ -91,7 +128,10 @@ jobs:
 
   release:
     name: Publish the GitHub release
-    needs: build
+    needs: [tested, build]
+    # A dry run stops here; `docs` and `crates-io` need this job, so they
+    # are skipped with it.
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

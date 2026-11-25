@@ -3,6 +3,9 @@
 # starts, the test harness among them, get the same room for every thread.
 [env]
 RUST_MIN_STACK = "268435456"
+# Every package a test builds, the `hello` fixture above all, shares one
+# target directory under `target/`, which the CI cache saves.
+HQL_PACKAGE_TARGET_DIR = { value = "target/packages", relative = true }
 
 # `cargo status` re-renders the HQL cells of the status pages over themselves.
 [alias]

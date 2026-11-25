@@ -48,9 +48,6 @@ board:
         title: "Validation: the rules of `Violation` and `Invalid`, quality thresholds, validation events"
         file: 0075-validation-rules-thresholds-and-events.hmd
     todo:
-      - id: "0089"
-        title: "CI and test speed: build the test package once, test once per commit (reserved; on feat/ci-speed)"
-        file: 0089-ci-and-test-speed.hmd
       - id: "0087"
         title: "Windows: a child process is asked to stop before it is ended, and an argument cmd.exe cannot read is refused"
         file: 0087-windows-graceful-stop.hmd
@@ -85,6 +82,9 @@ board:
         title: Wire the semantic-search toolchain together
         file: 0011-wire-the-semantic-search-toolchain.hmd
     doing:
+      - id: "0089"
+        title: "CI and test speed: build the test package once, test once per commit"
+        file: 0089-ci-and-test-speed.hmd
       - id: "0077"
         title: "The knowledge base is hyper-markdown"
         file: 0077-docs-to-hmd.hmd
