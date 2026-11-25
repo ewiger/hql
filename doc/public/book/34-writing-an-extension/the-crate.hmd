@@ -14,7 +14,7 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-hql = "0.7"
+hql = "0.8"
 
 [package.metadata.hql]
 package = "hello"
@@ -45,8 +45,8 @@ install` says so. [[35-how-a-library-is-loaded/static-and-dynamic|Chapter 35]] e
 ## The `hql` dependency
 
 The crate depends on `hql`, the same crate the `hql` binary is built from,
-and uses one module of it, `hql::ext`. `hql = "0.7"` is a range: every
-0.7 release. It says which versions the crate's source is written for.
+and uses one module of it, `hql::ext`. `hql = "0.8"` is a range: every
+0.8 release. It says which versions the crate's source is written for.
 
 The version the crate is actually built against is not chosen by this
 line. `hql package install` builds the crate against the exact version of

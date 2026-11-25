@@ -1,7 +1,7 @@
 # 0087 — Windows: a child process is asked to stop before it is ended, and an argument `cmd.exe` cannot read is refused
 
 Status: todo
-Target: 0.8.0
+Target: 0.8.1
 Related: [[HQL-0064]], its companion note
 [child processes](../proposals/HQL-0064/parts/02-child-processes.hmd), the
 [I/O FAQ](../proposals/HQL-0064/parts/faq.hmd),

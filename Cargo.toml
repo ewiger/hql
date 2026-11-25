@@ -1,6 +1,6 @@
 [package]
 name = "hql"
-version = "0.7.2"
+version = "0.8.0"
 description = "HQL — Hyper Query Language: a typed functional language for structured knowledge"
 license = "MIT"
 edition = "2024"
@@ -83,7 +83,7 @@ clap = { version = "4", features = ["derive"], optional = true }
 ed25519-dalek = { version = "3", features = ["pkcs8", "pem", "rand_core", "zeroize"] }
 futures-util = { version = "0.3.34", default-features = false, optional = true }
 getrandom = { version = "0.4", features = ["sys_rng"] }
-hql-sys = { version = "0.7.2", path = "crates/hql-sys", optional = true }
+hql-sys = { version = "0.8.0", path = "crates/hql-sys", optional = true }
 hmac = "0.13"
 hypermarkdown = "0.3"
 jiff = { version = "0.2.43", features = ["tzdb-bundle-always"] }

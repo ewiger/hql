@@ -14,7 +14,7 @@ description = "HQL package `hello`: the fixture of hql's package tests"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-hql = "0.7"
+hql = "0.8"
 
 [package.metadata.hql]
 package = "hello"
