@@ -9,6 +9,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # Line tables keep file and line in a backtrace. Full debug info made the
+  # test binaries twice as large and their compile and link a third slower.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   lint:
