@@ -110,6 +110,27 @@ fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// The root directory of the workspace a crate's manifest belongs to.
+fn workspace(manifest: &Path) -> Result<Option<PathBuf>, String> {
+    let output = cargo()
+        .args(["locate-project", "--workspace", "--message-format", "plain"])
+        .arg("--manifest-path")
+        .arg(manifest)
+        .stderr(Stdio::inherit())
+        .output()
+        .map_err(|error| format!("running `cargo locate-project`: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "`cargo locate-project` failed for {}",
+            manifest.display()
+        ));
+    }
+    let root = String::from_utf8_lossy(&output.stdout);
+    Ok(Path::new(root.trim())
+        .parent()
+        .and_then(|root| root.canonicalize().ok()))
+}
+
 /// Where `cargo` puts what it builds for a crate, and the version it
 /// resolves for the crate.
 fn metadata(package: &Crate, patch: &[String]) -> Result<(PathBuf, String), String> {
@@ -182,14 +203,16 @@ pub fn install(crate_dir: &Path, destination: &Path, source: Source) -> Result<I
     }
     let manifest = package.dir.join("Cargo.toml");
     // The crates the package shares with this build resolve as this build's
-    // do, unless the crate keeps a lock file of its own.
+    // do, unless the crate keeps a lock file of its own, or is a member of a
+    // workspace that keeps one. A `Cargo.lock` in a directory above that
+    // belongs to another workspace is not the crate's.
     let lock = package.dir.join("Cargo.lock");
-    let workspace_lock = package
+    let own = package
         .dir
-        .ancestors()
-        .skip(1)
-        .any(|above| above.join("Cargo.lock").is_file() && above.join("Cargo.toml").is_file());
-    if !lock.is_file() && !workspace_lock {
+        .canonicalize()
+        .unwrap_or_else(|_| package.dir.clone());
+    let member = workspace(&manifest)?.is_some_and(|root| root != own);
+    if !lock.is_file() && !member {
         std::fs::write(&lock, LOCK).map_err(|error| format!("{}: {error}", lock.display()))?;
     }
     // This build of `hql` is the one the package compiles against: the
