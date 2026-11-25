@@ -1,6 +1,6 @@
 [package]
 name = "hql-sys"
-version = "0.7.2"
+version = "0.8.0"
 description = "The operating-system calls of hql that need unsafe, behind a safe API"
 license = "MIT"
 edition = "2024"

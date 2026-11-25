@@ -1,6 +1,6 @@
 [package]
 name = "hql-wasm"
-version = "0.7.2"
+version = "0.8.0"
 description = "HQL in a browser: check and eval for the playground of hql-lang.org"
 license = "MIT"
 edition = "2024"
