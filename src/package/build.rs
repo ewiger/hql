@@ -37,6 +37,12 @@ fn toolchain() -> &'static str {
     ext::RUSTC.split_whitespace().next().unwrap_or(ext::RUSTC)
 }
 
+/// The environment variable naming the target directory every package
+/// build shares. Unset, each crate builds into its own `target/`. The test
+/// suite sets it, so the fixture package is compiled once and cached with
+/// the rest of the build.
+pub const TARGET_ENVIRONMENT: &str = "HQL_PACKAGE_TARGET_DIR";
+
 /// A `cargo` invocation with the compiler of this build selected, where
 /// `cargo` is `rustup`'s.
 fn cargo() -> Command {
@@ -53,6 +59,9 @@ fn cargo() -> Command {
         "RUSTC",
     ] {
         command.env_remove(inherited);
+    }
+    if let Some(shared) = std::env::var_os(TARGET_ENVIRONMENT) {
+        command.env("CARGO_TARGET_DIR", shared);
     }
     command
 }
